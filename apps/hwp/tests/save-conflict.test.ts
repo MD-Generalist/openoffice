@@ -147,7 +147,18 @@ afterEach(() => {
   vi.mocked(copyFile).mockImplementation(actualPromises.copyFile)
   vi.mocked(open).mockImplementation(actualPromises.open)
   rmSync(dir, { recursive: true, force: true })
+  Object.defineProperty(process, 'platform', hostPlatform)
 })
+
+/**
+ * The mount these tests describe (gvfs SMB, WebDAV) is a POSIX one: on Windows
+ * the copy helpers keep to CopyFileW and never reach the fallback under test.
+ * `node:path` and the rest settled at import, so only the platform checks made
+ * at call time see the change.
+ */
+const hostPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+const usePosixMount = () =>
+  Object.defineProperty(process, 'platform', { ...hostPlatform, value: 'linux' })
 
 /** HWPX bytes enough for the container check (ZIP magic). */
 const SAVED_BYTES = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 0x21, 0x22, 0x23])
@@ -271,6 +282,8 @@ describe('same-document save guard', () => {
 })
 
 describe('the .bak backup on a mount that refuses the platform copy', () => {
+  beforeEach(usePosixMount)
+
   it('still makes the backup and lands the save when the platform copy fails', async () => {
     writeFileSync(docPath, 'v1')
     const contents = await openView(docPath)

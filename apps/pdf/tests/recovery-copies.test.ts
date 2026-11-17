@@ -217,7 +217,18 @@ afterEach(() => {
   setPdfRecoveryStore(undefined)
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true })
   tempDirs.clear()
+  Object.defineProperty(process, 'platform', hostPlatform)
 })
+
+/**
+ * The mount these tests describe (gvfs SMB, WebDAV) is a POSIX one: on Windows
+ * the copy helpers keep to CopyFileW and never reach the fallback under test.
+ * `node:path` and the rest settled at import, so only the platform checks made
+ * at call time see the change.
+ */
+const hostPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+const usePosixMount = () =>
+  Object.defineProperty(process, 'platform', { ...hostPlatform, value: 'linux' })
 
 describe('copies of unsaved edits', () => {
   it('holds what a save would write, in the app data folder, and leaves the file alone', async () => {
@@ -661,6 +672,7 @@ describe('working files of restored untitled copies', () => {
   }
 
   it('land at a new name in a folder where the platform copy fails', async () => {
+    usePosixMount()
     const { view, working } = await restoredUntitled()
     const bytes = readFileSync(working)
     const folder = makeDir('pdf-recovery-mount-')
@@ -673,6 +685,7 @@ describe('working files of restored untitled copies', () => {
   })
 
   it('replace a file of the picked name in a folder where the platform copy fails', async () => {
+    usePosixMount()
     const { view, working } = await restoredUntitled()
     const bytes = readFileSync(working)
     const folder = makeDir('pdf-recovery-mount-')
@@ -686,6 +699,7 @@ describe('working files of restored untitled copies', () => {
   })
 
   it('leave a file of the picked name as it was when no copy into its folder works', async () => {
+    usePosixMount()
     const { view, working } = await restoredUntitled()
     const folder = makeDir('pdf-recovery-mount-')
     const target = join(folder, 'picked.pdf')

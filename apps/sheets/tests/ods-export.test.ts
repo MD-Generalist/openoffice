@@ -369,7 +369,18 @@ afterEach(() => {
   resetSheetsShuttingDown()
   rmSync(dir, { recursive: true, force: true })
   rmSync(userDataDirRef.value, { recursive: true, force: true })
+  Object.defineProperty(process, 'platform', hostPlatform)
 })
+
+/**
+ * The mount these tests describe (gvfs SMB, WebDAV) is a POSIX one: on Windows
+ * the copy helpers keep to CopyFileW and never reach the fallback under test.
+ * `node:path` and the rest settled at import, so only the platform checks made
+ * at call time see the change.
+ */
+const hostPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+const usePosixMount = () =>
+  Object.defineProperty(process, 'platform', { ...hostPlatform, value: 'linux' })
 
 describe('ODS export', () => {
   it('Save As picks ODS as a copy and the workbook keeps its path', async () => {
@@ -693,6 +704,7 @@ describe('ODS export', () => {
   })
 
   it('still replaces an earlier export in a folder where the platform copy fails', async () => {
+    usePosixMount()
     const path = writeWorkbook('Budget.xlsx')
     const target = writeWorkbook('Budget.ods', 'an earlier export')
     const tab = newTab()

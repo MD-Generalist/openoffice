@@ -47,10 +47,22 @@ afterEach(() => {
   vi.mocked(copyFileSync).mockReset()
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true })
   tempDirs.clear()
+  Object.defineProperty(process, 'platform', hostPlatform)
 })
+
+/**
+ * The mount this test describes (gvfs SMB, WebDAV) is a POSIX one: on Windows
+ * the copy helpers keep to CopyFileW and never reach the fallback under test.
+ * `node:path` and the rest settled at import, so only the platform checks made
+ * at call time see the change.
+ */
+const hostPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+const usePosixMount = () =>
+  Object.defineProperty(process, 'platform', { ...hostPlatform, value: 'linux' })
 
 describe('pdf auto-rename on a mount without hard links', () => {
   it('moves where neither a hard link nor the platform copy works', () => {
+    usePosixMount()
     const source = makePdfFile()
     const target = join(source, '..', 'Plain Copy.pdf')
     const original = readFileSync(source)

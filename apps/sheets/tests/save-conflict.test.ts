@@ -234,7 +234,18 @@ afterEach(() => {
   setOpenPathProbe(null)
   rmSync(dir, { recursive: true, force: true })
   rmSync(userDataDirRef.value, { recursive: true, force: true })
+  Object.defineProperty(process, 'platform', hostPlatform)
 })
+
+/**
+ * The mount these tests describe (gvfs SMB, WebDAV) is a POSIX one: on Windows
+ * the copy helpers keep to CopyFileW and never reach the fallback under test.
+ * `node:path` and the rest settled at import, so only the platform checks made
+ * at call time see the change.
+ */
+const hostPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+const usePosixMount = () =>
+  Object.defineProperty(process, 'platform', { ...hostPlatform, value: 'linux' })
 
 describe('opening a workbook', () => {
   it('does not read the file again for the recorded disk state: the snapshot digest gives it', async () => {
@@ -387,6 +398,8 @@ function failPlatformCopyIn(folder: string, code: string): void {
 }
 
 describe('a document folder where the platform copy fails', () => {
+  beforeEach(usePosixMount)
+
   it('still saves the workbook and leaves nothing else beside it', async () => {
     const path = writeWorkbook()
     const opened = await openWorkbook(path)

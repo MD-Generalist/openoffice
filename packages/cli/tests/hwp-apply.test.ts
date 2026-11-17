@@ -11,7 +11,7 @@ import { copyFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import JSZip from 'jszip'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import init, { HwpDocument } from '@rhwp/core'
 import { run, tempDir } from './helpers'
 
@@ -36,9 +36,20 @@ afterEach(() => {
   vi.mocked(chmodSync).mockImplementation(actualFs.chmodSync)
   vi.mocked(copyFileSync).mockImplementation(actualFs.copyFileSync)
   vi.mocked(copyFile).mockImplementation(actualPromises.copyFile)
+  Object.defineProperty(process, 'platform', hostPlatform)
 })
 
 const errnoError = (code: string) => Object.assign(new Error(`${code}: injected`), { code })
+
+/**
+ * The mount these tests describe (gvfs SMB, WebDAV) is a POSIX one: on Windows
+ * the copy helpers keep to CopyFileW and never reach the fallback under test.
+ * `node:path` and the rest settled at import, so only the platform checks made
+ * at call time see the change.
+ */
+const hostPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+const usePosixMount = () =>
+  Object.defineProperty(process, 'platform', { ...hostPlatform, value: 'linux' })
 
 /**
  * A mount that refuses chmod (gvfs SMB, WebDAV). The platform copy fails as
@@ -748,6 +759,8 @@ describe('what the read ops answer', () => {
 })
 
 describe('hwp apply in a folder that refuses chmod', () => {
+  beforeEach(usePosixMount)
+
   it('still edits the file and keeps the old bytes in the .bak', async () => {
     const dir = tempDir()
     const original = report().exportHwp()
