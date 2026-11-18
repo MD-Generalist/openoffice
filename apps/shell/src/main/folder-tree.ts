@@ -221,13 +221,20 @@ export function uniqueNameIn(dir: string, name: string, isDir = false): string {
   }
 }
 
-/** rename, falling back to copy + delete when the target is on another volume */
+/**
+ * rename, falling back to copy + delete when the target is on another volume.
+ *
+ * Windows keeps cpSync for that copy: the mounts copyTreeExclusiveSync is for
+ * (GNOME gvfs SMB, WebDAV) are POSIX ones.
+ */
 export function moveOnDisk(from: string, to: string): void {
   try {
     renameSync(from, to)
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
-    copyTreeExclusiveSync(from, to)
+    if (process.platform === 'win32')
+      cpSync(from, to, { recursive: true, errorOnExist: true, force: false })
+    else copyTreeExclusiveSync(from, to)
     rmSync(from, { recursive: true, force: true })
   }
 }

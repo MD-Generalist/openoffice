@@ -399,8 +399,17 @@ describe('movePathsInto', () => {
 })
 
 describe('moveOnDisk across volumes', () => {
-  const onWindows = process.platform === 'win32'
-  const posixOnly = it.skipIf(onWindows)
+  /**
+   * The mounts these tests describe (gvfs SMB, WebDAV) are POSIX ones, and on
+   * Windows the move keeps cpSync: every test runs as on Linux unless it asks
+   * for Windows. `node:path` and the rest settled at import, so only the
+   * platform checks made at call time see the change.
+   */
+  const hostPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+  const usePlatform = (platform: NodeJS.Platform) =>
+    Object.defineProperty(process, 'platform', { ...hostPlatform, value: platform })
+  /** For what a Windows host cannot set up: POSIX modes and, without extra rights, symbolic links. */
+  const posixOnly = it.skipIf(hostPlatform.value === 'win32')
   let from: string
   let volume: string
 
@@ -427,10 +436,9 @@ describe('moveOnDisk across volumes', () => {
       throw errnoError('EXDEV')
     })
 
-  /** A mount without permission support; Windows copies through CopyFileW, which works there. */
-  const refusePlatformCopy = () => {
-    if (!onWindows) vi.mocked(copyFileSync).mockImplementation(failLikeLibuv('ENOTSUP'))
-  }
+  /** A mount without permission support: the platform copy fails there the way libuv fails. */
+  const refusePlatformCopy = () =>
+    vi.mocked(copyFileSync).mockImplementation(failLikeLibuv('ENOTSUP'))
 
   const refuseChmod = () =>
     vi.mocked(chmodSync).mockImplementation(() => {
@@ -444,7 +452,6 @@ describe('moveOnDisk across volumes', () => {
     vi.mocked(copyFileSync).mockImplementation((source, target, mode) => {
       files += 1
       if (files === nth) failing = String(target)
-      else if (onWindows) return actualFs.copyFileSync(source, target, mode)
       return failLikeLibuv('ENOTSUP')(source, target, mode)
     })
     vi.mocked(openSync).mockImplementation((...args: Parameters<typeof actualFs.openSync>) => {
@@ -489,6 +496,7 @@ describe('moveOnDisk across volumes', () => {
   beforeEach(() => {
     // the outer hooks also go through the mocked functions
     vi.clearAllMocks()
+    usePlatform('linux')
     from = join(root, 'local')
     volume = join(root, 'share')
     actualFs.mkdirSync(from)
@@ -499,6 +507,7 @@ describe('moveOnDisk across volumes', () => {
 
   afterEach(() => {
     vi.resetAllMocks()
+    Object.defineProperty(process, 'platform', hostPlatform)
     // read-only folders the tests made, so the outer clean-up can remove them
     const unlock = (dir: string) => {
       actualFs.chmodSync(dir, 0o700)
@@ -508,7 +517,7 @@ describe('moveOnDisk across volumes', () => {
     unlock(root)
   })
 
-  posixOnly('moves a lone file when the platform copy fails', () => {
+  it('moves a lone file when the platform copy fails', () => {
     const file = join(from, 'report.docx')
     actualFs.writeFileSync(file, 'report bytes')
     const to = join(volume, 'report.docx')
@@ -522,7 +531,7 @@ describe('moveOnDisk across volumes', () => {
     expect(copyFileSync).toHaveBeenCalledWith(file, to, constants.COPYFILE_EXCL)
   })
 
-  posixOnly('moves a folder tree when both the platform copy and chmod are refused', () => {
+  it('moves a folder tree when both the platform copy and chmod are refused', () => {
     const folder = join(from, 'project')
     makeTree(folder)
     const before = snapshot(folder)
@@ -870,6 +879,26 @@ describe('moveOnDisk across volumes', () => {
 
     expect(lstatSync(join(to, 'link.txt')).isSymbolicLink()).toBe(true)
     expect(readFileSync(join(to, 'a.txt'), 'utf8')).toBe('alpha')
+    expect(existsSync(folder)).toBe(false)
+  })
+
+  it('copies with cpSync on Windows, not file by file', () => {
+    usePlatform('win32')
+    const folder = join(from, 'project')
+    makeTree(folder)
+    const before = snapshot(folder)
+    const to = join(volume, 'project')
+    crossVolume()
+
+    moveOnDisk(folder, to)
+
+    expect(cpSync).toHaveBeenCalledWith(folder, to, {
+      recursive: true,
+      errorOnExist: true,
+      force: false,
+    })
+    expect(copyFileSync).not.toHaveBeenCalled()
+    expect(snapshot(to)).toEqual(before)
     expect(existsSync(folder)).toBe(false)
   })
 })
