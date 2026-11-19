@@ -47,12 +47,12 @@ import { PASSWORD_FLAG } from '../../scripts/rhwp-patches.mjs'
 import { STUDIO_SETTINGS_KEY, seededStudioSettings, studioUrl } from './studio-settings'
 import { hwpFormatOfPath } from '../shared/ipc'
 import type {
+  BeginSaveMode,
   HwpFormat,
   PreviewAction,
   PrintJob,
   PrintMode,
   PrintResult,
-  SaveMode,
   UiTheme,
 } from '../shared/ipc'
 
@@ -71,6 +71,8 @@ interface Notice {
   params?: Params
   /** untranslated cause from the engine or the file system, shown under the message */
   detail?: string
+  /** direct follow-up action shown beside the close button */
+  action?: 'saveAsHwpx'
   /** an information that stays until dismissed, as errors do */
   sticky?: true
 }
@@ -424,7 +426,7 @@ export default function App() {
   const pdfCopyRef = useRef<(path: string) => Promise<void>>(async () => {})
 
   const save = useCallback(
-    async (mode: SaveMode, automatic = false): Promise<boolean> => {
+    async (mode: BeginSaveMode, automatic = false): Promise<boolean> => {
       const editor = editorRef.current
       if (!editor) return false
       // a memo editor is open: its text is not in the document yet; an autosave waits quietly
@@ -457,6 +459,11 @@ export default function App() {
           restoredRef.current = false
           copierRef.current?.saved()
           setFilePath(outcome.path)
+          const savedFormat = hwpFormatOfPath(outcome.path)
+          if (savedFormat) {
+            formatRef.current = savedFormat
+            setDocFormat(savedFormat)
+          }
           const backup = outcome.backupPath ? { name: fileNameOf(outcome.backupPath) } : null
           if (outcome.memosLost) {
             // stays until dismissed: the file is written, but some memos are not in it
@@ -483,6 +490,15 @@ export default function App() {
           // the manual save explains that once instead of every autosave backoff
           const propertyFailure = outcome.reason === 'protected' || outcome.reason === 'tracked'
           if (!automatic || !propertyFailure) {
+            const verifyDetail =
+              outcome.reason === 'verify'
+                ? outcome.verify && outcome.verify.pageCountBefore !== outcome.verify.pageCountAfter
+                  ? `${t('saveVerifyPages', {
+                      before: outcome.verify.pageCountBefore,
+                      after: outcome.verify.pageCountAfter,
+                    })} · ${t('saveVerifyHint')}`
+                  : t('saveVerifyHint')
+                : undefined
             setNotice({
               tone: 'error',
               key:
@@ -493,8 +509,8 @@ export default function App() {
                     : outcome.reason === 'verify'
                       ? 'saveVerifyFailed'
                       : 'saveFailed',
-              ...(outcome.reason === 'verify'
-                ? { detail: t('saveVerifyHint') }
+              ...(verifyDetail
+                ? { detail: verifyDetail, action: 'saveAsHwpx' as const }
                 : outcome.detail
                   ? { detail: outcome.detail }
                   : {}),
@@ -1149,6 +1165,15 @@ export default function App() {
                 <span>{notice.text ?? (notice.key ? t(notice.key, notice.params) : '')}</span>
                 {notice.detail && <span className="hwp-notice-detail">{notice.detail}</span>}
               </div>
+              {notice.action === 'saveAsHwpx' && (
+                <button
+                  type="button"
+                  className="hwp-notice-action"
+                  onClick={() => void save('saveAsHwpx')}
+                >
+                  {t('saveAsHwpx')}
+                </button>
+              )}
               <button
                 type="button"
                 className="hwp-notice-close"
