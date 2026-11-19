@@ -250,18 +250,21 @@ export default function App() {
     let stopDrop: (() => void) | null = null
     void (async () => {
       try {
-        const [path, theme, lang, fontReads] = await Promise.all([
+        const [path, theme, lang, fontReads, headless] = await Promise.all([
           window.hwpApi.consumePending(),
           window.hwpApi.getTheme().catch((): UiTheme => 'system'),
           window.hwpApi.getLanguage(),
           (window.hwpApi.fontFileReads?.() ?? Promise.resolve(null)).catch(() => null),
+          (window.hwpApi.isHeadlessExport?.() ?? Promise.resolve(false)).catch(() => false),
         ])
         // the studio reads its settings before first paint, so they are seeded before it exists
         localStorage.setItem(
           STUDIO_SETTINGS_KEY,
           seededStudioSettings(localStorage.getItem(STUDIO_SETTINGS_KEY), theme),
         )
-        editor = await createEditor(hostRef.current!, { studioUrl: studioUrl(lang, fontReads) })
+        editor = await createEditor(hostRef.current!, {
+          studioUrl: studioUrl(lang, fontReads, headless),
+        })
         if (disposed) {
           editor.destroy()
           return
