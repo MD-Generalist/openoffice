@@ -9,6 +9,10 @@ export const HWP_CHANNELS = {
   consumePending: 'hwp:consume-pending',
   /** invoke → number | null: how many font files the editor's font detection may read (Linux) */
   fontFileReads: 'hwp:font-file-reads',
+  /** invoke(faces) → Array<HwpFontNames | null>: per-face SFNT metadata read in main */
+  fontNames: 'hwp:font-names',
+  /** invoke → boolean: whether this view is a hidden `--headless-export` window */
+  isHeadlessExport: 'hwp:is-headless-export',
   /** invoke → `{ name, format } | null`: the pending path is an untitled copy (spec 5.7) */
   untitledCopy: 'hwp:untitled-copy',
   readFile: 'hwp:read-file',
@@ -358,6 +362,22 @@ export type ReadUrlResult =
     }
   | { ok: false; error: string; errorCode: string }
 
+export interface HwpFontFaceQuery {
+  readonly family?: string
+  readonly fullName?: string
+  readonly postscriptName?: string
+  readonly style?: string
+}
+
+export interface HwpFontNames {
+  families: string[]
+  fullNames: string[]
+  postscriptNames: string[]
+  styles: string[]
+  weightClass?: number
+  italic?: boolean
+}
+
 export interface HwpApi {
   /** path queued for this view when its tab was created; null for a view opened without a file */
   consumePending(): Promise<string | null>
@@ -366,6 +386,10 @@ export interface HwpApi {
    * limit (Linux); null where it reads them all or the limit is not known.
    */
   fontFileReads?(): Promise<number | null>
+  /** Per-face SFNT name/style metadata read from disk in main (avoids renderer FontData.blob()). */
+  readFontNames?(faces: readonly HwpFontFaceQuery[]): Promise<Array<HwpFontNames | null>>
+  /** Whether this view is a hidden `--headless-export` window (does not consume the export path). */
+  isHeadlessExport?(): Promise<boolean>
   /** the pending path is an untitled copy (a skill template's): its name and format; null otherwise */
   untitledCopy?(): Promise<{ name: string; format: 'hwp' | 'hwpx' } | null>
   readFile(path: string): Promise<Uint8Array>

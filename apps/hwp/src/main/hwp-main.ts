@@ -24,6 +24,7 @@ import {
   ensurePrintLayoutIpc,
 } from '@genoffice/electron-utils/print-arranged'
 import { hwpToText } from '@genoffice/file-parse'
+import { localFontNamesFor } from '@genoffice/font-metrics'
 import { getUiLang } from '@genoffice/i18n'
 import { registerHwpAttachmentIpc } from './attachments-ipc'
 import { registerHwpImageIpc } from './ai-image'
@@ -584,6 +585,7 @@ function registerHwpIpc(): void {
   })
 
   // ---- headless export mode (--headless-export) ----
+  ipcMain.handle(HWP_CHANNELS.isHeadlessExport, (e): boolean => headlessTargetByWc.has(e.sender.id))
   ipcMain.handle(HWP_CHANNELS.consumeHeadlessExport, (e): string | null => {
     const target = headlessTargetByWc.get(e.sender.id) ?? null
     headlessTargetByWc.delete(e.sender.id)
@@ -618,6 +620,9 @@ function registerHwpIpc(): void {
   ipcMain.handle(HWP_CHANNELS.fontFileReads, (e) =>
     fontFileReadsOfProcess(e.sender.getOSProcessId()),
   )
+  // per-face SFNT metadata read from disk in main so the renderer does not call FontData.blob()
+  // across every installed font (#488, #591)
+  ipcMain.handle(HWP_CHANNELS.fontNames, (_e, faces: unknown) => localFontNamesFor(faces))
   ipcMain.handle(HWP_CHANNELS.consumePending, (e) => {
     noteHwpPathConsumed(e.sender.id)
     return openPathByWc.get(e.sender.id) ?? null
