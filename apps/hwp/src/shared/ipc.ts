@@ -107,6 +107,8 @@ export const AI_CHANNELS = {
 
 export type UiTheme = 'light' | 'dark' | 'system'
 export type SaveMode = 'save' | 'saveAs'
+/** Save dialog modes: normal save, Save As, or Save As pre-targeted to HWPX (e.g. after HWP verify failure). */
+export type BeginSaveMode = SaveMode | 'saveAsHwpx'
 
 /**
  * What the editor's File menu asks for (see the plugin's FILE_COMMAND_EVENT). `open` asks
@@ -399,7 +401,7 @@ export interface HwpApi {
    */
   trackingDropped(): Promise<boolean>
   /** resolve where and in which format this save goes (shows the dialog for Save As) */
-  beginSave(mode: SaveMode): Promise<BeginSaveResult>
+  beginSave(mode: BeginSaveMode): Promise<BeginSaveResult>
   /** the tabs of exported bytes that have no width yet (see tab-widths in main) */
   newTabs(bytes: Uint8Array, format: HwpFormat): Promise<TabSpot[]>
   /**
