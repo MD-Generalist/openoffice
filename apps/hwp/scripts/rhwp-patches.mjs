@@ -150,12 +150,13 @@
  *   It also hands that module what the studio knows of the PC's fonts, for the marks below.
  *
  * studio-font-file-reads
- *   The studio's detection reads the name table of every installed font in one go, and on
- *   Linux the page keeps each file it read open until its next garbage collection. A PC
- *   with thousands of fonts ran into the open-file limit of a desktop session (1024) on the
- *   way and the editor stopped for good (#488). The detection asks studio-plugin/pc-fonts.mjs
- *   (fontFilesToRead) which files to read: on Linux only so many, and the other fonts keep
- *   the names the PC's list gives.
+ *   The studio's detection reads the name, OS/2 and head tables of every installed font in
+ *   one go through FontData.blob() inside the renderer. That exhausts open files on Linux
+ *   (#488) and pulls gigabytes of 100MB+ CJK .ttc collections through renderer Blobs on
+ *   macOS, crashing the renderer (#591). Inside the app, collectLocalFontRecords asks
+ *   studio-plugin/pc-fonts.mjs (readHostFontNames) for per-face SFNT metadata read from disk
+ *   by the main process (@genoffice/font-metrics), skipping FontData.blob() completely. When
+ *   no host reader is present (standalone browser), fontFilesToRead keeps the Linux cap.
  *
  * studio-missing-font-marks
  *   A font that is not on the PC is drawn with another one, while the font menu and the
@@ -1434,12 +1435,19 @@ const PATCHES = {
         find: "import { setRawCanvasFont } from './canvas-font-raw.ts';",
         replace: [
           "import { setRawCanvasFont } from './canvas-font-raw.ts';",
-          `import { fontFilesToRead } from '${PC_FONTS_MODULE}';`,
+          `import { fontFilesToRead, readHostFontNames } from '${PC_FONTS_MODULE}';`,
         ].join('\n'),
       },
       {
         find: ['  let nextIndex = 0;', '  const worker = async (): Promise<void> => {'].join('\n'),
         replace: [
+          '  const hostNames = await readHostFontNames(fontDataList);',
+          '  if (hostNames) {',
+          '    for (let index = 0; index < fontDataList.length; index += 1) {',
+          "      records[index] = makeLocalFontRecord(fontDataList[index], (hostNames[index] as SfntFontNames | null) ?? emptySfntFontNames(), 'local-font-access');",
+          '    }',
+          '    return normalizeLocalFontRecords(records.filter((record): record is LocalFontRecord => record !== null));',
+          '  }',
           '  let nextIndex = 0;',
           '  const readsFile = fontFilesToRead(fontDataList);',
           '  const worker = async (): Promise<void> => {',

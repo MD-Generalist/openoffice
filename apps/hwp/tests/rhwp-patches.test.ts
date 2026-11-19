@@ -545,8 +545,12 @@ describe('rhwp font file reads patch', () => {
   ].join('\n')
   const patched = applyPatch('studio-font-file-reads', localFonts)
 
-  it('asks which font files to read once for the list, before the first read', () => {
-    expect(patched).toContain(`import { fontFilesToRead } from '${PC_FONTS_MODULE}';`)
+  it('asks the host main process for SFNT metadata before falling back to blob reads', () => {
+    expect(patched).toContain(
+      `import { fontFilesToRead, readHostFontNames } from '${PC_FONTS_MODULE}';`,
+    )
+    expect(patched).toContain('const hostNames = await readHostFontNames(fontDataList);')
+    expect(patched).toContain('if (hostNames) {')
     expect(patched).toContain(
       '  let nextIndex = 0;\n  const readsFile = fontFilesToRead(fontDataList);\n  const worker = ',
     )

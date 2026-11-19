@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { copyFile, readFile, stat } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { BrowserWindow, WebContentsView, app, dialog, ipcMain, shell } from 'electron'
 import type { WebContents } from 'electron'
@@ -24,10 +24,11 @@ import {
   ensurePrintLayoutIpc,
 } from '@genoffice/electron-utils/print-arranged'
 import { hwpToText } from '@genoffice/file-parse'
+import { localFontNamesFor } from '@genoffice/font-metrics'
 import { getUiLang } from '@genoffice/i18n'
 import { registerHwpAttachmentIpc } from './attachments-ipc'
 import { registerHwpImageIpc } from './ai-image'
-import { atomicWriteFile } from './atomic-write'
+import { atomicWriteFile, copyFileReplacing } from './atomic-write'
 import { readHwpDefaultFormat } from './default-format'
 import { badJob, printJobToPdf, printJobToPrinter } from './print-document'
 import { registerHwpPrintLayout } from './print-layout'
@@ -584,6 +585,7 @@ function registerHwpIpc(): void {
   })
 
   // ---- headless export mode (--headless-export) ----
+  ipcMain.handle(HWP_CHANNELS.isHeadlessExport, (e): boolean => headlessTargetByWc.has(e.sender.id))
   ipcMain.handle(HWP_CHANNELS.consumeHeadlessExport, (e): string | null => {
     const target = headlessTargetByWc.get(e.sender.id) ?? null
     headlessTargetByWc.delete(e.sender.id)
@@ -618,6 +620,9 @@ function registerHwpIpc(): void {
   ipcMain.handle(HWP_CHANNELS.fontFileReads, (e) =>
     fontFileReadsOfProcess(e.sender.getOSProcessId()),
   )
+  // per-face SFNT metadata read from disk in main so the renderer does not call FontData.blob()
+  // across every installed font (#488, #591)
+  ipcMain.handle(HWP_CHANNELS.fontNames, (_e, faces: unknown) => localFontNamesFor(faces))
   ipcMain.handle(HWP_CHANNELS.consumePending, (e) => {
     noteHwpPathConsumed(e.sender.id)
     return openPathByWc.get(e.sender.id) ?? null
@@ -876,7 +881,7 @@ function registerHwpIpc(): void {
         let backupPath: string | undefined
         if (needsBackup(target, existsSync(target), written)) {
           backupPath = backupPathFor(target)
-          await copyFile(target, backupPath)
+          await copyFileReplacing(target, backupPath)
         }
         await atomicWriteFile(target, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength))
         await rememberDiskState(wcId, target)
