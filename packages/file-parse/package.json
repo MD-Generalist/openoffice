@@ -11,9 +11,10 @@
   },
   "scripts": {
     "native:build": "node scripts/build-sidecar.mjs",
+    "native:build:universal": "node scripts/build-sidecar-universal.mjs",
     "native:test": "cargo test --manifest-path native/parse-sidecar/Cargo.toml",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "npm run native:test && npm run native:build && vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {

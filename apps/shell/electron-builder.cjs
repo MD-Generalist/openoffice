@@ -53,6 +53,11 @@ if (winArm64 && !process.env.ELECTRON_BUILDER_7Z_FILTER) {
 const winArch = winArm64 ? 'arm64' : 'x64'
 const winSidecarTarget = winArm64 ? 'aarch64-pc-windows-msvc' : 'x86_64-pc-windows-gnu'
 const WIN_SIDECAR = `../sheets/native/xlsx-engine/target/${winSidecarTarget}/release/xlsx-sidecar.exe`
+const WIN_PARSE_SIDECAR = winArm64
+  ? '../../packages/file-parse/native/parse-sidecar/target/aarch64-pc-windows-msvc/release/ieum-parse-sidecar.exe'
+  : '../../packages/file-parse/native/parse-sidecar/target/release/ieum-parse-sidecar.exe'
+const UNIX_PARSE_SIDECAR =
+  '../../packages/file-parse/native/parse-sidecar/target/release/ieum-parse-sidecar'
 
 function assertExtraResourceSources() {
   for (const rel of [
@@ -65,6 +70,7 @@ function assertExtraResourceSources() {
     '../../node_modules/@neslinesli93/qpdf-wasm/dist/qpdf.wasm',
     '../../packages/ui/template-fonts/README.md',
     '../../node_modules/@rhwp/core/rhwp_bg.wasm',
+    '../../packages/hwp5-wasm/pkg/hwp5_wasm_bg.wasm',
     'resources/builtin-skills/builtin-skills.json',
   ]) {
     if (!existsSync(join(__dirname, rel))) {
@@ -194,6 +200,24 @@ function assertUniversalSidecar() {
   }
 }
 
+function assertUniversalParseSidecar() {
+  const sidecar = join(__dirname, UNIX_PARSE_SIDECAR)
+  if (!existsSync(sidecar)) {
+    throw new Error(
+      `mac extraResources source missing: ${sidecar} (run "npm run native:build:universal -w @genoffice/file-parse" first)`,
+    )
+  }
+  const archs = execFileSync('lipo', ['-archs', sidecar], { encoding: 'utf8' }).trim().split(/\s+/)
+  for (const want of ['x86_64', 'arm64']) {
+    if (!archs.includes(want)) {
+      throw new Error(
+        `ieum-parse-sidecar is [${archs.join(', ')}] but both mac arch packages ship it — ` +
+          'run "npm run native:build:universal -w @genoffice/file-parse" before packaging mac',
+      )
+    }
+  }
+}
+
 function assertModuleTreesPresent() {
   for (const rel of [
     '../docs/out',
@@ -284,9 +308,10 @@ function ensureCliBundleCarriesAppVersion() {
 const NOTICE_PATH = join(__dirname, 'build/THIRD-PARTY-NOTICES.txt')
 const PDFIUM_NOTICE_TERMS = ['@embedpdf/pdfium', 'Copyright 2014 PDFium Authors', 'Apache License']
 // tools/gen-third-party-notices.mjs writes this header after the repo NOTICE,
-// and one crate-count line per Rust component (xlsx-sidecar, rhwp_bg.wasm)
+// and one crate-count line per Rust component (xlsx-sidecar, rhwp_bg.wasm,
+// ieum-parse-sidecar, hwp5_bg.wasm)
 const NOTICE_HEADER = `${PRODUCT_NAME} — Third-Party Software Notices`
-const RUST_COMPONENTS = 2
+const RUST_COMPONENTS = 4
 const CRATE_COUNT_LINE = /^[1-9]\d* crates, all under permissive terms:$/gm
 
 /**
@@ -653,6 +678,12 @@ const config = {
       from: '../../node_modules/@rhwp/core/rhwp_bg.wasm',
       to: 'wasm/rhwp_bg.wasm',
     },
+    // HWP 5 OLE2/CFB container helper (section tails, tab widths, field kinds,
+    // save preview, tracked changes): packages/hwp5-wasm
+    {
+      from: '../../packages/hwp5-wasm/pkg/hwp5_wasm_bg.wasm',
+      to: 'wasm/hwp5_bg.wasm',
+    },
     // platform system-OCR helpers for scanned-page recovery (each exists only
     // on its own build platform; electron-builder skips absent sources and the
     // engine resolver degrades to the bitmap fallback when missing)
@@ -770,6 +801,10 @@ const config = {
         from: '../sheets/native/xlsx-engine/target/release/xlsx-sidecar',
         to: 'native/xlsx-sidecar',
       },
+      {
+        from: UNIX_PARSE_SIDECAR,
+        to: 'native/ieum-parse-sidecar',
+      },
     ],
   },
   win: {
@@ -786,6 +821,10 @@ const config = {
       {
         from: WIN_SIDECAR,
         to: 'native/xlsx-sidecar.exe',
+      },
+      {
+        from: WIN_PARSE_SIDECAR,
+        to: 'native/ieum-parse-sidecar.exe',
       },
       {
         from: 'build/shell-new',
@@ -864,6 +903,10 @@ const config = {
       {
         from: '../sheets/native/xlsx-engine/target/release/xlsx-sidecar',
         to: 'native/xlsx-sidecar',
+      },
+      {
+        from: UNIX_PARSE_SIDECAR,
+        to: 'native/ieum-parse-sidecar',
       },
       // Same blank templates the Windows installer registers for Explorer's
       // "New" menu. The deb/rpm post-install step copies them into
@@ -960,13 +1003,35 @@ const config = {
     assertModuleTreesPresent()
     assertPdfStructureProcessBuilt()
     ensureCliBundleCarriesAppVersion()
-    if (context.electronPlatformName === 'darwin' && includeMacX64) {
-      assertUniversalSidecar()
-      assertUniversalVisionOcr()
+    if (context.electronPlatformName === 'darwin') {
+      if (includeMacX64) {
+        assertUniversalSidecar()
+        assertUniversalParseSidecar()
+        assertUniversalVisionOcr()
+      } else if (!existsSync(join(__dirname, UNIX_PARSE_SIDECAR))) {
+        throw new Error(
+          `mac extraResources source missing: ${UNIX_PARSE_SIDECAR} (run "npm run native:build -w @genoffice/file-parse" first)`,
+        )
+      }
     }
-    if (context.electronPlatformName === 'win32' && !existsSync(join(__dirname, WIN_SIDECAR))) {
+    if (context.electronPlatformName === 'win32') {
+      if (!existsSync(join(__dirname, WIN_SIDECAR))) {
+        throw new Error(
+          `win extraResources source missing: ${WIN_SIDECAR} (cargo build --target ${winSidecarTarget} first)`,
+        )
+      }
+      if (!existsSync(join(__dirname, WIN_PARSE_SIDECAR))) {
+        throw new Error(
+          `win extraResources source missing: ${WIN_PARSE_SIDECAR} (run "npm run native:build -w @genoffice/file-parse" first)`,
+        )
+      }
+    }
+    if (
+      context.electronPlatformName === 'linux' &&
+      !existsSync(join(__dirname, UNIX_PARSE_SIDECAR))
+    ) {
       throw new Error(
-        `win extraResources source missing: ${WIN_SIDECAR} (cargo build --target ${winSidecarTarget} first)`,
+        `linux extraResources source missing: ${UNIX_PARSE_SIDECAR} (run "npm run native:build -w @genoffice/file-parse" first)`,
       )
     }
   },
