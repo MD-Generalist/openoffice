@@ -268,9 +268,15 @@ pub fn extract_file(
         Ok(z) => z,
         Err(ZipGateError::Cancelled) => return Err(()),
         Err(err) => {
+            let reject_code = err.reject_code();
+            let message = if ext == "epub" {
+                epub::EpubError::Zip(err).message()
+            } else {
+                err.message()
+            };
             return Ok(ExtractResult::Rejected {
-                reject_code: err.reject_code(),
-                message: err.message(),
+                reject_code,
+                message,
             });
         }
     };
