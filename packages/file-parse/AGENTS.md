@@ -28,7 +28,8 @@
 - 파일을 읽기 전에 "저장하지 않은 변경이 있는 파일인가"를 묻는 일은 호출자가 한다(`packages/electron-utils`의 `assertFileSaved`·`withoutUnsavedFiles`).
 - 터미널 명령어(`packages/cli`)의 읽기는 이 패키지를 지나지 않고, 가리기를 적용하지 않는다.
 - 한글 문서를 고치거나 저장하지 않는다. 그것은 `apps/hwp`의 편집기가 한다. 여기서는 같은 엔진(`@rhwp/core`)으로 열어 글자만 꺼낸다.
-- 읽기에 시간 제한을 두지 않는다. 칸이 수만 개인 표가 든 한글 문서는 엔진이 여는 데만 10초 넘게 걸린다. 파일 색인은 작업자 스레드와 120초 제한 안에서 부르지만, 첨부·MCP·열린 탭 읽기는 메인 프로세스에서 바로 부른다.
+- 읽기에 시간 제한을 두지 않는다. 칸이 수만 개인 표가 든 한글 문서는 엔진이 여는 데만 10초 넘게 걸린다. 파일 색인은 전용 저우선순위 사이드카 인스턴스(또는 작업자 스레드)와 120초 제한 안에서 부르지만, 첨부·MCP·열린 탭 읽기는 대화형 사이드카 싱글턴(시간 제한 없음, 2분 유휴 시 종료)이나 메인 프로세스에서 바로 부른다.
+- 독립 Rust 추출 사이드카(`ieum-parse-sidecar`, `native/parse-sidecar/`)는 원본 `xlsx-sidecar`와 완전히 분리돼 있으며 네트워크 크레이트를 싣지 않는다. 7개 ZIP 형식(`.docx`, `.xlsx`, `.xlsm`, `.pptx`, `.odt`, `.epub`, `.xmind` 및 ZIP 기반 `.doc`), 가리기 없는 평문/표(`.csv`, `.tsv`, `.xml`, `.log`, `.py`), 폴더 재귀 탐색(`scan_dir`), 색인 본문 CJK 토큰화(`tokenize: true`, 100만 자 상한)를 담당한다. PDF, HWP/HWPX, 옛 바이너리 `.doc`/`.ppt`, draw.io, 이미지, 가리기 표시가 있는 텍스트·마크업(`.md`, `.markdown`, `.txt`, `.json`, `.html`, `.htm`)은 TypeScript 경로가 맡는다.
 
 ## 항상 지켜야 하는 것
 
@@ -44,7 +45,9 @@
 - **가리는 자리는 그 형식의 편집기가 가리는 자리와 같아야 한다.** 이 패키지는 앱이나 문서 엔진을 가져올 수 없어서 표시의 모양을 다시 적었다. 편집기나 엔진의 표시를 바꾸면 여기도 같이 바꾼다. PPT의 확장 식별자는 테스트가 엔진의 상수와 견준다. 결과는 편집기보다 더 가릴 수는 있어도 덜 가리면 안 된다.
 - **마크다운 구간의 끝을 짐작하지 않는다.** 이 패키지에는 편집기의 마크다운 파서가 없다. 처음 나오는 `</span>`가 확실히 그 구간의 끝일 때만 거기서 닫고(코드·강조·링크 같은 구조가 걸쳐 있지 않을 때), 그 밖에는 읽기를 실패시킨다(`markdown-redaction.ts` 머리 주석의 세 조건). 표시 이름을 글로 언급만 한 파일은 그대로 읽는다.
 - **HTML은 파서가 본 표시를 모두 확인한다.** 편집기의 검사가 놓치는 꼴(값 없는 `data-gx-redact`, 대문자 이름)을 파서(parse5)가 보면 읽기를 실패시킨다.
-- **PPT는 표시의 흔적이 모두 실행이나 그림으로 설명돼야 한다.** 이름이 없거나, 부모가 틀렸거나, 닫히지 않는 표시는 덱 전체를 읽지 않는다. 가린 실행은 글 걷기가 읽기 전에 이름표만 든 실행으로 바뀐다.
+- **PPT는 표시의 흔적이 모두 실행이나 그림으로 설명돼야 한다.** 이름이 없거나, 부모가 틀렸거나, 닫히지 않는 표시는 덱 전체를 읽지 않는다. 가린 실행은 글 걷기가 읽기 전에 이름표만 든 실행으로 바뀐다. `ieum-parse-sidecar`로 PPTX를 읽을 때는 호출 시 `REDACT_NS`를 넘기고, 사이드카가 가리기 표식을 감지하면 원문을 돌려주지 않고 `fallbackReason: 'redaction_present'`로 닫힌 쪽 위임을 반환한다. 클라이언트는 그때만 TypeScript `pptx-redaction.ts` 경로로 넘긴다.
+- **사이드카 폴백은 인프라 실패에만 허용한다.** `GENOFFICE_PARSE_SIDECAR=0|off`, 바이너리 부재, 기동 실패, 프로세스 비정상 종료, 프로토콜 오류 때만 TypeScript 구현으로 내려간다. 암호 걸림, 매직 바이트 불일치, ZIP 폭탄·ZIP64·경로 탈출, DRM, 인코딩 오류 같은 의미적·보안 거절은 절대 폴백하지 않고 `{ ok: false, error }`로 그대로 거절한다. 경로는 `GENOFFICE_PARSE_SIDECAR_PATH`로 덮어쓸 수 있다.
+- **대화형 사이드카 싱글턴은 종료 시 정리한다.** `stopParseSidecar()`로 앱 종료(`will-quit`·`process.on('exit')`) 시 실행 중인 사이드카를 내려 고아 프로세스를 남기지 않는다.
 - `.epub`은 zip이 아니면 `Content mismatch`로 거부한다. 열리지 않는 책(zip 관문의 거절, EPUB이 아님, DRM)은 `epubToText`가 이유를 담아 던지고 `parseFileToText`에서는 `ok: false`다. 글자 인코딩이 맞지 않는 장은 표시 한 줄을 남기고 빼며, 읽히는 장이 하나도 없는 책은 거절한다. 깨진 글자가 색인이나 모델에 들어가지 않게 한다.
 - **다이어그램은 이름을 먼저 본다.** `parseFileToText`는 마지막 확장자보다 먼저 `detectDiagramFormat`으로 이름을 보고, `.drawio.svg`·`.drawio.png`를 그림이 아니라 다이어그램 글로 읽는다. 열리지 않는 다이어그램(XML이 아님, 쪽을 풀 수 없음, 다이어그램이 없음, 읽을 수 없는 PNG)은 `ok: false`(`Cannot read diagram (까닭): …`)다. 원본이 들지 않은 그림(`no_original`)은 다이어그램이 아니므로 마지막 확장자대로 읽는다(`.png`는 그림, `.svg`는 지원하지 않는 형식). `diagramPictureExtOf`도 같은 기준이다.
 - `.xmind`는 zip이 아니면 `Content mismatch`로 거부한다. `ok`로 열리지 않는 지도(예전 형식, 암호, 읽을 수 없음, zip 안전 검사 거절)는 던지고, `parseFileToText`에서는 `ok: false`다.
@@ -71,6 +74,7 @@
 ## 테스트
 
 - `npm run test -w @genoffice/file-parse`, 또는 패키지 폴더에서 `npx vitest run`. 타임아웃은 20초다.
+- Rust 사이드카 빌드·시험: `npm run native:build -w @genoffice/file-parse`(`scripts/build-sidecar.mjs`, 경로 치환·MSVC 정적 CRT·로컬 경로 누출 검사 포함), `npm run native:test -w @genoffice/file-parse`(`cargo test`), macOS universal 빌드 `npm run native:build:universal -w @genoffice/file-parse`. Rust 소스를 고쳤으면 release 바이너리를 다시 빌드한 뒤 통합·차분 시험(`tests/sidecar-client.test.ts`, `tests/rust-risk-*.test.ts`)을 돌린다.
 - OOXML 픽스처는 `tests/helpers/fixtures.ts`가 JSZip으로 그때그때 만들어 임시 폴더에 쓴다. ODT 픽스처는 `tests/odt.test.ts`가 손으로 묶거나(글상자 안 표, 각주, 암호 manifest) docx 픽스처를 `docxToOdt`로 바꿔 만든다. 파일로 들어 있는 것은 옛 형식 두 개(`tests/fixtures/legacy-sample.doc`, `legacy-sample.ppt`)뿐이다. `npm run fixtures`는 필요 없다. 한글 문서는 `tests/hwp.test.ts`가 엔진으로 직접 만든다(문단을 모두 만든 뒤 표를 붙인다. 표가 놓인 문단을 나누면 엔진이 표를 옮긴다).
 - 형식 처리를 바꾸면 정상 추출, 깨진 파일이 던지지 않고 `ok: false`가 되는 경우, 글자 원형 보존(앞자리 0, 런 사이 공백)을 덮는다. zip을 여는 경로를 건드리면 `tests/zip-bomb-gate.test.ts`도 함께 본다.
 - 가리기를 바꾸면 형식마다, 표시 종류마다 "가린 글이 결과에 남지 않는다"와 "표시를 처리하지 못하면 원문이 아니라 실패가 나온다"를 덮는다(`tests/redaction.test.ts`). 마크다운은 "끝을 짐작하지 않는다"와 "표시가 될 수 있는 것만 실패한다"를 함께 본다. 지도 읽기는 `tests/xmind.test.ts`, EPUB 읽기와 DRM·손상·인코딩 거절은 `tests/epub.test.ts`. 다이어그램 네 형식·압축 쪽·깨진 파일·원본 없는 그림·`.vsdx`는 `tests/diagram.test.ts`이고, 시험 파일 `tests/fixtures/out.drawio*`는 `packages/drawio-model/tests/fixtures`에서 복사했다.

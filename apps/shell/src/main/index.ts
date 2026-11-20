@@ -166,6 +166,7 @@ import {
   attachableMaxBytes,
   diagramPictureExtOfName,
   parseFileToText,
+  stopParseSidecar,
 } from '@genoffice/file-parse'
 import { createDocList } from './doc-picker/doc-list'
 import { resolveDocAsker } from './doc-picker/doc-asker'
@@ -11086,6 +11087,7 @@ function releaseAppResources(): void {
     // the settings file is not writable now; the list order is only a convenience
   }
   fileIndexer?.stop()
+  stopParseSidecar()
   fileIndexStore?.close()
   for (const watcher of folderWatchers.values()) watcher.close()
   controlServer?.close()
@@ -11100,6 +11102,10 @@ function releaseAppResources(): void {
 
 // app.exit() and process.exit() skip before-quit / will-quit (the headless
 // export ends that way, and so does an exit on a fatal error); 'exit' is the
-// one event every such way out still emits, so no subscription CLI outlives
+// one event every such way out still emits, so no child process outlives
 // the app. A process killed outright runs nothing: the next start cleans up.
-process.on('exit', () => shutdownSubscriptionChildren())
+process.on('exit', () => {
+  fileIndexer?.stop()
+  stopParseSidecar()
+  shutdownSubscriptionChildren()
+})

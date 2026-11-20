@@ -34,6 +34,7 @@ openoffice/
 │   │   ├── diagram-editor.md      ← 다이어그램(.drawio) 편집기 계획(구현됨, 사람 확인 남음)
 │   │   ├── editor-choice.md       ← 편집기 고르기와 AI 끄기 계획(1단계 구현됨, 2단계·관리자 정책 자리)
 │   │   ├── epub-editor.md         ← EPUB 편집기 계획(구현됨, 사람 확인 남음)
+│   │   ├── hwp-format-copy.md     ← 한글 모양 복사(서식 복사) 분석·설계(1단계 구현됨, 사람 확인 남음)
 │   │   ├── md-to-hwp.md           ← 마크다운을 한글 문서로 옮기기 계획(1~4단계 구현됨, 사람 확인 남음)
 │   │   ├── ods-open-export.md     ← ODS 불러오기·내보내기 계획(1·2단계 구현됨, 사람 확인 남음)
 │   │   ├── pdf-reading-assist.md  ← PDF 읽기 도우미 계획
@@ -82,7 +83,8 @@ openoffice/
 │   ├── epub-engine/AGENTS.md      ← EPUB 엔진(열기, 블록 지도, 범위 바꾸기 저장, 책 번역과 결과 책)
 │   ├── drawio-model/AGENTS.md     ← 다이어그램 파일 모델(읽기 표, 연산)
 │   ├── doc-rules/AGENTS.md        ← 행정문서 형식 규칙(자료)과 순수 판정 함수
-│   ├── file-parse/AGENTS.md       ← 첨부·검색용 파일 읽기, 다른 파일로 읽을 때의 가리기
+│   ├── file-parse/AGENTS.md       ← 첨부·검색용 파일 읽기(`ieum-parse-sidecar` Rust), 다른 파일로 읽을 때의 가리기
+│   ├── hwp5-wasm/AGENTS.md        ← HWP 5 OLE2 컨테이너·레코드 처리(Rust WASM)
 │   ├── zip-gate/AGENTS.md         ← 압축 파일 안전 검사
 │   ├── print-layout/AGENTS.md     ← 고급 인쇄 배치(모아찍기·소책자·포스터·라벨·홀짝·회색조), 쪽 그림 만들기
 │   ├── google-drive/AGENTS.md     ← Google 드라이브 로그인과 파일 주고받기
@@ -120,6 +122,7 @@ openoffice/
 | 아이콘·그림을 더하거나 다른 회사 이름을 화면에 적는다  | `docs/standards.md`의 "상표와 아이콘"(결정 0052)                                                         |
 | 터미널 명령어·MCP·스킬을 고친다                        | `docs/contracts.md`. 출력 구조와 이름은 밖에서 기대고 있다                                               |
 | 가리기나 다른 파일로 읽기를 고친다                     | `docs/security.md`의 "문서 내용", `packages/file-parse/AGENTS.md`                                        |
+| HWP 5 컨테이너·레코드 처리(`hwp5-wasm`)를 고친다       | `packages/hwp5-wasm/AGENTS.md`, `docs/operations.md`의 "HWP 5 컨테이너 WASM(`hwp5-wasm`) 다시 빌드하기"  |
 | 마인드맵 파일의 열기·저장을 고친다                     | `packages/xmind-engine/AGENTS.md`. 바뀐 것이 없는 저장은 원본 바이트 그대로다                            |
 | 다이어그램 편집기·draw.io 묶음을 고친다                | `apps/diagram/AGENTS.md`, `vendor/drawio/README.md`, 결정 0103                                           |
 | 설정 파일의 값을 더하거나 읽는 방식을 바꾼다           | `docs/engineering-notes.md`의 "설정 파일", `docs/contracts.md`의 "설정 파일"                             |

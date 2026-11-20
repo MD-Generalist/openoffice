@@ -7,7 +7,9 @@
 - **설치본이 켜자마자 죽는다.** 앱의 `dependencies`에 넣은 작업 공간 패키지를 `externalizeDepsPlugin`의 `exclude`에 넣지 않았을 때다. 개발 모드에서는 멀쩡하다. → 둘을 함께 고친다.
 - **`npm run lint`가 수천 건의 구문 오류를 낸다.** 저장소 안에 다른 작업 사본(작업 트리)을 두면 그 안의 tsconfig까지 읽혀서 그렇다. → 그 폴더를 빼고 돌린다(`npx eslint . --ignore-pattern "<폴더>/**"`).
 - **`cargo`를 못 찾는다.** 이 PC에서는 Rust가 설치돼 있어도 PATH에 없다. → `export PATH="$HOME/.cargo/bin:$PATH"`.
-- **설치 파일 만들기가 엑셀 처리 프로그램을 못 찾고 멈춘다.** 빌드 설정은 `apps/sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe`를 찾는데, 이 PC의 Rust 빌드는 `target/release/`에 만든다. → 만들기 전에 그 파일을 앞의 경로로 복사한다.
+- **설치 파일 만들기가 엑셀 처리 프로그램을 못 찾고 멈춘다.** 빌드 설정은 `apps/sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe`를 찾는데, 이 PC의 Rust 빌드는 `target/release/`에 만든다. → 만들기 전에 그 파일을 앞의 경로로 복사한다. 반면 `ieum-parse-sidecar.exe`는 `packages/file-parse/native/parse-sidecar/target/release/`를 그대로 읽으므로 복사할 필요가 없다(`GENOFFICE_WIN_ARM64=1`일 때만 `target/aarch64-pc-windows-msvc/release/`).
+- **`ieum-parse-sidecar`를 `cargo build`로 직접 빌드하면 Windows에서 `VCRUNTIME140.dll` 의존이나 로컬 경로가 남는다.** `CARGO_ENCODED_RUSTFLAGS`를 설정하면 `.cargo/config.toml`의 `rustflags`가 덮어씌워지기 때문이다. → 항상 `npm run native:build -w @genoffice/file-parse`(`scripts/build-sidecar.mjs`)로 빌드한다. 이 스크립트가 `--remap-path-prefix`, Windows MSVC 정적 CRT(`-C target-feature=+crt-static`), `/PDBALTPATH:%_PDB%`, 로컬 경로 누출 검사를 한꺼번에 적용한다.
+- **`packages/hwp5-wasm`의 Rust 코드를 고쳤는데 시험이 `manifest.json` 불일치로 실패한다.** 일반 빌드와 CI는 `wasm-pack`을 돌리지 않고 커밋된 `pkg/`를 그대로 쓰며, `tests/freshness.test.ts`가 소스 SHA-256과 `pkg/manifest.json`의 일치를 강제한다. → Rust 소스나 `Cargo.toml`·`Cargo.lock`을 고쳤으면 `node tools/build-hwp5-wasm.mjs`로 `pkg/`와 `manifest.json`을 다시 만들고 함께 커밋한다.
 - **설치본(`release/win-unpacked`)을 띄우면 아무 창 없이 바로 끝난다.** 설치된 이음오피스가 켜져 있으면, 설치본은 같은 데이터 폴더와 단일 실행 잠금을 쓰므로 바로 끝나고 실행 인자를 켜져 있는 앱에 넘긴다. 설치본은 `GENOFFICE_USER_DATA`를 일부러 듣지 않는다. → 사용자의 앱을 끄지 말고 `--user-data-dir=<임시 폴더>`를 붙여 띄운다(Playwright `electron.launch`의 `args`에도 같다).
 - **WebAssembly 파일을 찾는 코드가 개발 실행에서만 맞다.** 묶어 빌드한 코드 옆에는 `node_modules`가 없다. 단위 테스트는 `node_modules`에서 돌아 이 차이를 보지 못한다. → 새 WebAssembly 의존성은 `extraResources`로 `resources/wasm`에 넣고, 빌드한 앱(가능하면 설치본)에서 한 번 돌려 본다.
 - **설치 파일 만들기가 GitHub에 올리려다 실패한다.** 빌드 설정에 릴리스 올리기 대상이 항상 들어 있다. → `npm run dist:win -- -- --publish never`. `--`를 두 번 써야 인자가 끝까지 전달된다.
@@ -149,6 +151,7 @@
 | 수식 캡션                        | 결정 0028: 엔진이 수식 제어 기록 아래의 캡션 목록을 쓰지 않는다                                  | 고침(저장 때 다시 붙임)                             | `apps/hwp/tests/section-tails.test.ts`        |
 | 변경 추적 두 번째 본문           | 결정 0027: 두 번째 본문(ViewText)을 그대로 읽고 쓰면 한컴이 열지 못한다                          | 처리(지금의 내용으로 열고, 저장하면 추적 기록 없이) | `apps/hwp/tests/tracked-changes.test.ts`      |
 | 미리보기 글·그림                 | 결정 0146: rhwp가 연 파일의 `PrvText`·`PrvImage`를 저장마다 그대로 다시 써서 지운 글이 남는다    | 고침(저장 때 지금 문서로 다시 씀)                   | `apps/hwp/tests/save-preview.test.ts`         |
+| OLE2 컨테이너 표식·빈 FAT 슬롯   | 결정 0156: JS `cfb`가 `' Sh33tJ5'` 스트림과 잘못된 `0xfffffffe` FAT 빈 칸을 남긴다               | 고침(`@genoffice/hwp5-wasm` 기본 경로로 전환)       | `apps/hwp/tests/hwp5-wasm-risk.test.ts`       |
 
 ### 한글 엔진 빌드(`vendor/rhwp-core`, 결정 0050)
 

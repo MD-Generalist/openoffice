@@ -13,6 +13,7 @@ export default defineConfig({
           '@genoffice/electron-utils',
           '@genoffice/font-metrics',
           '@genoffice/print-layout',
+          '@genoffice/hwp5-wasm',
         ],
       }),
     ],
