@@ -11,6 +11,7 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import init, { HwpDocument } from '@rhwp/core'
+import { readStream as wasmReadStream } from '@genoffice/hwp5-wasm/node'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { fieldKindsOf, restoreFieldKinds } from '../src/main/field-kinds'
 import {
@@ -314,14 +315,20 @@ describe('Track B (hwp5-wasm) differential, strict rhwp reopen, and security ris
     expect(prvWasm).not.toBeNull()
     expect(prvJs).not.toBeNull()
     assertCleanOle2(prvWasm)
-    const openedPrvWasm = openHwp(prvWasm)!
-    const openedPrvJs = openHwp(prvJs)!
-    expect(streamOf(openedPrvWasm, '/PrvText', { raw: true })).toEqual(
-      streamOf(openedPrvJs, '/PrvText', { raw: true }),
-    )
-    expect(streamOf(openedPrvWasm, '/PrvImage', { raw: true })).toEqual(
-      streamOf(openedPrvJs, '/PrvImage', { raw: true }),
-    )
+    const expectedPrvText = Buffer.from('새 미리보기 텍스트', 'utf16le')
+    const prvTextWasm = wasmReadStream(prvWasm, '/PrvText', false)
+    const prvImageWasm = wasmReadStream(prvWasm, '/PrvImage', false)
+    const prvJsCfb = actualCfb.read(Buffer.from(prvJs), { type: 'buffer' })
+    const prvTextJs = actualCfb.find(prvJsCfb, '/PrvText')?.content
+    const prvImageJs = actualCfb.find(prvJsCfb, '/PrvImage')?.content
+    expect(prvTextWasm).not.toBeNull()
+    expect(prvImageWasm).not.toBeNull()
+    expect(prvTextJs).toBeTruthy()
+    expect(prvImageJs).toBeTruthy()
+    expect(Buffer.from(prvTextWasm!)).toEqual(Buffer.from(prvTextJs as Uint8Array))
+    expect(Buffer.from(prvImageWasm!)).toEqual(Buffer.from(prvImageJs as Uint8Array))
+    expect(Buffer.from(prvTextWasm!)).toEqual(expectedPrvText)
+    expect(Buffer.from(prvImageWasm!)).toEqual(Buffer.from(BLANK_PNG))
     const reopenPrv = new HwpDocument(prvWasm)
     expect(reopenPrv.getParagraphCount(0)).toBeGreaterThan(0)
     reopenPrv.free()

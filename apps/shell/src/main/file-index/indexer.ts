@@ -450,8 +450,12 @@ export class FileIndexer {
 
   private ensureWorker(): Worker {
     if (this.worker) return this.worker
+    // Force pure TypeScript extraction inside the fallback worker so delegated
+    // files (e.g. redacted .pptx, legacy .doc, or sidecar infra fallback) never
+    // spawn a hidden third untracked ieum-parse-sidecar process.
     const w = new Worker(this.workerPath, {
       resourceLimits: { maxOldGenerationSizeMb: this.workerHeapLimitMb },
+      env: { ...process.env, GENOFFICE_PARSE_SIDECAR: '0' },
     })
     w.on('message', (msg: WorkerResponse) => {
       const cb = this.waiting.get(msg.id)

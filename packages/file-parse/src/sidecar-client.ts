@@ -473,7 +473,15 @@ export class ParseSidecarClient {
             'request_timeout',
           )
           if (this.options.killOnTimeout) {
-            this.teardownChild(child, err)
+            // Reject collateral concurrent requests as process_exited (recoverable)
+            // rather than request_timeout, while the timed-out request keeps request_timeout.
+            this.teardownChild(
+              child,
+              new SidecarInfraError(
+                'Parse sidecar restarted after another request timed out.',
+                'process_exited',
+              ),
+            )
             reject(err)
           } else {
             this.sendCancelFireAndForget(child, requestId)

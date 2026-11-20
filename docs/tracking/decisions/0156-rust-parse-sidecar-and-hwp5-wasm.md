@@ -32,7 +32,7 @@
 
 ## 버린 대안
 
-- **`apps/sheets/native/xlsx-sidecar`에 문서 추출 기능을 합치기.** 원본 GenOffice의 엔진 패키지를 수정하게 되어 업스트림 동기화마다 충돌이 나고, 엑셀 계산과 첨부·색인의 수명·장애 격리도 깨진다.
+- **`apps/sheets/native/xlsx-engine`에 문서 추출 기능을 합치기.** 원본 GenOffice의 엔진 패키지를 수정하게 되어 업스트림 동기화마다 충돌이 나고, 엑셀 계산과 첨부·색인의 수명·장애 격리도 깨진다.
 - **마크다운·HTML·PPTX 가리기 로직을 Rust로 복제하기.** 가리기 규칙은 편집기와 한 치도 어긋나면 기밀이 새므로 단일 진실 원천을 유지해야 한다. 마크다운·HTML은 TypeScript 경로를 유지하고, PPTX만 닫힌 쪽 감지로 TypeScript 가리기 경로에 위임했다.
 - **색인 상한 해제 시 `EXTRACT_VERSION`을 올려 전체 재색인하기.** 기존 사용자의 모든 색인 DB가 한꺼번에 비워져 CPU·디스크 부담이 크다. `name-only` ZIP 항목만 선별 재추출하면 기존 색인을 보존하면서 대용량 ZIP만 채울 수 있다.
 - **JS `cfb` 코드를 즉시 삭제하기.** 배포 직후 예상치 못한 환경 문제나 WASM 메모리 제약(`ulimit -v`)이 생겼을 때 환경 변수(`GENOFFICE_HWP5_WASM=0`)로 안전하게 우회할 출구가 필요하다.
@@ -41,12 +41,12 @@
 ## 결과
 
 - 추가·변경한 주요 위치:
-  - `packages/file-parse/native/parse-sidecar/`(`ieum-parse-sidecar` Rust 크레이트), `packages/file-parse/scripts/build-sidecar*.mjs`, `packages/file-parse/src/{sidecar-client,sidecar-path,extract-text}.ts`
+  - `packages/file-parse/native/parse-sidecar/`(`ieum-parse-sidecar` Rust 크레이트), `packages/file-parse/scripts/build-sidecar*.mjs`, `packages/file-parse/src/{sidecar-client,sidecar-path,parse,index}.ts`
   - `packages/hwp5-wasm/`(Rust 크레이트, 미리 빌드된 `pkg/`, `src/{index,node}.ts`, `tests/`), `tools/build-hwp5-wasm.mjs`
-  - `apps/hwp/src/main/{hwp5-wasm-bridge,hwp5-file,tracked-changes,section-tails,preview-parts}.ts`
-  - `apps/shell/src/main/file-index/{sidecar-extract,scanner,indexer,store,worker-runner}.ts`, `apps/shell/src/main/index.ts`
+  - `apps/hwp/src/main/{hwp5-file,tracked-changes,section-tails,preview-parts}.ts`
+  - `apps/shell/src/main/file-index/{extract,indexer,store}.ts`, `apps/shell/src/main/index.ts`
   - `packages/cli/src/resources.ts`, `packages/cli/pack-tarball.mjs`
   - `apps/shell/electron-builder.cjs`, `tools/gen-third-party-notices.mjs`, `tools/run-workspace-tests.mjs`, `.github/workflows/{ci,windows-build,mac-build,linux-build}.yml`
-- 실측 결과(Windows x64): 20 MiB 미디어 DOCX 추출 Rust 1.0 ms 대비 TS 58.3 ms, 105 MiB 미디어 DOCX 추출 95.8 ms(전체 색인·검색 209.3 ms), 100만 자 CJK+라틴 토큰화 Rust 110.8 ms 대비 TS 187.7 ms(출력 100% 일치).
+- 실측 결과(Windows x64): 20 MiB 미디어 DOCX 추출 Rust 1.2 ms 대비 TS 430.1 ms, 105 MiB 미디어 DOCX 추출 110.4 ms(전체 색인·검색 257.5 ms), 100만 자 CJK+라틴 토큰화 Rust 145.3 ms 대비 TS 219.9 ms(출력 100% 일치).
 - 원본 문서 엔진 패키지(`docx-engine`, `pptx-engine`, `pptx-ops`, `pptx-render`, `pdf2docx`, `xlsx-gateway`, `zip-gate`, `apps/sheets/native/xlsx-engine`)는 단 한 줄도 수정하지 않았다.
 - macOS·Linux 설치본 동작은 GitHub Actions 빌드와 사용자 보고로 확인한다.

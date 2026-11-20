@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import JSZip from 'jszip'
@@ -265,11 +265,15 @@ describe('file-index sidecar integration', () => {
     }
 
     // Verify FileIndexer delegates redaction_present to Worker (not indexing secret)
+    // and passes GENOFFICE_PARSE_SIDECAR=0 so the worker never spawns a third sidecar.
     const workerSpyPath = join(dir, 'redact-worker.mjs')
+    const envCapturePath = join(dir, 'worker-env.txt')
     writeFileSync(
       workerSpyPath,
       [
+        "import { writeFileSync } from 'node:fs'",
         "import { parentPort } from 'node:worker_threads'",
+        `writeFileSync(${JSON.stringify(envCapturePath)}, String(process.env.GENOFFICE_PARSE_SIDECAR ?? 'unset'))`,
         'parentPort.on("message", (req) => {',
         '  parentPort.postMessage({ id: req.id, type: "extract", result: { kind: "text", text: "Public intro {{hidden client}}" } })',
         '})',
@@ -289,6 +293,7 @@ describe('file-index sidecar integration', () => {
       },
       { timeout: 10_000, interval: 25 },
     )
+    expect(readFileSync(envCapturePath, 'utf8')).toBe('0')
     expect(store.search(secret).total).toBe(0)
     expect(store.search('hidden').total).toBe(1)
   })
