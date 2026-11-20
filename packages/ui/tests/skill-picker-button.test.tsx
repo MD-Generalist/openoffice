@@ -110,7 +110,7 @@ describe('AiComposer skill button & two-zone footer', () => {
     })
     expect(skills.onOpen).toHaveBeenCalledTimes(1)
     expect(textarea.value).toBe('기존 문장')
-    const options = container.querySelectorAll<HTMLButtonElement>('.ai-skill-picker-item')
+    const options = container.querySelectorAll<HTMLButtonElement>('[role="option"]')
     expect(options.length).toBeGreaterThanOrEqual(2)
 
     act(() => {

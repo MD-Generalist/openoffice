@@ -21,11 +21,11 @@ afterEach(() => {
 
 describe('AiChangesCard', () => {
   const lines: AiChangeLine[] = [
-    { key: 'a', mark: '+', place: 'Slide 2', summary: 'Added heading', showable: true },
-    { key: 'b', mark: '-', place: 'Slide 3', summary: 'Removed note', showable: false },
+    { kind: 'insert', to: 'Added heading', showable: true },
+    { kind: 'delete', from: 'Removed note', showable: false },
   ]
 
-  it('renders jump button with arrow icon on showable rows and invokes onShowLine', () => {
+  it('renders jump button with arrow icon on showable rows and invokes onShowLine with index', () => {
     const onShowLine = vi.fn()
     act(() => {
       root.render(
@@ -33,44 +33,37 @@ describe('AiChangesCard', () => {
           lang="ko"
           count={2}
           state="applied"
+          canRevert
           lines={lines}
           onShowLine={onShowLine}
-          onUndo={vi.fn()}
+          onRevert={vi.fn()}
         />,
       )
     })
 
-    const toggle = container.querySelector<HTMLButtonElement>('.ai-run-changes-toggle')!
-    act(() => {
-      toggle.click()
-    })
-
-    const showButtons = container.querySelectorAll<HTMLButtonElement>('.ai-run-change-show')
+    const showButtons = container.querySelectorAll<HTMLButtonElement>('.ai-run-change-go')
     expect(showButtons).toHaveLength(1)
     expect(showButtons[0]!.querySelector('.ai-run-change-jump svg')).not.toBeNull()
 
     act(() => {
       showButtons[0]!.click()
     })
-    expect(onShowLine).toHaveBeenCalledWith(lines[0])
+    expect(onShowLine).toHaveBeenCalledWith(0)
   })
 
-  it('disables jump buttons when changes are undone', () => {
+  it('disables jump buttons when changes are reverted', () => {
     act(() => {
       root.render(
         <AiChangesCard
           lang="en"
           count={2}
-          state="undone"
+          state="reverted"
+          canRevert={false}
           lines={lines}
           onShowLine={vi.fn()}
         />,
       )
     })
-    const toggle = container.querySelector<HTMLButtonElement>('.ai-run-changes-toggle')!
-    act(() => {
-      toggle.click()
-    })
-    expect(container.querySelector('.ai-run-change-show')).toBeNull()
+    expect(container.querySelector('.ai-run-change-go')).toBeNull()
   })
 })
