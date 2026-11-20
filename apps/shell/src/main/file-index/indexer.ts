@@ -118,7 +118,10 @@ export class FileIndexer {
     const rawConcurrency = options.concurrency ?? DEFAULT_SIDECAR_CONCURRENCY
     this.concurrency = Math.max(
       1,
-      Math.min(MAX_SIDECAR_CONCURRENCY, Number.isFinite(rawConcurrency) ? Math.floor(rawConcurrency) : DEFAULT_SIDECAR_CONCURRENCY),
+      Math.min(
+        MAX_SIDECAR_CONCURRENCY,
+        Number.isFinite(rawConcurrency) ? Math.floor(rawConcurrency) : DEFAULT_SIDECAR_CONCURRENCY,
+      ),
     )
     this.sidecarOptions = options.sidecarOptions
     this.injectedSidecar = options.sidecarClient ?? null

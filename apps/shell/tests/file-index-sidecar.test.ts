@@ -9,7 +9,11 @@ import {
   stopParseSidecar,
 } from '@genoffice/file-parse'
 import { setRedactExt } from '../../../packages/pptx-engine/src/redaction-xml'
-import { extractText, MAX_EXTRACT_BYTES, ZIP_INDEX_UNLIMITED_EXTS } from '../src/main/file-index/extract'
+import {
+  extractText,
+  MAX_EXTRACT_BYTES,
+  ZIP_INDEX_UNLIMITED_EXTS,
+} from '../src/main/file-index/extract'
 import { FileIndexer } from '../src/main/file-index/indexer'
 import { FileIndexStore } from '../src/main/file-index/store'
 import * as tokenizeModule from '../src/main/file-index/tokenize'

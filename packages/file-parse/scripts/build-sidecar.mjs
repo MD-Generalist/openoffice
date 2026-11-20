@@ -172,4 +172,6 @@ if (!existsSync(binaryPath)) {
 
 const binaryBuf = readFileSync(binaryPath)
 checkForLocalPathLeaks(binaryBuf, binaryPath, cargoHome, rustupHome, home)
-console.log(`[parse-sidecar] built ${binaryPath} (${binaryBuf.length} bytes, zero local path leaks)`)
+console.log(
+  `[parse-sidecar] built ${binaryPath} (${binaryBuf.length} bytes, zero local path leaks)`,
+)

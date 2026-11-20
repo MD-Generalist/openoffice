@@ -373,9 +373,7 @@ rl.on('line', () => {
   })
 
   it('supports interactive singleton lifecycle and lowPriority option', async () => {
-    const lowPrio = trackClient(
-      new ParseSidecarClient({ lowPriority: true, idleTimeoutMs: null }),
-    )
+    const lowPrio = trackClient(new ParseSidecarClient({ lowPriority: true, idleTimeoutMs: null }))
     expect((await lowPrio.tokenizeText('priority check')).bi).toBe('priority check')
 
     const singleton = getInteractiveParseSidecar()

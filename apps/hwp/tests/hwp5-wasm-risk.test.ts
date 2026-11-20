@@ -176,11 +176,7 @@ function fieldParagraph(textKind: string, command: string): Buffer {
     Buffer.alloc(5),
     Buffer.from(command, 'utf16le'),
   ])
-  return Buffer.concat([
-    record(66, 0, header),
-    record(67, 1, text),
-    record(71, 1, control),
-  ])
+  return Buffer.concat([record(66, 0, header), record(67, 1, text), record(71, 1, control)])
 }
 
 function writeCleanFixtureCfb(cfb: import('cfb').CFB$Container): Uint8Array {
@@ -203,7 +199,10 @@ function writeCleanFixtureCfb(cfb: import('cfb').CFB$Container): Uint8Array {
 function appendSectionParagraph(file: Uint8Array, paragraph: Buffer): Uint8Array {
   const opened = openHwp(file)!
   const current = streamOf(opened, SECTION(0))!
-  const rewritten = rewriteStreams(opened, new Map([[SECTION(0), Buffer.concat([current, paragraph])]]))!
+  const rewritten = rewriteStreams(
+    opened,
+    new Map([[SECTION(0), Buffer.concat([current, paragraph])]]),
+  )!
   return new Uint8Array(rewritten.buffer, rewritten.byteOffset, rewritten.byteLength)
 }
 
@@ -290,8 +289,12 @@ describe('Track B (hwp5-wasm) differential, strict rhwp reopen, and security ris
     const base = exportDoc('필드 본문')
     const openedFields = appendSectionParagraph(base, fieldParagraph('em%%', 'MEMO/1/1/'))
     const savedFields = appendSectionParagraph(base, fieldParagraph('knu%', 'MEMO/1/1/'))
-    const fkWasm = withBackend(true, () => restoreFieldKinds(savedFields, fieldKindsOf(openedFields)!))
-    const fkJs = withBackend(false, () => restoreFieldKinds(savedFields, fieldKindsOf(openedFields)!))
+    const fkWasm = withBackend(true, () =>
+      restoreFieldKinds(savedFields, fieldKindsOf(openedFields)!),
+    )
+    const fkJs = withBackend(false, () =>
+      restoreFieldKinds(savedFields, fieldKindsOf(openedFields)!),
+    )
     expect(fkWasm.restored).toBe(1)
     expect(fkWasm.restored).toBe(fkJs.restored)
     expect(streamOf(openHwp(fkWasm.bytes)!, SECTION(0))).toEqual(
@@ -327,7 +330,9 @@ describe('Track B (hwp5-wasm) differential, strict rhwp reopen, and security ris
     const bodyDoc = exportDoc('최종 본문 텍스트')
     const viewDoc = exportDoc('이전 변경 이력 텍스트')
     const viewCfb = actualCfb.read(Buffer.from(viewDoc), { type: 'buffer' })
-    const viewSec = Buffer.from(actualCfb.find(viewCfb, '/BodyText/Section0')!.content as Uint8Array)
+    const viewSec = Buffer.from(
+      actualCfb.find(viewCfb, '/BodyText/Section0')!.content as Uint8Array,
+    )
     const tracked = makeFlaggedHwp(bodyDoc, 0x4000, viewSec)
 
     expect(withBackend(true, () => hasTrackedChanges(tracked))).toBe(true)

@@ -180,7 +180,7 @@ export class FileIndexStore {
     return (this.db.prepare('SELECT count(*) AS n FROM files').get() as { n: number }).n
   }
 
-    /** insert or replace one file; `text` null indexes the name and folder only */
+  /** insert or replace one file; `text` null indexes the name and folder only */
   upsert(
     meta: { path: string; mtimeMs: number; sizeBytes: number },
     text: string | null,

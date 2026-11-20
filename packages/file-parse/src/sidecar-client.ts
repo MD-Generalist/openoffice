@@ -186,10 +186,7 @@ function validateExtractResult(raw: unknown): SidecarExtractResult {
       return { status: 'fallback', fallbackReason: raw.fallbackReason }
     case 'rejected':
       if (typeof raw.rejectCode !== 'string' || typeof raw.message !== 'string') {
-        throw new SidecarInfraError(
-          'Malformed extract_file rejected result.',
-          'malformed_response',
-        )
+        throw new SidecarInfraError('Malformed extract_file rejected result.', 'malformed_response')
       }
       return {
         status: 'rejected',
@@ -347,15 +344,18 @@ export class ParseSidecarClient {
         resolve()
       }
 
-      const timer = setTimeout(() => {
-        try {
-          child.stdin.destroy()
-        } catch {}
-        try {
-          child.kill()
-        } catch {}
-        done()
-      }, Math.max(0, graceMs))
+      const timer = setTimeout(
+        () => {
+          try {
+            child.stdin.destroy()
+          } catch {}
+          try {
+            child.kill()
+          } catch {}
+          done()
+        },
+        Math.max(0, graceMs),
+      )
       timer.unref()
 
       child.once('exit', done)
@@ -427,7 +427,10 @@ export class ParseSidecarClient {
     this.idleTimer.unref()
   }
 
-  private sendCancelFireAndForget(child: ChildProcessWithoutNullStreams, targetRequestId: string): void {
+  private sendCancelFireAndForget(
+    child: ChildProcessWithoutNullStreams,
+    targetRequestId: string,
+  ): void {
     if (this.process !== child || child.killed) return
     try {
       const payload = JSON.stringify({
@@ -569,9 +572,13 @@ export class ParseSidecarClient {
       const detail = this.stderr.trim() || error.message || 'broken pipe'
       this.teardownChild(
         child,
-        new SidecarInfraError(`Parse sidecar stdin failed (${detail}).`.slice(0, 240), 'stdin_failed', {
-          cause: error,
-        }),
+        new SidecarInfraError(
+          `Parse sidecar stdin failed (${detail}).`.slice(0, 240),
+          'stdin_failed',
+          {
+            cause: error,
+          },
+        ),
       )
     })
 

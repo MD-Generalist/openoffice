@@ -70,7 +70,13 @@ export function withoutTrackedChanges(file: Uint8Array): Uint8Array | null {
   if (ensureHwp5Wasm()) {
     try {
       const { bytes, info } = inspectHwp5WithWasm(file)
-      if (!info.valid || !info.tracked || !info.hasViewText || info.encrypted || info.distribution) {
+      if (
+        !info.valid ||
+        !info.tracked ||
+        !info.hasViewText ||
+        info.encrypted ||
+        info.distribution
+      ) {
         return null
       }
       return wasmStripTrackedChanges(bytes)

@@ -146,7 +146,9 @@ describe('third-party license aggregation', () => {
     }
     expect(text).toContain('Copyright (c) 2021, Kil Hyung-jin')
     expect(text).toContain('3. Rust crates (rhwp HWP engine, compiled into rhwp_bg.wasm)')
-    expect(text).toContain('4. Rust crates (ieum-parse-sidecar native component, statically linked)')
+    expect(text).toContain(
+      '4. Rust crates (ieum-parse-sidecar native component, statically linked)',
+    )
     expect(text).toContain(
       '5. Rust crates (hwp5-wasm HWP 5 container helper, compiled into hwp5_bg.wasm)',
     )

@@ -108,7 +108,9 @@ function trackedFile(): Uint8Array {
   const base = exported('Body text')
   const viewDoc = exported('View copy text')
   const viewCfb = actualCfb.read(Buffer.from(viewDoc), { type: 'buffer' })
-  const viewSection = Buffer.from(actualCfb.find(viewCfb, '/BodyText/Section0')!.content as Uint8Array)
+  const viewSection = Buffer.from(
+    actualCfb.find(viewCfb, '/BodyText/Section0')!.content as Uint8Array,
+  )
   return withFlagAndViewText(base, { flag: 0x4000, viewText: viewSection })
 }
 
@@ -416,9 +418,9 @@ describe('packages/cli hwp5WasmPath resolution order', () => {
     const devRoot = join(__dirname, '..', '..', '..')
 
     // 1. Env override wins over everything
-    expect(
-      hwp5WasmPath({ GENOFFICE_HWP5_WASM_PATH: envOverride }, packagedDir, devRoot),
-    ).toBe(envOverride)
+    expect(hwp5WasmPath({ GENOFFICE_HWP5_WASM_PATH: envOverride }, packagedDir, devRoot)).toBe(
+      envOverride,
+    )
 
     // 2. Packaged Resources/wasm/hwp5_bg.wasm wins over dev repo
     expect(hwp5WasmPath({}, packagedDir, devRoot)).toBe(join(packagedDir, 'wasm', 'hwp5_bg.wasm'))
