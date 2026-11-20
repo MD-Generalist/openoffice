@@ -23,10 +23,17 @@ import '@genoffice/ui/ai-queue-strip.css'
 import '@genoffice/ui/ai-usage.css'
 import '@genoffice/ui/ai-panel-prefs.css'
 import './ai-panel.css'
+import '@genoffice/ui/ai-panel.css'
 import type { DiagramAiApi } from '../../shared/ipc'
 import type { DrawioFrame } from '../drawio/frame-client'
 import type { DiagramCellChanges, DiagramCellRef } from '../../shared/ai-marks'
-import { applyLiveOps, liveDiagramRead, markLiveCells, undoLiveBatches } from '../document/live-ops'
+import {
+  applyLiveOps,
+  focusLiveCell,
+  liveDiagramRead,
+  markLiveCells,
+  undoLiveBatches,
+} from '../document/live-ops'
 import { useI18n } from '../i18n/locale'
 import { AiPanel } from './AiPanel'
 import type { DiagramAiHost } from './diagram-tools'
@@ -85,6 +92,7 @@ export function diagramAiHost(wiring: DiagramAiWiring): DiagramFrameHost {
       marked = [...cells]
       return markLiveCells(frame(), cells)
     },
+    focus: (cell) => focusLiveCell(frame(), cell),
     frameReady: () => {
       if (marked.length === 0 || !wiring.client() || !wiring.ready()) return
       void markLiveCells(frame(), marked).catch(() => {})

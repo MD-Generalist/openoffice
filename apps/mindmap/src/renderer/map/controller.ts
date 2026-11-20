@@ -1812,6 +1812,16 @@ export class MapController {
     if (!this.#destroyed) drawAiMarks(this.mind.nodes, next)
   }
 
+  /** Selects and scrolls a topic into view (used when clicking a line in AiChangesCard). */
+  focusTopic(topicId: string): boolean {
+    if (this.#destroyed) return false
+    const element = this.#element(topicId)
+    if (!element) return false
+    this.mind.selectNode(element)
+    element.scrollIntoView?.({ block: 'center', inline: 'center', behavior: 'smooth' })
+    return true
+  }
+
   /** Draws the sheet again from the source tree. */
   redraw(): void {
     this.#draw(this.#session.view(this.#key))

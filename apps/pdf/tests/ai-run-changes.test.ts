@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import {
   remapMarks,
   revertedStacks,
+  runChangeLines,
   runMarks,
   runRevertVerdict,
   textInsertRect,
@@ -253,5 +254,41 @@ describe('withAiEditScope', () => {
     expect(depth.current).toBe(0)
     expect(seen).toEqual([1, 1])
     expect(api.value).toBe(3)
+  })
+})
+
+describe('runChangeLines', () => {
+  it('describes text edits, inserts, markups, and non-jumpable document ops', () => {
+    const before = empty()
+    const after: EditSnapshot = {
+      ...before,
+      textEdits: [
+        {
+          id: 't1',
+          input: { pageIndex: 1, rect: [0, 0, 10, 10], oldText: 'old', newText: 'new' } as never,
+        },
+      ],
+      textInserts: [
+        {
+          id: 'ins1',
+          input: {
+            pageIndex: 0,
+            origin: [10, 20],
+            text: 'Added note',
+            fontSize: 12,
+            color: [0, 0, 0],
+          },
+        },
+      ],
+      deleted: new Set([2]),
+      metadata: { title: 'Updated' },
+    }
+    const lines = runChangeLines(before, after)
+    expect(lines).toEqual([
+      { kind: 'named', from: 'p.2', to: 'new', showable: true, page: 2 },
+      { kind: 'insert', to: 'p.1 Added note', showable: true, page: 1 },
+      { kind: 'delete', from: 'p.3', showable: false },
+      { kind: 'named', to: 'Metadata', showable: false },
+    ])
   })
 })

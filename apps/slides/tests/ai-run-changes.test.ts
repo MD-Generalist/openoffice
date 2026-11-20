@@ -53,10 +53,12 @@ describe('deckChanges', () => {
       slide('s1.xml', [node('e_1', '1', { fill: 'b' }), node('e_2', '2'), node('e_5', '5')]),
       slide('s2.xml', [node('e_4', '4')]),
     ]
-    const { marks, count } = deckChanges(deckFingerprint(before), after)
+    const { marks, count, lines } = deckChanges(deckFingerprint(before), after)
     expect(count).toBe(3)
     expect([...marks.keys()]).toEqual(['s1.xml'])
     expect([...marks.get('s1.xml')!].sort()).toEqual(['e_1', 'e_5'])
+    expect(lines.filter((l) => l.showable)).toHaveLength(2)
+    expect(lines.some((l) => l.kind === 'delete' && !l.showable)).toBe(true)
     expect(markedNodeIds(after[0], 0, marks).sort()).toEqual(['1', '5'])
     expect(markedNodeIds(after[1], 1, marks)).toEqual([])
   })
