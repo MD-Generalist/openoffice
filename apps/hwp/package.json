@@ -21,6 +21,7 @@
     "@genoffice/electron-utils": "*",
     "@genoffice/file-parse": "*",
     "@genoffice/font-metrics": "*",
+    "@genoffice/hwp5-wasm": "*",
     "@genoffice/i18n": "*",
     "@genoffice/print-layout": "*",
     "@genoffice/project-store": "*",
