@@ -16,6 +16,8 @@ export interface AiWorkStep {
 export interface AiWorkStepsProps<T extends AiWorkStep = AiWorkStep> {
   readonly lang: Lang
   readonly steps: readonly T[]
+  /** Override the summary header label (e.g. docked-card waiting state in HTML) */
+  readonly summaryLabel?: string | undefined
   /** Override whether a step can expand (e.g. structured display payload in Slides) */
   readonly hasDetail?: ((step: T, index: number) => boolean) | undefined
   /** Custom detail renderer for an expanded step; falls back to monospace output */
@@ -36,6 +38,7 @@ function StepStatusIcon({ status }: { readonly status: 'running' | 'done' | 'err
 export function AiWorkSteps<T extends AiWorkStep = AiWorkStep>({
   lang,
   steps,
+  summaryLabel,
   hasDetail,
   renderDetail,
 }: AiWorkStepsProps<T>): React.JSX.Element | null {
@@ -61,11 +64,13 @@ export function AiWorkSteps<T extends AiWorkStep = AiWorkStep>({
     : anyError
       ? 'error'
       : 'done'
-  const label = anyRunning
-    ? aiPanelText(lang, 'workingSteps')
-    : steps.length === 1
-      ? aiPanelText(lang, 'workedStepOne')
-      : aiPanelText(lang, 'workedSteps', { n: steps.length })
+  const label =
+    summaryLabel ??
+    (anyRunning
+      ? aiPanelText(lang, 'workingSteps')
+      : steps.length === 1
+        ? aiPanelText(lang, 'workedStepOne')
+        : aiPanelText(lang, 'workedSteps', { n: steps.length }))
 
   return (
     <div className="ai-work-group">
