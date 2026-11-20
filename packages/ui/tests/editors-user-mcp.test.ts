@@ -77,8 +77,12 @@ describe.each(Object.entries(PANELS))('%s AI panel', (_name, panel) => {
 
   it('puts the server button once in the composer footer', () => {
     expect(view.split('<McpServerButton lang={lang} />')).toHaveLength(2)
-    // beside the attach buttons where the panel has them, else in AiComposer's footer
-    const anchor = view.includes('<DocAttachButton') ? '<DocAttachButton' : 'footerStart={'
+    // beside the attach button where the panel has one, else in AiComposer's footer
+    const anchor = view.includes('<AiAttachMenu')
+      ? '<AiAttachMenu'
+      : view.includes('<DocAttachButton')
+        ? '<DocAttachButton'
+        : 'footerStart={'
     const at = view.indexOf(anchor)
     expect(at).toBeGreaterThan(-1)
     expect(view.indexOf('<McpServerButton')).toBeGreaterThan(at)
