@@ -20,7 +20,7 @@ import {
   AiWorkSteps,
   IconArrowUp,
   IconStop,
-  aiPanelText,
+  AiEmptyHints,
   aiSubscriptionText,
   useAiSendGate,
   useScrollToBottom,
@@ -1323,10 +1323,10 @@ export function AiPanel({
             runMutatedRef.current = true
             if (runChangeLinesRef.current.length < MAX_HTML_CHANGE_LINES) {
               const nextLines = htmlChangeLinesFromTool(call.name, call.input, execution.summary)
-              runChangeLinesRef.current = [
-                ...runChangeLinesRef.current,
-                ...nextLines,
-              ].slice(0, MAX_HTML_CHANGE_LINES)
+              runChangeLinesRef.current = [...runChangeLinesRef.current, ...nextLines].slice(
+                0,
+                MAX_HTML_CHANGE_LINES,
+              )
             }
           }
           if (snapshotBefore !== undefined) runSnapshotRef.current = snapshotBefore
@@ -2395,14 +2395,7 @@ export function AiPanel({
                 </button>
               ))}
             </div>
-            <div className="ai-chat-empty-hints">
-              <span className="ai-chat-empty-hint">
-                <kbd>/</kbd> {aiPanelText(lang, 'hintSkill')}
-              </span>
-              <span className="ai-chat-empty-hint">
-                <kbd>@</kbd> {aiPanelText(lang, 'hintDocMention')}
-              </span>
-            </div>
+            <AiEmptyHints lang={lang} showSkill={Boolean(skills.composer)} showDocMention />
           </div>
         )}
         {chat.map((entry, i) => {
@@ -2574,6 +2567,17 @@ export function AiPanel({
         <McpPermissionCard lang={lang} />
       </div>
 
+      <AiScrollToBottom
+        visible={
+          showScrollBottom && chat.length > 0 && !activeClarify && !activeBrief && !activePartial
+        }
+        lang={lang}
+        onClick={() => {
+          stickToBottomRef.current = true
+          scrollToBottom()
+        }}
+      />
+
       {activeClarify && (
         <div className="ai-composer">
           <ClarifyCard
@@ -2665,20 +2669,6 @@ export function AiPanel({
         className="ai-composer"
         style={activeClarify || activeBrief || activePartial ? { display: 'none' } : undefined}
       >
-        <AiScrollToBottom
-          visible={
-            showScrollBottom &&
-            chat.length > 0 &&
-            !activeClarify &&
-            !activeBrief &&
-            !activePartial
-          }
-          lang={lang}
-          onClick={() => {
-            stickToBottomRef.current = true
-            scrollToBottom()
-          }}
-        />
         {chat.length === 0 && docEmpty && (
           <div className="ai-intent-bar">
             <div className="ai-intent-label">{t('aiIntentLabel')}</div>

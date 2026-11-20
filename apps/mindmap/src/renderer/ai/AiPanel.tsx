@@ -39,7 +39,7 @@ import {
   AiWorkSteps,
   IconArrowUp,
   IconStop,
-  aiPanelText,
+  AiEmptyHints,
   aiSubscriptionText,
   AiReplyProgress,
   AiUsageChip,
@@ -290,8 +290,7 @@ function collectMindmapChangeLines(host: MapAiHost, turn: MapTurn): MindmapChang
   const lines: MindmapChangeLine[] = []
   for (const [sheetKey, ids] of turn.topics) {
     let root:
-      | { id: string; title?: string; children?: { attached?: readonly unknown[] } }
-      | undefined
+      { id: string; title?: string; children?: { attached?: readonly unknown[] } } | undefined
     try {
       root = session?.sheet(sheetKey)?.rootTopic as typeof root
     } catch {
@@ -1959,14 +1958,7 @@ export function AiPanel({
                 </button>
               ))}
             </div>
-            <div className="ai-chat-empty-hints">
-              <span className="ai-chat-empty-hint">
-                <kbd>/</kbd> {aiPanelText(lang, 'hintSkill')}
-              </span>
-              <span className="ai-chat-empty-hint">
-                <kbd>@</kbd> {aiPanelText(lang, 'hintDocMention')}
-              </span>
-            </div>
+            <AiEmptyHints lang={lang} showSkill={Boolean(skills.composer)} showDocMention />
           </div>
         )}
         {chat.map((entry, i) => {
@@ -2062,6 +2054,15 @@ export function AiPanel({
         <McpPermissionCard lang={lang} />
       </div>
 
+      <AiScrollToBottom
+        visible={showScrollBottom && chat.length > 0}
+        lang={lang}
+        onClick={() => {
+          stickToBottomRef.current = true
+          scrollToBottom()
+        }}
+      />
+
       {(sendGate.connectChoice || sendGate.noticeDue) && (
         <div className="ai-composer">
           {sendGate.connectChoice ? (
@@ -2095,14 +2096,6 @@ export function AiPanel({
         </div>
       )}
       <div className="ai-composer">
-        <AiScrollToBottom
-          visible={showScrollBottom && chat.length > 0}
-          lang={lang}
-          onClick={() => {
-            stickToBottomRef.current = true
-            scrollToBottom()
-          }}
-        />
         {attachments.length > 0 && (
           <div className="ai-attachments">
             <AttachmentList

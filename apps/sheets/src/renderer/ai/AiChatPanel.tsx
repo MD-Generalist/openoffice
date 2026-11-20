@@ -8,7 +8,7 @@ import {
   AiScrollToBottom,
   AiModelPicker,
   AiWorkSteps,
-  aiPanelText,
+  AiEmptyHints,
   useScrollToBottom,
   type AiModelPickerBridge,
   type AiWorkStep,
@@ -839,20 +839,11 @@ export function AiChatPanel({
             <div className="ai-chat-empty-body">
               {t(hasContent ? 'aiEmptyBodyLine1' : 'aiEmptyBuildBody')}
             </div>
-            {(skills.composer || docMention) && (
-              <div className="ai-chat-empty-hints">
-                {skills.composer && (
-                  <span>
-                    <kbd>/</kbd> {aiPanelText(lang, 'hintSkill')}
-                  </span>
-                )}
-                {docMention && (
-                  <span>
-                    <kbd>@</kbd> {aiPanelText(lang, 'hintDocMention')}
-                  </span>
-                )}
-              </div>
-            )}
+            <AiEmptyHints
+              lang={lang}
+              showSkill={Boolean(skills.composer)}
+              showDocMention={Boolean(docMention)}
+            />
           </div>
         )}
         {chat.map((entry, index) => {
@@ -860,99 +851,107 @@ export function AiChatPanel({
           const nextEntry = chat[index + 1]
           const turnEnded = nextEntry ? nextEntry.role === 'user' : !aiBusy
           const showCopy =
-            entry.role === 'assistant' && !entry.streaming && turnEnded && !entry.blocked && !!entry.text
+            entry.role === 'assistant' &&
+            !entry.streaming &&
+            turnEnded &&
+            !entry.blocked &&
+            !!entry.text
           return (
-          <div
-            key={index}
-            className={`ai-msg ai-msg-${entry.role}${entry.isError && !entry.blocked ? ' ai-msg-error' : ''}${entry.role === 'assistant' && entry.streaming ? ' ai-msg-streaming' : ''}`}
-          >
-            {entry.role === 'user' ? (
-              <>
-                {entry.scope && <AiScopeQuote scope={entry.scope} />}
-                <SentSkillChips lang={lang} chips={entry.skills} isAvailable={skills.isAvailable} />
-                {entry.attachments && entry.attachments.length > 0 && (
-                  <SentAttachments atts={entry.attachments} previews={attachmentPreviews} />
-                )}
-                <span dir="auto">{entry.text}</span>
-                {entry.undelivered && (
-                  <div className="ai-msg-undelivered">
-                    {t('aiUndelivered')}
-                    {!aiBusy && (
-                      <button
-                        className="ai-retry-btn"
-                        onClick={() => onSend(entry.text, entry.attachments ?? [], index)}
-                      >
-                        {t('aiRetry')}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                {entry.tools.length > 0 && (
-                  <AiWorkSteps lang={lang} steps={toWorkSteps(entry.tools)} />
-                )}
-                <SkillUsedNotes tools={entry.tools} />
-                {project?.messageParts(entry)}
-                {entry.skillProposals?.map((key) => renderSkillCard?.(key))}
-                {entry.blocked ? (
-                  <AiBlockedNotice
-                    kind={entry.blocked.kind}
-                    provider={entry.blocked.provider}
-                    resetsAt={entry.blocked.resetsAt}
-                    message={entry.text}
-                    settings={subscription.settings ?? NO_METERED_ACCEPTED}
-                    // only the run that just stopped can be continued on another connection
-                    statuses={
-                      index === chat.length - 1 && !aiBusy ? subscription.statuses : NO_STATUSES
-                    }
+            <div
+              key={index}
+              className={`ai-msg ai-msg-${entry.role}${entry.isError && !entry.blocked ? ' ai-msg-error' : ''}${entry.role === 'assistant' && entry.streaming ? ' ai-msg-streaming' : ''}`}
+            >
+              {entry.role === 'user' ? (
+                <>
+                  {entry.scope && <AiScopeQuote scope={entry.scope} />}
+                  <SentSkillChips
                     lang={lang}
-                    onContinueWith={(provider) => subscription.onContinueWith(provider, index)}
+                    chips={entry.skills}
+                    isAvailable={skills.isAvailable}
                   />
-                ) : (
-                  entry.text && (
-                    <div dir="auto">
-                      <Markdown text={entry.text} navs={[citationNav, fileNav]} />
+                  {entry.attachments && entry.attachments.length > 0 && (
+                    <SentAttachments atts={entry.attachments} previews={attachmentPreviews} />
+                  )}
+                  <span dir="auto">{entry.text}</span>
+                  {entry.undelivered && (
+                    <div className="ai-msg-undelivered">
+                      {t('aiUndelivered')}
+                      {!aiBusy && (
+                        <button
+                          className="ai-retry-btn"
+                          onClick={() => onSend(entry.text, entry.attachments ?? [], index)}
+                        >
+                          {t('aiRetry')}
+                        </button>
+                      )}
                     </div>
-                  )
-                )}
-                {entry.autoApplied && (
-                  // undoSteps 0 = the batch exceeded the undo budget and kept no
-                  // stack entry: the card says it can no longer go back (expired)
-                  <AiChangesCard
-                    lang={lang}
-                    state={receiptState(entry.autoApplied)}
-                    count={entry.autoApplied.opCount}
-                    lines={entry.autoApplied.lines}
-                    onShowLine={(lineIdx) => {
-                      const href = entry.autoApplied?.lines?.[lineIdx]?.navHref
-                      if (href) onCitation(href)
-                    }}
-                    canRevert={!aiBusy && reverting === null}
-                    onRevert={() => {
-                      setReverting(index)
-                      void onRevertChanges(index).finally(() => setReverting(null))
-                    }}
-                    onClearMarks={entry.autoApplied.marked ? onClearMarks : undefined}
+                  )}
+                </>
+              ) : (
+                <>
+                  {entry.tools.length > 0 && (
+                    <AiWorkSteps lang={lang} steps={toWorkSteps(entry.tools)} />
+                  )}
+                  <SkillUsedNotes tools={entry.tools} />
+                  {project?.messageParts(entry)}
+                  {entry.skillProposals?.map((key) => renderSkillCard?.(key))}
+                  {entry.blocked ? (
+                    <AiBlockedNotice
+                      kind={entry.blocked.kind}
+                      provider={entry.blocked.provider}
+                      resetsAt={entry.blocked.resetsAt}
+                      message={entry.text}
+                      settings={subscription.settings ?? NO_METERED_ACCEPTED}
+                      // only the run that just stopped can be continued on another connection
+                      statuses={
+                        index === chat.length - 1 && !aiBusy ? subscription.statuses : NO_STATUSES
+                      }
+                      lang={lang}
+                      onContinueWith={(provider) => subscription.onContinueWith(provider, index)}
+                    />
+                  ) : (
+                    entry.text && (
+                      <div dir="auto">
+                        <Markdown text={entry.text} navs={[citationNav, fileNav]} />
+                      </div>
+                    )
+                  )}
+                  {entry.autoApplied && (
+                    // undoSteps 0 = the batch exceeded the undo budget and kept no
+                    // stack entry: the card says it can no longer go back (expired)
+                    <AiChangesCard
+                      lang={lang}
+                      state={receiptState(entry.autoApplied)}
+                      count={entry.autoApplied.opCount}
+                      lines={entry.autoApplied.lines}
+                      onShowLine={(lineIdx) => {
+                        const href = entry.autoApplied?.lines?.[lineIdx]?.navHref
+                        if (href) onCitation(href)
+                      }}
+                      canRevert={!aiBusy && reverting === null}
+                      onRevert={() => {
+                        setReverting(index)
+                        void onRevertChanges(index).finally(() => setReverting(null))
+                      }}
+                      onClearMarks={entry.autoApplied.marked ? onClearMarks : undefined}
+                    />
+                  )}
+                  <AiReplyProgress
+                    reply={entry}
+                    thinking={t('aiThinking')}
+                    working={t('aiWorking')}
                   />
-                )}
-                <AiReplyProgress
-                  reply={entry}
-                  thinking={t('aiThinking')}
-                  working={t('aiWorking')}
-                />
-                {(showCopy || entry.usage) && (
-                  <AiReplyFooter
-                    lang={lang}
-                    isLast={isLast}
-                    copyText={showCopy ? entry.text : undefined}
-                    usage={entry.usage}
-                  />
-                )}
-              </>
-            )}
-          </div>
+                  {(showCopy || entry.usage) && (
+                    <AiReplyFooter
+                      lang={lang}
+                      isLast={isLast}
+                      copyText={showCopy ? entry.text : undefined}
+                      usage={entry.usage}
+                    />
+                  )}
+                </>
+              )}
+            </div>
           )
         })}
         {skillNotes}
@@ -1202,9 +1201,7 @@ export function AiChatPanel({
             />
           }
           footerBelow={project?.picker}
-          footerBelowEnd={
-            sessionUsage && <AiUsageChip usage={sessionUsage} session lang={lang} />
-          }
+          footerBelowEnd={sessionUsage && <AiUsageChip usage={sessionUsage} session lang={lang} />}
           textareaRef={inputRef}
           onChange={onPromptChange}
           onSend={send}

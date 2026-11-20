@@ -103,7 +103,9 @@ describe('AiComposer skill button & two-zone footer', () => {
     const textarea = container.querySelector<HTMLTextAreaElement>('textarea')!
     expect(trigger).not.toBeNull()
     expect(container.querySelector('.ai-input-footer-end .model-slot')).not.toBeNull()
-    expect(container.querySelector('.ai-input-below .ai-input-below-end .usage-slot')).not.toBeNull()
+    expect(
+      container.querySelector('.ai-input-below .ai-input-below-end .usage-slot'),
+    ).not.toBeNull()
 
     act(() => {
       trigger.click()
@@ -159,5 +161,37 @@ describe('AiComposer skill button & two-zone footer', () => {
 
     expect(container.querySelector('.ai-skill-picker')).toBeNull()
     expect(bubbleEscape).not.toHaveBeenCalled()
+  })
+
+  it('uses data-tip instead of native title on iconOnly send and stop buttons', () => {
+    act(() => {
+      root.render(<ComposerHarness skills={makeSkills()} showSkillButton />)
+    })
+    const sendBtn = container.querySelector<HTMLButtonElement>('.ai-send-btn')!
+    expect(sendBtn.getAttribute('data-tip')).toBe('Send')
+    expect(sendBtn.getAttribute('aria-label')).toBe('Send')
+    expect(sendBtn.getAttribute('title')).toBeNull()
+
+    act(() => {
+      root.render(
+        <AiComposer
+          value=""
+          busy
+          placeholder="Ask"
+          hintIdle=""
+          hintBusy=""
+          sendLabel="Send"
+          stopLabel="Stop"
+          iconOnly
+          onChange={vi.fn()}
+          onSend={vi.fn()}
+          onStop={vi.fn()}
+        />,
+      )
+    })
+    const stopBtn = container.querySelector<HTMLButtonElement>('.ai-stop-btn')!
+    expect(stopBtn.getAttribute('data-tip')).toBe('Stop')
+    expect(stopBtn.getAttribute('aria-label')).toBe('Stop')
+    expect(stopBtn.getAttribute('title')).toBeNull()
   })
 })

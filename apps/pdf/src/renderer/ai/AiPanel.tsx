@@ -6,7 +6,7 @@ import {
   AiScrollToBottom,
   AiModelPicker,
   AiWorkSteps,
-  aiPanelText,
+  AiEmptyHints,
   useScrollToBottom,
   type AiModelPickerBridge,
   useSubscriptionUsageUpdates,
@@ -1291,13 +1291,7 @@ export function AiPanel({
                 </button>
               ))}
             </div>
-            {skills.composer && (
-              <div className="ai-chat-empty-hints">
-                <span>
-                  <kbd>/</kbd> {aiPanelText(lang, 'hintSkill')}
-                </span>
-              </div>
-            )}
+            <AiEmptyHints lang={lang} showSkill={Boolean(skills.composer)} />
           </div>
         )}
         {chat.map((entry, i) => {
@@ -1329,7 +1323,8 @@ export function AiPanel({
           const isLast = i === chat.length - 1
           const nextEntry = chat[i + 1]
           const turnEnded = nextEntry ? nextEntry.role === 'user' : !busy
-          const showCopy = !entry.streaming && turnEnded && !entry.blocked && !entry.isError && !!entry.text
+          const showCopy =
+            !entry.streaming && turnEnded && !entry.blocked && !entry.isError && !!entry.text
           return (
             <div
               key={i}
@@ -1571,9 +1566,7 @@ export function AiPanel({
           onStop={stop}
           skills={skills.composer}
           footerBelow={projectPanel.picker}
-          footerBelowEnd={
-            sessionUsage && <AiUsageChip usage={sessionUsage} session lang={lang} />
-          }
+          footerBelowEnd={sessionUsage && <AiUsageChip usage={sessionUsage} session lang={lang} />}
         />
       </div>
     </aside>

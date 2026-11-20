@@ -11,6 +11,7 @@ import {
   IconArrowUp,
   IconSlash,
   IconStop,
+  AiEmptyHints,
   aiPanelText,
   useScrollToBottom,
   type AiModelPickerBridge,
@@ -2772,16 +2773,7 @@ export function AiPanel({
                 </button>
               ))}
             </div>
-            <div className="ai-chat-empty-hints">
-              {skills.composer && (
-                <span>
-                  <kbd>/</kbd> {aiPanelText(lang, 'hintSkill')}
-                </span>
-              )}
-              <span>
-                <kbd>@</kbd> {aiPanelText(lang, 'hintDocMention')}
-              </span>
-            </div>
+            <AiEmptyHints lang={lang} showSkill={Boolean(skills.composer)} showDocMention />
             {deckEmpty && <TemplateStartGallery />}
           </div>
         )}
@@ -3334,8 +3326,8 @@ function ImageThumb({ url, title }: { url: string; title?: string }) {
 function hasToolDetail(tool: ToolActivity): boolean {
   return Boolean(
     tool.output ||
-      tool.display?.items?.length ||
-      (tool.display?.kind === 'text' && tool.display.text),
+    tool.display?.items?.length ||
+    (tool.display?.kind === 'text' && tool.display.text),
   )
 }
 

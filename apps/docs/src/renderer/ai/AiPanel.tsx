@@ -13,7 +13,7 @@ import {
   AiModelPicker,
   AiToolsUnsupportedNotice,
   AiWorkSteps,
-  aiPanelText,
+  AiEmptyHints,
   useScrollToBottom,
   type AiModelPickerBridge,
   AiQueueStrip,
@@ -2076,16 +2076,7 @@ export function AiPanel({
                 </button>
               ))}
             </div>
-            <div className="ai-chat-empty-hints">
-              {skills.composer && (
-                <span>
-                  <kbd>/</kbd> {aiPanelText(lang, 'hintSkill')}
-                </span>
-              )}
-              <span>
-                <kbd>@</kbd> {aiPanelText(lang, 'hintDocMention')}
-              </span>
-            </div>
+            <AiEmptyHints lang={lang} showSkill={Boolean(skills.composer)} showDocMention />
           </div>
         )}
         {chat.map((entry, i) => {
@@ -2429,9 +2420,7 @@ export function AiPanel({
           docs={docMention}
           onPasteFiles={(files) => void onPasteFiles(files)}
           footerBelow={project.picker}
-          footerBelowEnd={
-            sessionUsage && <AiUsageChip usage={sessionUsage} session lang={lang} />
-          }
+          footerBelowEnd={sessionUsage && <AiUsageChip usage={sessionUsage} session lang={lang} />}
           footerStart={
             <>
               <AiAttachMenu

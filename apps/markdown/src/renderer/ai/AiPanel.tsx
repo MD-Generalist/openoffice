@@ -19,7 +19,7 @@ import {
   AiWorkSteps,
   IconArrowUp,
   IconStop,
-  aiPanelText,
+  AiEmptyHints,
   aiSubscriptionText,
   useAiSendGate,
   useScrollToBottom,
@@ -204,7 +204,8 @@ function mdChangeLinesFromTool(
       if (!raw || typeof raw !== 'object') continue
       const op = raw as Record<string, unknown>
       const kind = typeof op.op === 'string' ? op.op : ''
-      const target = op.target && typeof op.target === 'object' ? (op.target as Record<string, unknown>) : null
+      const target =
+        op.target && typeof op.target === 'object' ? (op.target as Record<string, unknown>) : null
       const block =
         typeof target?.start === 'number'
           ? target.start
@@ -866,10 +867,10 @@ export function AiPanel({
             runMutatedRef.current = true
             if (runChangeLinesRef.current.length < MAX_MD_CHANGE_LINES) {
               const nextLines = mdChangeLinesFromTool(call.name, call.input, execution.summary)
-              runChangeLinesRef.current = [
-                ...runChangeLinesRef.current,
-                ...nextLines,
-              ].slice(0, MAX_MD_CHANGE_LINES)
+              runChangeLinesRef.current = [...runChangeLinesRef.current, ...nextLines].slice(
+                0,
+                MAX_MD_CHANGE_LINES,
+              )
             }
           }
           if (snapshotBefore !== undefined) runSnapshotRef.current = snapshotBefore
@@ -1544,11 +1545,7 @@ export function AiPanel({
                 {t('aiQuickMindMap')}
               </button>
             </div>
-            <div className="ai-chat-empty-hints">
-              <span className="ai-chat-empty-hint">
-                <kbd>/</kbd> {aiPanelText(lang, 'hintSkill')}
-              </span>
-            </div>
+            <AiEmptyHints lang={lang} showSkill={Boolean(skills.composer)} />
           </div>
         )}
         {chat.map((entry, i) => {
@@ -1717,15 +1714,16 @@ export function AiPanel({
         {projectPanel.notices}
       </div>
 
+      <AiScrollToBottom
+        visible={showScrollBottom && chat.length > 0}
+        lang={lang}
+        onClick={() => {
+          stickToBottomRef.current = true
+          scrollToBottom()
+        }}
+      />
+
       <div className="ai-composer">
-        <AiScrollToBottom
-          visible={showScrollBottom && chat.length > 0}
-          lang={lang}
-          onClick={() => {
-            stickToBottomRef.current = true
-            scrollToBottom()
-          }}
-        />
         {activePartial && (
           <div className="ai-queue ai-partial-card" role="group" aria-label={t('aiPartialTitle')}>
             <div className="ai-queue-head">

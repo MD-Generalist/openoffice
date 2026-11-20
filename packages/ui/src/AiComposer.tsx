@@ -137,7 +137,8 @@ export function AiComposer({
       type="button"
       className="ai-send-btn ai-stop-btn"
       onClick={onStop}
-      title={stopLabel}
+      title={iconOnly ? undefined : stopLabel}
+      data-tip={iconOnly ? stopLabel : undefined}
       aria-label={stopLabel}
     >
       {iconOnly ? (stopIcon ?? <IconStop size={14} />) : <IconStop size={16} />}
@@ -149,7 +150,8 @@ export function AiComposer({
       className="ai-send-btn"
       onClick={onSend}
       disabled={!canSend}
-      title={sendLabel}
+      title={iconOnly ? undefined : sendLabel}
+      data-tip={iconOnly ? sendLabel : undefined}
       aria-label={sendLabel}
     >
       {iconOnly ? (

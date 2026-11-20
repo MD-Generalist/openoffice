@@ -37,7 +37,7 @@ import {
   AiWorkSteps,
   IconArrowUp,
   IconStop,
-  aiPanelText,
+  AiEmptyHints,
   aiSubscriptionText,
   AiReplyProgress,
   AiUsageChip,
@@ -1337,14 +1337,7 @@ export function AiPanel({ host, filePath, onCollapse }: AiPanelProps): ReactElem
                 </button>
               ))}
             </div>
-            <div className="ai-chat-empty-hints">
-              <span className="ai-chat-empty-hint">
-                <kbd>/</kbd> {aiPanelText(lang, 'hintSkill')}
-              </span>
-              <span className="ai-chat-empty-hint">
-                <kbd>@</kbd> {aiPanelText(lang, 'hintDocMention')}
-              </span>
-            </div>
+            <AiEmptyHints lang={lang} showSkill={Boolean(skills.composer)} showDocMention />
           </div>
         )}
         {chat.map((entry, i) => {
@@ -1431,6 +1424,15 @@ export function AiPanel({ host, filePath, onCollapse }: AiPanelProps): ReactElem
         <McpPermissionCard lang={lang} />
       </div>
 
+      <AiScrollToBottom
+        visible={showScrollBottom && chat.length > 0}
+        lang={lang}
+        onClick={() => {
+          stickToBottomRef.current = true
+          scrollToBottom()
+        }}
+      />
+
       {(sendGate.connectChoice || sendGate.noticeDue) && (
         <div className="ai-composer">
           {sendGate.connectChoice ? (
@@ -1464,14 +1466,6 @@ export function AiPanel({ host, filePath, onCollapse }: AiPanelProps): ReactElem
         </div>
       )}
       <div className="ai-composer">
-        <AiScrollToBottom
-          visible={showScrollBottom && chat.length > 0}
-          lang={lang}
-          onClick={() => {
-            stickToBottomRef.current = true
-            scrollToBottom()
-          }}
-        />
         {attachments.length > 0 && (
           <div className="ai-attachments">
             <AttachmentList

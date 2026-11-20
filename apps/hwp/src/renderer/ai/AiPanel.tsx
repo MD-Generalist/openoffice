@@ -22,7 +22,7 @@ import {
   AiReplyProgress,
   AiWorkSteps,
   Markdown,
-  aiPanelText,
+  AiEmptyHints,
   aiPanelWidthAtPointer,
   aiSubscriptionText,
   useAiSendGate,
@@ -1460,16 +1460,7 @@ export function AiPanel({
                 {t('aiStarterProofread')}
               </button>
             </div>
-            <div className="ai-chat-empty-hints">
-              {skills.composer && (
-                <span>
-                  <kbd>/</kbd> {aiPanelText(lang, 'hintSkill')}
-                </span>
-              )}
-              <span>
-                <kbd>@</kbd> {aiPanelText(lang, 'hintDocMention')}
-              </span>
-            </div>
+            <AiEmptyHints lang={lang} showSkill={Boolean(skills.composer)} showDocMention />
           </div>
         )}
         {chat.map((entry, i) => {
@@ -1569,9 +1560,7 @@ export function AiPanel({
                 />
               )}
               <AiReplyProgress reply={entry} thinking={t('aiThinking')} working={t('aiWorking')} />
-              {showToolbar && (
-                <AiReplyFooter lang={lang} isLast={isLast} copyText={entry.text} />
-              )}
+              {showToolbar && <AiReplyFooter lang={lang} isLast={isLast} copyText={entry.text} />}
             </div>
           )
         })}
