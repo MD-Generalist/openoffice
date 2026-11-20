@@ -36,7 +36,18 @@ impl EpubError {
                 "Copy-protected EPUB: the book is protected by DRM and cannot be read; open it in the app of the store it was bought from ({detail})"
             ),
             EpubError::Corrupt(m) => m.clone(),
-            EpubError::Zip(z) => z.message(),
+            EpubError::Zip(z) => match z {
+                ZipGateError::Rejected(detail) => {
+                    format!("Cannot read EPUB: the file is too large to unpack safely ({detail})")
+                }
+                ZipGateError::Corrupt(detail) => {
+                    format!("Cannot read EPUB: the file is damaged ({detail})")
+                }
+                ZipGateError::Io(err) => {
+                    format!("Cannot read EPUB: the file is damaged ({err})")
+                }
+                ZipGateError::Cancelled => z.message(),
+            },
         }
     }
 }

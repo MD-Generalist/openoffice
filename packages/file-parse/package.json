@@ -10,6 +10,8 @@
     "./hwp": "./src/hwp.ts"
   },
   "scripts": {
+    "native:build": "node scripts/build-sidecar.mjs",
+    "native:test": "cargo test --manifest-path native/parse-sidecar/Cargo.toml",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
