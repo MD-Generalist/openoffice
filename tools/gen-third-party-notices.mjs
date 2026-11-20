@@ -13,7 +13,7 @@
  * own LICENSE (Apache-2.0) ships beside it as LICENSE.txt; the NOTICE that
  * license requires to travel with the work opens the generated file.
  *
- * The two Rust sections need cargo, and the rhwp one a sparse checkout of the
+ * The four Rust sections need cargo, and the rhwp one a sparse checkout of the
  * rhwp tag (manifests only, cached under node_modules/.cache). Without them a
  * local build degrades to a pointer; with CI or IEUM_RELEASE set the gap is an
  * error, and electron-builder's beforePack rejects a notice that has it.
@@ -572,6 +572,47 @@ function rhwpCrates() {
     .sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version))
 }
 
+/** Normal non-proc-macro crates reachable from `rootName` in a Cargo manifest */
+function linkedRustCrates(manifestPath, rootName, extraArgs = []) {
+  const meta = cargoMetadata(manifestPath, ['--locked', ...extraArgs])
+  if (meta === null) return null
+  const byId = new Map(meta.packages.map((p) => [p.id, p]))
+  const depsOf = new Map(meta.resolve.nodes.map((n) => [n.id, n.deps]))
+  const root = meta.packages.find((p) => p.name === rootName && p.source === null)
+  if (!root) return null
+  const isProcMacro = (p) => p.targets.some((t) => t.kind.includes('proc-macro'))
+  const seen = new Set([root.id])
+  const queue = [root.id]
+  while (queue.length > 0) {
+    for (const dep of depsOf.get(queue.shift()) ?? []) {
+      if (seen.has(dep.pkg) || !dep.dep_kinds.some((k) => k.kind === null)) continue
+      if (isProcMacro(byId.get(dep.pkg))) continue
+      seen.add(dep.pkg)
+      queue.push(dep.pkg)
+    }
+  }
+  seen.delete(root.id)
+  return [...seen]
+    .map((id) => crateRow(byId.get(id)))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version))
+}
+
+/** Rust crates statically linked into ieum-parse-sidecar */
+function parseSidecarCrates() {
+  return linkedRustCrates(
+    join(ROOT, 'packages/file-parse/native/parse-sidecar/Cargo.toml'),
+    'ieum-parse-sidecar',
+  )
+}
+
+/** Rust crates compiled into hwp5_wasm_bg.wasm (resources/wasm/hwp5_bg.wasm) */
+function hwp5WasmCrates() {
+  return linkedRustCrates(join(ROOT, 'packages/hwp5-wasm/Cargo.toml'), 'hwp5-wasm', [
+    '--filter-platform',
+    RHWP_TARGET,
+  ])
+}
+
 /** the crate list and each distinct license text; the count line is what electron-builder checks */
 function crateSection(crates) {
   let text = `\n${crates.length} crates, all under permissive terms:\n\n`
@@ -652,6 +693,30 @@ if (wasmCrates === null) {
   out += ` at ${RHWP.rhwp.tag}.\n`
 } else {
   out += crateSection(wasmCrates)
+}
+
+const sidecarCrates = parseSidecarCrates()
+out += hr('4. Rust crates (ieum-parse-sidecar native component, statically linked)')
+if (sidecarCrates === null) {
+  gap('cargo metadata failed for packages/file-parse/native/parse-sidecar (is cargo on PATH?)')
+  out += '\ncargo metadata unavailable at generation time; see'
+  out += ' packages/file-parse/native/parse-sidecar/Cargo.lock for the full crate list.\n'
+} else {
+  out += crateSection(sidecarCrates)
+}
+
+const hwp5Crates = hwp5WasmCrates()
+out += hr('5. Rust crates (hwp5-wasm HWP 5 container helper, compiled into hwp5_bg.wasm)')
+out += `
+hwp5-wasm (packages/hwp5-wasm) is built for ${RHWP_TARGET} and ships as
+resources/wasm/hwp5_bg.wasm for HWP 5 OLE2/CFB container post-processing.
+`
+if (hwp5Crates === null) {
+  gap('cargo metadata failed for packages/hwp5-wasm (is cargo on PATH?)')
+  out += '\ncargo metadata unavailable at generation time; see'
+  out += ' packages/hwp5-wasm/Cargo.lock for the full crate list.\n'
+} else {
+  out += crateSection(hwp5Crates)
 }
 
 const GOTHIC_KR_COPYRIGHT = [
@@ -771,7 +836,7 @@ const TEMPLATE_FONTS = [
   ['Archivo Black 1.006', 'ArchivoBlack-OFL.txt'],
 ]
 
-out += hr('4. Bundled fonts')
+out += hr('6. Bundled fonts')
 for (const [name, spdx, copyright] of FONTS) out += sub(`${name} — ${spdx}`) + copyright + '\n'
 for (const [name, file, copyright] of TEMPLATE_FONTS) {
   out += sub(`${name} (slide design templates, resources/template-fonts) — SIL OFL 1.1`)
@@ -782,7 +847,7 @@ out += sub('SIL Open Font License 1.1 — full text')
 out +=
   readFileSync(join(ROOT, 'apps/docs/src/renderer/fonts/LICENSE-OFL.txt'), 'utf8').trim() + '\n'
 
-out += hr('5. Unicode Character Database data')
+out += hr('7. Unicode Character Database data')
 out += `
 apps/pdf/src/shared/radicals.ts contains a generated mapping derived from
 Unicode Character Database 17.0.0, EquivalentUnifiedIdeograph.txt
@@ -793,7 +858,7 @@ https://www.unicode.org/Public/17.0.0/ucd/EquivalentUnifiedIdeograph.txt
 out += readFileSync(join(ROOT, 'LICENSE-UNICODE.txt'), 'utf8').trim() + '\n'
 
 // Hancom's condition for using its published HWP format document; the wording is fixed
-out += hr('6. Hangul (HWP) document format and trademarks')
+out += hr('8. Hangul (HWP) document format and trademarks')
 out += `
 The HWP/HWPX editor is built on rhwp (https://github.com/edwardkim/rhwp,
 MIT License, listed above as @rhwp/core and @rhwp/editor).
@@ -848,7 +913,7 @@ async function drawioComponentTerms(c, read) {
     case 'Apache-2.0':
       return 'Licensed under the Apache License, Version 2.0 (full text at the start of this section).'
     case 'OFL-1.1':
-      return 'Licensed under the SIL Open Font License 1.1 (full text in section 4).'
+      return 'Licensed under the SIL Open Font License 1.1 (full text in section 6).'
     case 'CC-BY-4.0':
       return (await read(c.licenseFile)).toString('utf8').trim()
     default:
@@ -926,7 +991,7 @@ ${d.ranges.map((r) => `    ${r.name}: bytes ${r.offset}-${r.offset + r.length - 
   return text
 }
 
-out += hr('7. draw.io (diagram editor)')
+out += hr('9. draw.io (diagram editor)')
 let drawio = null
 try {
   drawio = await loadDrawio()
@@ -951,7 +1016,8 @@ writeFileSync(dest, out)
 console.log(
   `written: ${relative(ROOT, dest)} (${(out.length / 1024).toFixed(0)} KB) — ` +
     `${resolved.length} npm packages, ${crates?.length ?? 0} xlsx-sidecar crates, ` +
-    `${wasmCrates?.length ?? 0} rhwp crates, draw.io ${drawio ? drawio.config.version : 'missing'}`,
+    `${wasmCrates?.length ?? 0} rhwp crates, ${sidecarCrates?.length ?? 0} parse-sidecar crates, ` +
+    `${hwp5Crates?.length ?? 0} hwp5-wasm crates, draw.io ${drawio ? drawio.config.version : 'missing'}`,
 )
 if (noText.length > 0) console.warn(`no license file published: ${noText.join(', ')}`)
 if (missing.size > 0) console.warn(`not installed, skipped: ${[...missing].join(', ')}`)
