@@ -15,11 +15,17 @@
  * edits and the saved file never hold them, and print, export, page copies and
  * what the AI reads come from the document, not from the screen.
  */
+import type { AiChangeLine } from '@genoffice/ui'
 import type { EditSnapshot } from '../edit-state'
 import { pdfToView, quadToRect, viewToPdf, type PageGeom } from '../annotations'
 import { shiftRect, unionCover, type LocalTextInsert } from '../text-edit-preview'
 
 export type PdfRect = [number, number, number, number]
+
+/** one detailed row inside the PDF changes card, pointing at a 1-based page when jumpable */
+export interface PdfChangeLine extends AiChangeLine {
+  readonly page?: number
+}
 
 /** one run as its card knows it */
 export interface PdfAiRun {
@@ -28,6 +34,8 @@ export interface PdfAiRun {
   readonly snaps: readonly EditSnapshot[]
   /** edit ops the run applied */
   readonly ops: number
+  /** detailed per-edit lines for AiChangesCard */
+  readonly lines?: readonly PdfChangeLine[]
 }
 
 /** one box over a place the run changed (original page index, PDF user space) */
@@ -179,6 +187,100 @@ export function runMarks(
     add(field.input.pageIndex, field.input.rect)
   }
   return marks
+}
+
+const MAX_PDF_CHANGE_LINES = 50
+const PDF_TEXT_MAX = 56
+
+function clipPdfText(text: string): string {
+  const clean = text.replace(/\s+/g, ' ').trim()
+  return clean.length > PDF_TEXT_MAX ? `${clean.slice(0, PDF_TEXT_MAX - 1)}…` : clean
+}
+
+/**
+ * Collect detailed per-edit lines for AiChangesCard by diffing the pending-edit
+ * buckets before and after the run. Each page-scoped edit jumps to its page.
+ */
+export function runChangeLines(before: EditSnapshot, after: EditSnapshot): PdfChangeLine[] {
+  const fresh = <T>(list: readonly T[], old: readonly T[]): T[] => {
+    const known = new Set(old)
+    return list.filter((item) => !known.has(item))
+  }
+  const lines: PdfChangeLine[] = []
+  const push = (line: PdfChangeLine): void => {
+    if (lines.length < MAX_PDF_CHANGE_LINES) lines.push(line)
+  }
+  for (const markup of fresh(after.markups, before.markups)) {
+    const page = markup.pageIndex + 1
+    push({
+      kind: 'insert',
+      to: `p.${page} ${markup.type}`,
+      showable: true,
+      page,
+    })
+  }
+  for (const edit of fresh(after.textEdits, before.textEdits)) {
+    const page = edit.input.pageIndex + 1
+    const text = clipPdfText(edit.input.newText)
+    push({
+      kind: 'named',
+      from: `p.${page}`,
+      to: text || '—',
+      showable: true,
+      page,
+    })
+  }
+  for (const insert of fresh(after.textInserts, before.textInserts)) {
+    const page = insert.input.pageIndex + 1
+    const text = clipPdfText(insert.input.text)
+    push({
+      kind: 'insert',
+      to: text ? `p.${page} ${text}` : `p.${page}`,
+      showable: true,
+      page,
+    })
+  }
+  for (const image of fresh(after.imageEdits, before.imageEdits)) {
+    const page = image.input.pageIndex + 1
+    if (image.input.kind === 'deleteImage') {
+      push({ kind: 'delete', from: `p.${page} image`, showable: true, page })
+    } else {
+      push({ kind: 'named', from: `p.${page}`, to: image.input.kind, showable: true, page })
+    }
+  }
+  for (const drawing of fresh(after.drawings, before.drawings)) {
+    const page = drawing.input.pageIndex + 1
+    push({ kind: 'insert', to: `p.${page} ${drawing.input.kind}`, showable: true, page })
+  }
+  for (const field of fresh(after.formFields, before.formFields)) {
+    const page = field.input.pageIndex + 1
+    push({
+      kind: 'insert',
+      to: `p.${page} ${field.input.name || field.input.kind}`,
+      showable: true,
+      page,
+    })
+  }
+  for (const pageIndex of after.deleted) {
+    if (!before.deleted.has(pageIndex)) {
+      push({ kind: 'delete', from: `p.${pageIndex + 1}`, showable: false })
+    }
+  }
+  for (const [pageIndex, deg] of after.rotations) {
+    if (before.rotations.get(pageIndex) !== deg) {
+      push({
+        kind: 'named',
+        from: `p.${pageIndex + 1}`,
+        to: `${deg}°`,
+        showable: true,
+        page: pageIndex + 1,
+      })
+    }
+  }
+  if (after.metadata && after.metadata !== before.metadata) {
+    push({ kind: 'named', to: 'Metadata', showable: false })
+  }
+  return lines
 }
 
 /** The marks after a save: pages the save moved keep theirs, pages it removed lose them. */

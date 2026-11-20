@@ -8,12 +8,12 @@
 .ai-mcp-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   margin: 8px 0;
-  padding: 10px 12px;
+  padding: 11px 13px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-8);
-  background: var(--surface);
+  border-radius: 10px;
+  background: var(--ai-card-bg);
   color: var(--text);
   font-size: 12px;
   line-height: 1.45;
