@@ -208,6 +208,7 @@ import type { PdfNavTarget } from './ai/pdf-nav'
 import {
   remapMarks,
   revertedStacks,
+  runChangeLines,
   runMarks,
   runRevertVerdict,
   withAiEditScope,
@@ -8735,9 +8736,11 @@ export default function App() {
       const run = aiRunRef.current
       aiRunRef.current = null
       if (!run || run.snaps.length === 0) return null
-      const marks = runMarks(run.snaps[0]!, snapshot(), measureInsertLine, markGeom)
+      const current = snapshot()
+      const marks = runMarks(run.snaps[0]!, current, measureInsertLine, markGeom)
+      const lines = runChangeLines(run.snaps[0]!, current)
       setAiMarks(marks.length > 0 ? { run: run.id, marks } : null)
-      return { id: run.id, snaps: run.snaps, ops: run.ops }
+      return { id: run.id, snaps: run.snaps, ops: run.ops, ...(lines.length > 0 ? { lines } : {}) }
     },
     revert: (run: PdfAiRun) => {
       const verdict = runRevertVerdict(run.snaps, undoStack)
