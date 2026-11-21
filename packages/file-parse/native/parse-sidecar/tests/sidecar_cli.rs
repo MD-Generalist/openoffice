@@ -360,3 +360,95 @@ fn sidecar_cancels_in_flight_heavy_work_and_exits_promptly_on_bare_stdin_eof() {
         "sidecar took too long ({elapsed:?}) to cancel in-flight work on bare EOF"
     );
 }
+
+#[test]
+fn sidecar_extracts_legacy_doc_and_ppt_and_rejects_zip_as_ppt() {
+    let dir = tempdir().unwrap();
+    let doc_fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/legacy-sample.doc");
+    let ppt_fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/legacy-sample.ppt");
+    let fake_ppt = dir.path().join("fake.ppt");
+    fs::write(&fake_ppt, build_deflated_zip(&[("a.txt", b"zip-not-ppt")])).unwrap();
+
+    let mut child = Command::new(sidecar_bin())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("failed to spawn ieum-parse-sidecar");
+
+    let mut stdin = child.stdin.take().unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let mut reader = BufReader::new(stdout);
+
+    let requests = [
+        json!({
+            "version": 1,
+            "requestId": "req-doc",
+            "command": "extract_file",
+            "path": doc_fixture,
+            "ext": "doc",
+            "tokenize": true
+        }),
+        json!({
+            "version": 1,
+            "requestId": "req-ppt",
+            "command": "extract_file",
+            "path": ppt_fixture,
+            "ext": "ppt",
+            "tokenize": true
+        }),
+        json!({
+            "version": 1,
+            "requestId": "req-fake-ppt",
+            "command": "extract_file",
+            "path": fake_ppt,
+            "ext": "ppt"
+        }),
+    ];
+
+    for req in &requests {
+        writeln!(stdin, "{req}").unwrap();
+    }
+    stdin.flush().unwrap();
+
+    let mut by_id: HashMap<String, Value> = HashMap::new();
+    for _ in 0..requests.len() {
+        let mut line = String::new();
+        reader.read_line(&mut line).unwrap();
+        let val: Value = serde_json::from_str(&line).unwrap();
+        by_id.insert(val["requestId"].as_str().unwrap().to_owned(), val);
+    }
+
+    assert_eq!(by_id["req-doc"]["result"]["status"], "ok");
+    assert!(
+        by_id["req-doc"]["result"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Legacy DOC body text")
+    );
+    assert!(by_id["req-doc"]["result"]["tokens"]["bi"].is_string());
+
+    assert_eq!(by_id["req-ppt"]["result"]["status"], "ok");
+    assert!(
+        by_id["req-ppt"]["result"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("## Slide 1\nLegacy PPT title")
+    );
+    assert!(by_id["req-ppt"]["result"]["tokens"]["uni"].is_string());
+
+    assert_eq!(by_id["req-fake-ppt"]["result"]["status"], "rejected");
+    assert_eq!(by_id["req-fake-ppt"]["result"]["rejectCode"], "content_mismatch");
+
+    writeln!(
+        stdin,
+        "{}",
+        json!({ "version": 1, "requestId": "req-shut", "command": "shutdown" })
+    )
+    .unwrap();
+    stdin.flush().unwrap();
+    drop(stdin);
+    assert!(child.wait().unwrap().success());
+}

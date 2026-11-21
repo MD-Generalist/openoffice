@@ -755,14 +755,15 @@ fn extract_plain_csv_utf32_magic_mismatch_and_unsupported_fallback() {
         }
     ));
 
-    // Legacy OLE2 .doc -> fallback unsupported_format
+    // Truncated OLE2 .doc -> rejected as corrupt (never fallback to TS)
     let legacy_doc = write_temp_file(dir.path(), "old.doc", &[0xD0, 0xCF, 0x11, 0xE0, 0, 0]);
-    assert_eq!(
+    assert!(matches!(
         extract_file(&legacy_doc, "doc", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
-        ExtractResult::Fallback {
-            fallback_reason: FallbackReason::UnsupportedFormat
+        ExtractResult::Rejected {
+            reject_code: RejectCode::Corrupt,
+            ..
         }
-    );
+    ));
 
     // Unsupported format (md / html / pdf / hwp) -> fallback unsupported_format
     let md_path = write_temp_file(dir.path(), "note.md", b"# hi");
@@ -1281,4 +1282,781 @@ fn extract_thumbnail_enforces_security_gates_and_never_falls_back_on_rejects() {
             fallback_reason: FallbackReason::UnsupportedFormat,
         }
     );
+}
+
+fn build_ole_bytes(streams: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut comp =
+        cfb::CompoundFile::create_with_version(cfb::Version::V3, Cursor::new(Vec::new())).unwrap();
+    for (name, data) in streams {
+        let mut s = comp.create_stream(name).unwrap();
+        s.write_all(data).unwrap();
+    }
+    comp.flush().unwrap();
+    comp.into_inner().into_inner()
+}
+
+fn ppt_record(ver: u8, inst: u16, rec_type: u16, payload: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(8 + payload.len());
+    let ver_inst = (u16::from(ver) & 0x000F) | (inst << 4);
+    out.extend_from_slice(&ver_inst.to_le_bytes());
+    out.extend_from_slice(&rec_type.to_le_bytes());
+    out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+    out.extend_from_slice(payload);
+    out
+}
+
+fn utf16le_bytes(s: &str) -> Vec<u8> {
+    let mut out = Vec::with_capacity(s.len() * 2);
+    for u in s.encode_utf16() {
+        out.extend_from_slice(&u.to_le_bytes());
+    }
+    out
+}
+
+struct SyntheticDocSpec<'a> {
+    n_fib: u16,
+    flags: u16,
+    body_cp1252: &'a [u8],
+    body_utf16: &'a str,
+    header_utf16: &'a str,
+    textbox_utf16: &'a str,
+    hdr_textbox_utf16: &'a str,
+    delete_first_body_bytes: Option<(usize, usize)>,
+    ttp_last_body_byte: bool,
+}
+
+fn build_synthetic_doc(spec: &SyntheticDocSpec<'_>) -> Vec<u8> {
+    // Build WordDocument stream with 512-byte-aligned text and optional FKP pages.
+    let mut word_doc = vec![0u8; 512];
+    word_doc[0..2].copy_from_slice(&0xA5ECu16.to_le_bytes());
+    word_doc[2..4].copy_from_slice(&spec.n_fib.to_le_bytes());
+    word_doc[10..12].copy_from_slice(&spec.flags.to_le_bytes());
+
+    // FibRgW97 (14 words = 28 bytes), FibRgLw97 (22 dwords = 88 bytes), FibRgFcLcb97 (34 pairs = 272 bytes)
+    let mut off = 32usize;
+    word_doc[off..off + 2].copy_from_slice(&14u16.to_le_bytes());
+    off += 2 + 28;
+
+    word_doc[off..off + 2].copy_from_slice(&22u16.to_le_bytes());
+    let lw_start = off + 2;
+    off = lw_start + 88;
+
+    word_doc[off..off + 2].copy_from_slice(&34u16.to_le_bytes());
+    let pairs_start = off + 2;
+
+    // Text payload starts at byte 512 (even offset so compressed fc = byte_off * 2 works cleanly).
+    let p0_start = word_doc.len();
+    word_doc.extend_from_slice(spec.body_cp1252);
+    if word_doc.len() % 2 == 1 {
+        word_doc.push(0);
+    }
+
+    let p1_start = word_doc.len();
+    let body_u16 = utf16le_bytes(spec.body_utf16);
+    word_doc.extend_from_slice(&body_u16);
+
+    let p2_start = word_doc.len();
+    let hdr_u16 = utf16le_bytes(spec.header_utf16);
+    word_doc.extend_from_slice(&hdr_u16);
+
+    let p3_start = word_doc.len();
+    let txbx_u16 = utf16le_bytes(spec.textbox_utf16);
+    word_doc.extend_from_slice(&txbx_u16);
+
+    let p4_start = word_doc.len();
+    let hdr_txbx_u16 = utf16le_bytes(spec.hdr_textbox_utf16);
+    word_doc.extend_from_slice(&hdr_txbx_u16);
+
+    // Pad to 512-byte boundary for optional FKP pages.
+    while word_doc.len() % 512 != 0 {
+        word_doc.push(0);
+    }
+
+    let mut table = Vec::new();
+
+    // Optional CHPX FKP page marking a deleted range inside body_cp1252.
+    if let Some((del_rel_start, del_rel_end)) = spec.delete_first_body_bytes {
+        let chpx_pn = (word_doc.len() / 512) as u32;
+        let mut fkp = vec![0u8; 512];
+        let rg0 = (p0_start + del_rel_start) as u32;
+        let rg1 = (p0_start + del_rel_end) as u32;
+        fkp[0..4].copy_from_slice(&rg0.to_le_bytes());
+        fkp[4..8].copy_from_slice(&rg1.to_le_bytes());
+        // crun = 1 -> rgb offset at (1 + 1) * 4 = 8; point to word offset 20 (byte 40)
+        fkp[8] = 20;
+        // chpx at byte 40: cb = 3, sprmCFRMarkDel (0x0800), operand = 1
+        fkp[40] = 3;
+        fkp[41..43].copy_from_slice(&0x0800u16.to_le_bytes());
+        fkp[43] = 1;
+        fkp[511] = 1;
+        word_doc.extend_from_slice(&fkp);
+
+        let fc_chpx = table.len() as u32;
+        table.extend_from_slice(&rg0.to_le_bytes());
+        table.extend_from_slice(&rg1.to_le_bytes());
+        table.extend_from_slice(&chpx_pn.to_le_bytes());
+        let lcb_chpx = 12u32;
+        let pair12 = pairs_start + 12 * 8;
+        word_doc[pair12..pair12 + 4].copy_from_slice(&fc_chpx.to_le_bytes());
+        word_doc[pair12 + 4..pair12 + 8].copy_from_slice(&lcb_chpx.to_le_bytes());
+    }
+
+    // Optional PAPX FKP page marking the last byte of body_cp1252 with sprmPFTtp (0x2417).
+    if spec.ttp_last_body_byte && !spec.body_cp1252.is_empty() {
+        let papx_pn = (word_doc.len() / 512) as u32;
+        let mut fkp = vec![0u8; 512];
+        let rg0 = (p0_start + spec.body_cp1252.len() - 1) as u32;
+        let rg1 = (p0_start + spec.body_cp1252.len()) as u32;
+        fkp[0..4].copy_from_slice(&rg0.to_le_bytes());
+        fkp[4..8].copy_from_slice(&rg1.to_le_bytes());
+        // bx at (1 + 1) * 4 = 8: bOffset = 20 (byte 40)
+        fkp[8] = 20;
+        // papx at byte 40: cb = 3 -> len = 2*3 - 1 = 5 bytes: istd(2) + sprmPFTtp(2) + op(1)
+        fkp[40] = 3;
+        fkp[41..43].copy_from_slice(&0u16.to_le_bytes());
+        fkp[43..45].copy_from_slice(&0x2417u16.to_le_bytes());
+        fkp[45] = 1;
+        fkp[511] = 1;
+        word_doc.extend_from_slice(&fkp);
+
+        let fc_papx = table.len() as u32;
+        table.extend_from_slice(&rg0.to_le_bytes());
+        table.extend_from_slice(&rg1.to_le_bytes());
+        table.extend_from_slice(&papx_pn.to_le_bytes());
+        let lcb_papx = 12u32;
+        let pair13 = pairs_start + 13 * 8;
+        word_doc[pair13..pair13 + 4].copy_from_slice(&fc_papx.to_le_bytes());
+        word_doc[pair13 + 4..pair13 + 8].copy_from_slice(&lcb_papx.to_le_bytes());
+    }
+
+    let c0 = spec.body_cp1252.len() as u32;
+    let c1 = spec.body_utf16.encode_utf16().count() as u32;
+    let c_body = c0 + c1;
+    let c_hdr = spec.header_utf16.encode_utf16().count() as u32;
+    let c_txbx = spec.textbox_utf16.encode_utf16().count() as u32;
+    let c_hdr_txbx = spec.hdr_textbox_utf16.encode_utf16().count() as u32;
+
+    word_doc[lw_start + 3 * 4..lw_start + 4 * 4].copy_from_slice(&c_body.to_le_bytes());
+    word_doc[lw_start + 5 * 4..lw_start + 6 * 4].copy_from_slice(&c_hdr.to_le_bytes());
+    word_doc[lw_start + 9 * 4..lw_start + 10 * 4].copy_from_slice(&c_txbx.to_le_bytes());
+    word_doc[lw_start + 10 * 4..lw_start + 11 * 4].copy_from_slice(&c_hdr_txbx.to_le_bytes());
+
+    // Build piece entries (only non-empty stories).
+    let mut pieces: Vec<(u32, u32, bool)> = Vec::new();
+    if c0 > 0 {
+        pieces.push((c0, p0_start as u32, true));
+    }
+    if c1 > 0 {
+        pieces.push((c1, p1_start as u32, false));
+    }
+    if c_hdr > 0 {
+        pieces.push((c_hdr, p2_start as u32, false));
+    }
+    if c_txbx > 0 {
+        pieces.push((c_txbx, p3_start as u32, false));
+    }
+    if c_hdr_txbx > 0 {
+        pieces.push((c_hdr_txbx, p4_start as u32, false));
+    }
+
+    let fc_clx = table.len() as u32;
+    // Include one Prc record (0x01) before Pcdt (0x02) to exercise Prc skipping.
+    table.push(0x01);
+    table.extend_from_slice(&2u16.to_le_bytes());
+    table.extend_from_slice(&[0u8, 0u8]);
+
+    let plc_len = (4 + pieces.len() * 12) as u32;
+    table.push(0x02);
+    table.extend_from_slice(&plc_len.to_le_bytes());
+
+    let mut cur_cp = 0u32;
+    table.extend_from_slice(&cur_cp.to_le_bytes());
+    for &(len, _, _) in &pieces {
+        cur_cp += len;
+        table.extend_from_slice(&cur_cp.to_le_bytes());
+    }
+    for &(_, byte_off, compressed) in &pieces {
+        table.extend_from_slice(&0u16.to_le_bytes());
+        let fc_field = if compressed {
+            (byte_off * 2) | 0x4000_0000
+        } else {
+            byte_off
+        };
+        table.extend_from_slice(&fc_field.to_le_bytes());
+        table.extend_from_slice(&0u16.to_le_bytes());
+    }
+    let lcb_clx = (table.len() as u32) - fc_clx;
+
+    let pair33 = pairs_start + 33 * 8;
+    word_doc[pair33..pair33 + 4].copy_from_slice(&fc_clx.to_le_bytes());
+    word_doc[pair33 + 4..pair33 + 8].copy_from_slice(&lcb_clx.to_le_bytes());
+
+    let table_name = if (spec.flags & 0x0200) != 0 {
+        "/1Table"
+    } else {
+        "/0Table"
+    };
+    build_ole_bytes(&[("/WordDocument", &word_doc), (table_name, &table)])
+}
+
+#[test]
+fn extract_legacy_doc_real_fixture_with_budget_and_tokenize() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/legacy-sample.doc");
+    assert!(fixture.exists(), "missing fixture: {}", fixture.display());
+
+    let res = extract_file(
+        &fixture,
+        "doc",
+        &ExtractOptions {
+            tokenize: true,
+            ..ExtractOptions::default()
+        },
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    match res {
+        ExtractResult::Ok { text, tokens } => {
+            assert_eq!(
+                text,
+                "Legacy Report\nLegacy DOC body text\nSecond paragraph from Word 97-2003."
+            );
+            let toks = tokens.expect("tokens requested");
+            assert!(toks.bi.contains("legacy"));
+            assert!(toks.bi.contains("report"));
+        }
+        other => panic!("expected Ok, got {other:?}"),
+    }
+
+    // maxChars: 0 returns empty string
+    let zero = extract_file(
+        &fixture,
+        "doc",
+        &ExtractOptions {
+            max_chars: Some(0),
+            ..ExtractOptions::default()
+        },
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    assert_eq!(
+        zero,
+        ExtractResult::Ok {
+            text: String::new(),
+            tokens: None
+        }
+    );
+
+    // Positive maxChars truncates cleanly by UTF-16 units
+    let capped = extract_file(
+        &fixture,
+        "doc",
+        &ExtractOptions {
+            max_chars: Some(13),
+            ..ExtractOptions::default()
+        },
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    assert_eq!(
+        capped,
+        ExtractResult::Ok {
+            text: "Legacy Report".to_owned(),
+            tokens: None
+        }
+    );
+}
+
+#[test]
+fn extract_legacy_doc_synthetic_unicode_cp1252_textboxes_fields_chpx_and_papx() {
+    let dir = tempdir().unwrap();
+    // CP1252: "DEL" (to be deleted by CHPX) + "Keep € \x93quote\x94\x07cell\x07" (last \x07 -> \n by PAPX sprmPFTtp)
+    let body_cp1252 = b"DELKeep \x80 \x93quote\x94\x07cell\x07";
+    // UTF-16LE with nested field + Korean text
+    let body_utf16 = "\u{0013} HYPERLINK \"https://example.com\" \u{0014}한글 링크\u{0015}\r두 번째 문단\r";
+    let header_utf16 = "Header Excluded\r";
+    let textbox_utf16 = "본문 텍스트상자\r";
+    let hdr_textbox_utf16 = "Header Textbox Excluded\r";
+
+    let doc_bytes = build_synthetic_doc(&SyntheticDocSpec {
+        n_fib: 0x00C1,
+        flags: 0x0200, // 1Table
+        body_cp1252,
+        body_utf16,
+        header_utf16,
+        textbox_utf16,
+        hdr_textbox_utf16,
+        delete_first_body_bytes: Some((0, 3)),
+        ttp_last_body_byte: true,
+    });
+    let path = write_temp_file(dir.path(), "synthetic.doc", &doc_bytes);
+
+    let res = extract_file(
+        &path,
+        "doc",
+        &ExtractOptions {
+            tokenize: true,
+            ..ExtractOptions::default()
+        },
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    match res {
+        ExtractResult::Ok { text, tokens } => {
+            assert!(!text.contains("DEL"), "CHPX deletion should be removed: {text:?}");
+            assert!(text.contains("Keep \u{20AC} \u{201C}quote\u{201D}\tcell\n"));
+            assert!(text.contains("한글 링크"));
+            assert!(!text.contains("HYPERLINK"));
+            assert!(text.contains("두 번째 문단"));
+            assert!(text.contains("본문 텍스트상자"));
+            assert!(!text.contains("Header Excluded"));
+            assert!(!text.contains("Header Textbox Excluded"));
+            let toks = tokens.unwrap();
+            assert!(toks.bi.contains("한글"));
+            assert!(toks.bi.contains("본문"));
+        }
+        other => panic!("expected Ok, got {other:?}"),
+    }
+}
+
+#[test]
+fn extract_legacy_doc_rejects_encrypted_pre97_and_corrupt_inputs() {
+    let dir = tempdir().unwrap();
+
+    // 1. Encrypted Word 97-2003 (FibBase.fEncrypted = 0x0100)
+    let enc_doc = build_synthetic_doc(&SyntheticDocSpec {
+        n_fib: 0x00C1,
+        flags: 0x0300, // fEncrypted | 1Table
+        body_cp1252: b"Secret\r",
+        body_utf16: "",
+        header_utf16: "",
+        textbox_utf16: "",
+        hdr_textbox_utf16: "",
+        delete_first_body_bytes: None,
+        ttp_last_body_byte: false,
+    });
+    let enc_path = write_temp_file(dir.path(), "enc.doc", &enc_doc);
+    assert!(matches!(
+        extract_file(&enc_path, "doc", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::PasswordProtected,
+            ..
+        }
+    ));
+
+    // 2. Encrypted OOXML package disguised under .doc
+    let enc_pkg = build_ole_bytes(&[("/EncryptedPackage", &[0u8; 64])]);
+    let enc_pkg_path = write_temp_file(dir.path(), "enc-ooxml.doc", &enc_pkg);
+    assert!(matches!(
+        extract_file(&enc_pkg_path, "doc", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::PasswordProtected,
+            ..
+        }
+    ));
+
+    // 3. Word 95 (nFib = 0x0065 < 0x00C1) -> Corrupt
+    let pre97 = build_synthetic_doc(&SyntheticDocSpec {
+        n_fib: 0x0065,
+        flags: 0x0200,
+        body_cp1252: b"Old\r",
+        body_utf16: "",
+        header_utf16: "",
+        textbox_utf16: "",
+        hdr_textbox_utf16: "",
+        delete_first_body_bytes: None,
+        ttp_last_body_byte: false,
+    });
+    let pre97_path = write_temp_file(dir.path(), "word95.doc", &pre97);
+    assert!(matches!(
+        extract_file(&pre97_path, "doc", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::Corrupt,
+            ..
+        }
+    ));
+
+    // 4. Malformed piece table with out-of-bounds offset -> Corrupt
+    let mut bad_wd = vec![0u8; 512];
+    bad_wd[0..2].copy_from_slice(&0xA5ECu16.to_le_bytes());
+    bad_wd[2..4].copy_from_slice(&0x00C1u16.to_le_bytes());
+    bad_wd[10..12].copy_from_slice(&0x0200u16.to_le_bytes());
+    bad_wd[32..34].copy_from_slice(&14u16.to_le_bytes());
+    let lw = 32 + 2 + 28;
+    bad_wd[lw..lw + 2].copy_from_slice(&22u16.to_le_bytes());
+    bad_wd[lw + 2 + 3 * 4..lw + 2 + 4 * 4].copy_from_slice(&5u32.to_le_bytes()); // ccpText = 5
+    let ps = lw + 2 + 88;
+    bad_wd[ps..ps + 2].copy_from_slice(&34u16.to_le_bytes());
+    let mut bad_tbl = Vec::new();
+    bad_tbl.push(0x02);
+    bad_tbl.extend_from_slice(&16u32.to_le_bytes()); // 1 piece
+    bad_tbl.extend_from_slice(&0u32.to_le_bytes());
+    bad_tbl.extend_from_slice(&5u32.to_le_bytes());
+    bad_tbl.extend_from_slice(&0u16.to_le_bytes());
+    bad_tbl.extend_from_slice(&(999_999u32).to_le_bytes()); // way past WordDocument len
+    bad_tbl.extend_from_slice(&0u16.to_le_bytes());
+    let p33 = ps + 2 + 33 * 8;
+    bad_wd[p33..p33 + 4].copy_from_slice(&0u32.to_le_bytes());
+    bad_wd[p33 + 4..p33 + 8].copy_from_slice(&(bad_tbl.len() as u32).to_le_bytes());
+    let bad_piece_path = write_temp_file(
+        dir.path(),
+        "bad-piece.doc",
+        &build_ole_bytes(&[("/WordDocument", &bad_wd), ("/1Table", &bad_tbl)]),
+    );
+    assert!(matches!(
+        extract_file(&bad_piece_path, "doc", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::Corrupt,
+            ..
+        }
+    ));
+
+    // 5. Non-OLE2 / non-ZIP plain text named .doc -> ContentMismatch
+    let mismatch_path = write_temp_file(dir.path(), "plain.doc", b"plain text");
+    assert!(matches!(
+        extract_file(&mismatch_path, "doc", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::ContentMismatch,
+            ..
+        }
+    ));
+}
+
+fn build_synthetic_ppt_with_notes_and_incremental() -> Vec<u8> {
+    // Helper to wrap a textbox inside OfficeArtSpContainer -> OfficeArtSpgrContainer -> OfficeArtDgContainer -> RT_Drawing
+    let make_sp_textbox = |inner: Vec<u8>, placeholder_id: Option<u8>| -> Vec<u8> {
+        let mut sp_children = Vec::new();
+        if let Some(ph) = placeholder_id {
+            let mut ph_payload = vec![0u8; 8];
+            ph_payload[4] = ph;
+            let ph_atom = ppt_record(0, 0, 0x0BC3, &ph_payload);
+            sp_children.extend_from_slice(&ppt_record(0xF, 0, 0xF011, &ph_atom));
+        }
+        sp_children.extend_from_slice(&ppt_record(0, 0, 0xF00D, &inner));
+        ppt_record(0xF, 0, 0xF004, &sp_children)
+    };
+
+    let make_slide_atom = |notes_id_ref: u32| -> Vec<u8> {
+        let mut payload = vec![0u8; 24];
+        payload[16..20].copy_from_slice(&notes_id_ref.to_le_bytes());
+        ppt_record(2, 0, 0x03EF, &payload)
+    };
+
+    // Slide 1 (stale generation, persistId 2) -> will be superseded by incremental edit
+    let stale_tb = ppt_record(0, 0, 0x0FA0, &utf16le_bytes("STALE SLIDE TEXT"));
+    let stale_sp = make_sp_textbox(stale_tb, None);
+    let stale_dg = ppt_record(0xF, 0, 0xF002, &ppt_record(0xF, 0, 0xF003, &stale_sp));
+    let mut stale_slide_body = make_slide_atom(0);
+    stale_slide_body.extend_from_slice(&ppt_record(0xF, 0, 0x040C, &stale_dg));
+    let stale_slide = ppt_record(0xF, 0, 0x03EE, &stale_slide_body);
+
+    // Slide 1 (live generation, persistId 2): OutlineTextRefAtom(0) + nested group with CP1252 TextBytesAtom, notesIdRef = 500
+    let s1_outline_tb = ppt_record(0, 0, 0x0F9E, &0u32.to_le_bytes());
+    let s1_cp1252_tb = ppt_record(0, 0, 0x0FA8, b"Caf\xe9 \x8010");
+    let nested_group = ppt_record(0xF, 0, 0xF003, &make_sp_textbox(s1_cp1252_tb, None));
+    let mut outer_group_body = make_sp_textbox(s1_outline_tb, None);
+    outer_group_body.extend_from_slice(&nested_group);
+    let s1_dg = ppt_record(0xF, 0, 0xF002, &ppt_record(0xF, 0, 0xF003, &outer_group_body));
+    let mut s1_body = make_slide_atom(500);
+    s1_body.extend_from_slice(&ppt_record(0xF, 0, 0x040C, &s1_dg));
+    let live_slide1 = ppt_record(0xF, 0, 0x03EE, &s1_body);
+
+    // Slide 2 (persistId 3): UTF-16LE Korean body, no notes
+    let s2_tb = ppt_record(0, 0, 0x0FA0, &utf16le_bytes("두 번째 슬라이드\r본문 줄"));
+    let s2_dg = ppt_record(0xF, 0, 0xF002, &ppt_record(0xF, 0, 0xF003, &make_sp_textbox(s2_tb, None)));
+    let mut s2_body = make_slide_atom(0);
+    s2_body.extend_from_slice(&ppt_record(0xF, 0, 0x040C, &s2_dg));
+    let slide2 = ppt_record(0xF, 0, 0x03EE, &s2_body);
+
+    // Notes for Slide 1 (persistId 4, slideId 500): includes SlideNumber placeholder (skipped) + NotesBody placeholder (kept)
+    let mut num_tb = ppt_record(0, 0, 0x0FA8, b"*");
+    num_tb.extend_from_slice(&ppt_record(0, 0, 0x0FD8, &0u32.to_le_bytes()));
+    let num_sp = make_sp_textbox(num_tb, Some(15));
+    let notes_tb = ppt_record(0, 0, 0x0FA0, &utf16le_bytes("발표자 메모 내용"));
+    let notes_sp = make_sp_textbox(notes_tb, Some(12));
+    let mut notes_grp = num_sp;
+    notes_grp.extend_from_slice(&notes_sp);
+    let notes_dg = ppt_record(0xF, 0, 0xF002, &ppt_record(0xF, 0, 0xF003, &notes_grp));
+    let notes_rec = ppt_record(0xF, 0, 0x03F0, &ppt_record(0xF, 0, 0x040C, &notes_dg));
+
+    // DocumentContainer (persistId 1) with SlideListWithText (instance 0 = slides, instance 2 = notes)
+    let make_persist_atom = |persist_id_ref: u32, slide_id: u32| -> Vec<u8> {
+        let mut p = vec![0u8; 20];
+        p[0..4].copy_from_slice(&persist_id_ref.to_le_bytes());
+        p[12..16].copy_from_slice(&slide_id.to_le_bytes());
+        ppt_record(0, 0, 0x03F3, &p)
+    };
+    let mut slwt_slides = Vec::new();
+    slwt_slides.extend_from_slice(&make_persist_atom(2, 256));
+    slwt_slides.extend_from_slice(&ppt_record(0, 0, 0x0FA0, &utf16le_bytes("발표 제목")));
+    slwt_slides.extend_from_slice(&make_persist_atom(3, 257));
+    let slwt0 = ppt_record(0xF, 0, 0x0FF0, &slwt_slides);
+
+    let slwt2 = ppt_record(0xF, 2, 0x0FF0, &make_persist_atom(4, 500));
+    let mut doc_body = slwt0;
+    doc_body.extend_from_slice(&slwt2);
+    let doc_rec = ppt_record(0xF, 0, 0x03E8, &doc_body);
+
+    // Assemble PowerPoint Document stream with 2 edit generations.
+    let mut ppt_doc = Vec::new();
+    let doc_off = ppt_doc.len() as u32;
+    ppt_doc.extend_from_slice(&doc_rec);
+    let stale_s1_off = ppt_doc.len() as u32;
+    ppt_doc.extend_from_slice(&stale_slide);
+    let s2_off = ppt_doc.len() as u32;
+    ppt_doc.extend_from_slice(&slide2);
+    let notes_off = ppt_doc.len() as u32;
+    ppt_doc.extend_from_slice(&notes_rec);
+
+    // Generation 1 PersistDirectoryAtom (persistIds 1..=4 -> doc, stale_s1, s2, notes)
+    let pd1_off = ppt_doc.len() as u32;
+    let mut pd1_payload = Vec::new();
+    pd1_payload.extend_from_slice(&((4u32 << 20) | 1u32).to_le_bytes());
+    pd1_payload.extend_from_slice(&doc_off.to_le_bytes());
+    pd1_payload.extend_from_slice(&stale_s1_off.to_le_bytes());
+    pd1_payload.extend_from_slice(&s2_off.to_le_bytes());
+    pd1_payload.extend_from_slice(&notes_off.to_le_bytes());
+    ppt_doc.extend_from_slice(&ppt_record(0, 0, 0x1772, &pd1_payload));
+
+    let uea1_off = ppt_doc.len() as u32;
+    let mut uea1_payload = vec![0u8; 28];
+    uea1_payload[8..12].copy_from_slice(&0u32.to_le_bytes()); // offsetLastEdit = 0
+    uea1_payload[12..16].copy_from_slice(&pd1_off.to_le_bytes());
+    uea1_payload[16..20].copy_from_slice(&1u32.to_le_bytes()); // docPersistIdRef = 1
+    ppt_doc.extend_from_slice(&ppt_record(0, 0, 0x0FF5, &uea1_payload));
+
+    // Generation 2: live Slide 1 overrides persistId 2
+    let live_s1_off = ppt_doc.len() as u32;
+    ppt_doc.extend_from_slice(&live_slide1);
+    let pd2_off = ppt_doc.len() as u32;
+    let mut pd2_payload = Vec::new();
+    pd2_payload.extend_from_slice(&((1u32 << 20) | 2u32).to_le_bytes());
+    pd2_payload.extend_from_slice(&live_s1_off.to_le_bytes());
+    ppt_doc.extend_from_slice(&ppt_record(0, 0, 0x1772, &pd2_payload));
+
+    let uea2_off = ppt_doc.len() as u32;
+    let mut uea2_payload = vec![0u8; 28];
+    uea2_payload[8..12].copy_from_slice(&uea1_off.to_le_bytes());
+    uea2_payload[12..16].copy_from_slice(&pd2_off.to_le_bytes());
+    uea2_payload[16..20].copy_from_slice(&1u32.to_le_bytes());
+    ppt_doc.extend_from_slice(&ppt_record(0, 0, 0x0FF5, &uea2_payload));
+
+    // Current User stream pointing to uea2_off
+    let mut cu_payload = vec![0u8; 20];
+    cu_payload[0..4].copy_from_slice(&20u32.to_le_bytes());
+    cu_payload[4..8].copy_from_slice(&0xE391_C05Fu32.to_le_bytes());
+    cu_payload[8..12].copy_from_slice(&uea2_off.to_le_bytes());
+    cu_payload[14..16].copy_from_slice(&0x03F4u16.to_le_bytes());
+    cu_payload[16] = 3;
+    let cu = ppt_record(0, 0, 0x0FF6, &cu_payload);
+
+    build_ole_bytes(&[("/Current User", &cu), ("/PowerPoint Document", &ppt_doc)])
+}
+
+#[test]
+fn extract_legacy_ppt_real_fixture_with_budget_and_tokenize() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/legacy-sample.ppt");
+    assert!(fixture.exists(), "missing fixture: {}", fixture.display());
+
+    let res = extract_file(
+        &fixture,
+        "ppt",
+        &ExtractOptions {
+            tokenize: true,
+            ..ExtractOptions::default()
+        },
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    match res {
+        ExtractResult::Ok { text, tokens } => {
+            assert_eq!(
+                text,
+                "## Slide 1\nLegacy PPT title\nFirst slide body\n\n## Slide 2\nSecond legacy slide"
+            );
+            let toks = tokens.expect("tokens requested");
+            assert!(toks.bi.contains("legacy"));
+            assert!(toks.bi.contains("slide"));
+        }
+        other => panic!("expected Ok, got {other:?}"),
+    }
+
+    let zero = extract_file(
+        &fixture,
+        "ppt",
+        &ExtractOptions {
+            max_chars: Some(0),
+            ..ExtractOptions::default()
+        },
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    assert_eq!(
+        zero,
+        ExtractResult::Ok {
+            text: String::new(),
+            tokens: None
+        }
+    );
+}
+
+#[test]
+fn extract_legacy_ppt_synthetic_slides_cp1252_outline_incremental_and_notes() {
+    let dir = tempdir().unwrap();
+    let ppt_bytes = build_synthetic_ppt_with_notes_and_incremental();
+    let path = write_temp_file(dir.path(), "synthetic.ppt", &ppt_bytes);
+
+    let res = extract_file(
+        &path,
+        "ppt",
+        &ExtractOptions {
+            tokenize: true,
+            ..ExtractOptions::default()
+        },
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    match res {
+        ExtractResult::Ok { text, tokens } => {
+            assert_eq!(
+                text,
+                "## Slide 1\n발표 제목\nCaf\u{00E9} \u{20AC}10\n### Notes\n발표자 메모 내용\n\n## Slide 2\n두 번째 슬라이드\n본문 줄"
+            );
+            assert!(!text.contains("STALE SLIDE TEXT"));
+            let toks = tokens.unwrap();
+            assert!(toks.bi.contains("발표"));
+            assert!(toks.bi.contains("메모"));
+        }
+        other => panic!("expected Ok, got {other:?}"),
+    }
+}
+
+#[test]
+fn extract_legacy_ppt_rejects_encrypted_pre97_zip_and_corrupt_inputs() {
+    let dir = tempdir().unwrap();
+
+    // 1. ZIP named .ppt -> ContentMismatch
+    let zip = build_test_zip(&[TestZipEntry::stored("test.txt", b"hello")]);
+    let zip_ppt = write_temp_file(dir.path(), "fake.ppt", &zip);
+    assert!(matches!(
+        extract_file(&zip_ppt, "ppt", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::ContentMismatch,
+            ..
+        }
+    ));
+
+    // 2. Encrypted CurrentUserAtom token (0xF3D1C4DF) -> PasswordProtected
+    let mut enc_cu = vec![0u8; 20];
+    enc_cu[4..8].copy_from_slice(&0xF3D1_C4DFu32.to_le_bytes());
+    let enc_ppt1 = build_ole_bytes(&[
+        ("/Current User", &ppt_record(0, 0, 0x0FF6, &enc_cu)),
+        ("/PowerPoint Document", &[]),
+    ]);
+    let enc_path1 = write_temp_file(dir.path(), "enc-cu.ppt", &enc_ppt1);
+    assert!(matches!(
+        extract_file(&enc_path1, "ppt", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::PasswordProtected,
+            ..
+        }
+    ));
+
+    // 3. EncryptedSummary stream -> PasswordProtected
+    let enc_ppt2 = build_ole_bytes(&[
+        ("/EncryptedSummary", &[1, 2, 3, 4]),
+        ("/PowerPoint Document", &[]),
+    ]);
+    let enc_path2 = write_temp_file(dir.path(), "enc-summary.ppt", &enc_ppt2);
+    assert!(matches!(
+        extract_file(&enc_path2, "ppt", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::PasswordProtected,
+            ..
+        }
+    ));
+
+    // 4. RT_CryptSession10Container (0x2F14) in PowerPoint Document -> PasswordProtected
+    let mut valid_cu = vec![0u8; 20];
+    valid_cu[4..8].copy_from_slice(&0xE391_C05Fu32.to_le_bytes());
+    valid_cu[16] = 3;
+    let crypt_rec = ppt_record(0xF, 0, 0x2F14, &[0u8; 8]);
+    let enc_ppt3 = build_ole_bytes(&[
+        ("/Current User", &ppt_record(0, 0, 0x0FF6, &valid_cu)),
+        ("/PowerPoint Document", &crypt_rec),
+    ]);
+    let enc_path3 = write_temp_file(dir.path(), "enc-crypt10.ppt", &enc_ppt3);
+    assert!(matches!(
+        extract_file(&enc_path3, "ppt", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::PasswordProtected,
+            ..
+        }
+    ));
+
+    // 5. PowerPoint 95 (PP40 stream only) -> Corrupt
+    let pre97_ppt = build_ole_bytes(&[("/PP40", &[0u8; 64])]);
+    let pre97_path = write_temp_file(dir.path(), "ppt95.ppt", &pre97_ppt);
+    assert!(matches!(
+        extract_file(&pre97_path, "ppt", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::Corrupt,
+            ..
+        }
+    ));
+
+    // 6. Cyclic UserEditAtom chain -> Corrupt
+    let mut cyc_uea = vec![0u8; 28];
+    cyc_uea[8..12].copy_from_slice(&0u32.to_le_bytes()); // wait: 0 means end, point to self via non-zero offset
+    let pad = ppt_record(0, 0, 0x03EA, &[]);
+    let uea_off = pad.len() as u32;
+    let pd_off = uea_off + 8 + 28;
+    cyc_uea[8..12].copy_from_slice(&uea_off.to_le_bytes()); // self cycle
+    cyc_uea[12..16].copy_from_slice(&pd_off.to_le_bytes());
+    let mut pd_pay = Vec::new();
+    pd_pay.extend_from_slice(&((1u32 << 20) | 1u32).to_le_bytes());
+    pd_pay.extend_from_slice(&0u32.to_le_bytes());
+    let mut cyc_doc = pad;
+    cyc_doc.extend_from_slice(&ppt_record(0, 0, 0x0FF5, &cyc_uea));
+    cyc_doc.extend_from_slice(&ppt_record(0, 0, 0x1772, &pd_pay));
+    let mut cyc_cu = vec![0u8; 20];
+    cyc_cu[4..8].copy_from_slice(&0xE391_C05Fu32.to_le_bytes());
+    cyc_cu[8..12].copy_from_slice(&uea_off.to_le_bytes());
+    cyc_cu[16] = 3;
+    let cyc_path = write_temp_file(
+        dir.path(),
+        "cyclic.ppt",
+        &build_ole_bytes(&[
+            ("/Current User", &ppt_record(0, 0, 0x0FF6, &cyc_cu)),
+            ("/PowerPoint Document", &cyc_doc),
+        ]),
+    );
+    assert!(matches!(
+        extract_file(&cyc_path, "ppt", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::Corrupt,
+            ..
+        }
+    ));
+
+    // 7. Record claiming length past stream end -> Corrupt
+    let mut trunc_doc = vec![0u8; 8];
+    trunc_doc[2..4].copy_from_slice(&0x03EEu16.to_le_bytes());
+    trunc_doc[4..8].copy_from_slice(&999_999u32.to_le_bytes());
+    let trunc_path = write_temp_file(
+        dir.path(),
+        "trunc.ppt",
+        &build_ole_bytes(&[
+            ("/Current User", &ppt_record(0, 0, 0x0FF6, &valid_cu)),
+            ("/PowerPoint Document", &trunc_doc),
+        ]),
+    );
+    assert!(matches!(
+        extract_file(&trunc_path, "ppt", &ExtractOptions::default(), &AtomicBool::new(false)).unwrap(),
+        ExtractResult::Rejected {
+            reject_code: RejectCode::Corrupt,
+            ..
+        }
+    ));
 }

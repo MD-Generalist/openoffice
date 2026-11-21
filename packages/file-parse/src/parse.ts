@@ -223,11 +223,11 @@ async function readDocumentBytes(
 /**
  * Formats routed to the native Rust `ieum-parse-sidecar` binary.
  * Redaction-bearing text/markup (`md`, `markdown`, `txt`, `json`, `html`, `htm`)
- * and formats handled exclusively in JS/WASM (`pdf`, `hwp`, `hwpx`, `ppt`,
+ * and formats handled exclusively in JS/WASM (`pdf`, `hwp`, `hwpx`,
  * `drawio*`, images) are intentionally excluded and go directly to TypeScript.
  */
 export const SIDECAR_EXTS: ReadonlySet<string> = new Set([
-  // ZIP-based document formats (plus `.doc`, which falls back to TS for legacy OLE2)
+  // ZIP-based document formats and legacy OLE2 Office formats (`.doc`, `.ppt`)
   'docx',
   'xlsx',
   'xlsm',
@@ -236,6 +236,7 @@ export const SIDECAR_EXTS: ReadonlySet<string> = new Set([
   'epub',
   'xmind',
   'doc',
+  'ppt',
   // Non-redacted plain / tabular formats
   'csv',
   'tsv',

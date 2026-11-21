@@ -154,4 +154,5 @@
 | [0156](0156-rust-parse-sidecar-and-hwp5-wasm.md)              | 첨부·색인 텍스트 추출은 독립 Rust 사이드카로, HWP 5 컨테이너 보정은 Rust WASM으로 옮긴다                         | 2026-11-20 |
 | [0157](0157-rust-quicklook-thumbnails.md)                     | 빠른 미리보기 썸네일 추출은 HWP 5 WASM과 Rust 스트리밍 사이드카로 옮기고, stdin EOF 시 진행 작업도 즉시 취소한다 | 2026-11-20 |
 | [0158](0158-rust-print-layout-wasm.md)                        | 고급 인쇄 배치의 PDF 재배치·회색조 PDF·PNG 인코딩을 사전 빌드 Rust WASM으로 옮긴다                               | 2026-11-20 |
+| [0159](0159-rust-legacy-doc-ppt-extraction.md)                | 옛 바이너리 Office(`.doc`·`.ppt`) 첨부·색인 텍스트 추출을 `ieum-parse-sidecar`로 옮긴다                          | 2026-11-21 |
 | [0160](0160-pdfium-file-parse.md)                             | 첨부·색인용 PDF 텍스트 추출 기본 경로를 번들된 PDFium WASM으로 전환한다                                          | 2026-11-21 |

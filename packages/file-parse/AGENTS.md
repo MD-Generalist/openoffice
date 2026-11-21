@@ -29,7 +29,7 @@
 - 터미널 명령어(`packages/cli`)의 읽기는 이 패키지를 지나지 않고, 가리기를 적용하지 않는다.
 - 한글 문서를 고치거나 저장하지 않는다. 그것은 `apps/hwp`의 편집기가 한다. 여기서는 같은 엔진(`@rhwp/core`)으로 열어 글자만 꺼낸다.
 - 읽기에 시간 제한을 두지 않는다. 칸이 수만 개인 표가 든 한글 문서는 엔진이 여는 데만 10초 넘게 걸린다. 파일 색인은 전용 저우선순위 사이드카 인스턴스(또는 작업자 스레드)와 120초 제한 안에서 부르지만, 첨부·MCP·열린 탭 읽기는 대화형 사이드카 싱글턴(시간 제한 없음, 2분 유휴 시 종료)이나 메인 프로세스에서 바로 부른다.
-- 독립 Rust 추출 사이드카(`ieum-parse-sidecar`, `native/parse-sidecar/`)는 원본 `xlsx-sidecar`와 완전히 분리돼 있으며 네트워크 크레이트를 싣지 않는다. 7개 ZIP 형식(`.docx`, `.xlsx`, `.xlsm`, `.pptx`, `.odt`, `.epub`, `.xmind` 및 ZIP 기반 `.doc`), 가리기 없는 평문/표(`.csv`, `.tsv`, `.xml`, `.log`, `.py`), 폴더 재귀 탐색(`scan_dir`), 색인 본문 CJK 토큰화(`tokenize: true`, 100만 자 상한), 그리고 빠른 미리보기용 ZIP 내장 썸네일 스트리밍 추출(`extract_thumbnail`, `.hwpx`·ZIP `.hwp`·OOXML·ODT·XMind, 최대 5 MiB)을 담당한다. PDF, HWP/HWPX 본문, 옛 바이너리 `.doc`/`.ppt`, draw.io, 이미지, 가리기 표시가 있는 텍스트·마크업(`.md`, `.markdown`, `.txt`, `.json`, `.html`, `.htm`)은 TypeScript 경로가 맡는다.
+- 독립 Rust 추출 사이드카(`ieum-parse-sidecar`, `native/parse-sidecar/`)는 원본 `xlsx-sidecar`와 완전히 분리돼 있으며 네트워크 크레이트를 싣지 않는다. 7개 ZIP 형식(`.docx`, `.xlsx`, `.xlsm`, `.pptx`, `.odt`, `.epub`, `.xmind` 및 ZIP 기반 `.doc`), 옛 바이너리 OLE2 형식(`.doc`·`.ppt`, 결정 0159), 가리기 없는 평문/표(`.csv`, `.tsv`, `.xml`, `.log`, `.py`), 폴더 재귀 탐색(`scan_dir`), 색인 본문 CJK 토큰화(`tokenize: true`, 100만 자 상한), 그리고 빠른 미리보기용 ZIP 내장 썸네일 스트리밍 추출(`extract_thumbnail`, `.hwpx`·ZIP `.hwp`·OOXML·ODT·XMind, 최대 5 MiB)을 담당한다. PDF, HWP/HWPX 본문, draw.io, 이미지, 가리기 표시가 있는 텍스트·마크업(`.md`, `.markdown`, `.txt`, `.json`, `.html`, `.htm`)은 TypeScript 경로가 맡는다.
 - 부모 프로세스가 정상 `shutdown` 없이 갑자기 끊겨 표준 입력이 닫히면(bare stdin EOF) 사이드카는 유휴 상태뿐 아니라 진행 중·대기 중인 모든 작업까지 즉시 취소하고(`pool.shutdown(true)`) 종료한다.
 
 ## 항상 지켜야 하는 것
@@ -65,7 +65,7 @@
 - 텍스트 파일은 BOM을 보고 UTF-8과 UTF-16을 풀고, UTF-8로 읽히지 않으면 windows-1252로 읽는다. BOM이 UTF-32라고 알리는 파일만 거부한다.
 - PDF 텍스트 추출은 앱에 이미 실린 `@embedpdf/pdfium`(`pdfium.wasm`)을 기본 경로로 쓴다(`pdf-pdfium.ts`, 결정 0160). WASM 경로는 `GENOFFICE_PDFIUM_WASM_PATH` → `GENOFFICE_PDFIUM_WASM` → `node_modules`의 `@embedpdf/pdfium` → 설치본 `Resources/wasm/pdfium.wasm` → CLI 번들 옆 `../wasm/pdfium.wasm` 순으로 찾는다. `GENOFFICE_PDF_PDFIUM=0|off`이거나 WASM 부재·초기화·트랩 같은 **인프라 실패 때만** 기존 `pdfjs-dist`로 폴백한다. 암호가 걸린 PDF(`FPDF_ERR_PASSWORD`), 지원하지 않는 보안 핸들러(`FPDF_ERR_SECURITY`), 손상된 PDF(`FPDF_ERR_FORMAT` 등)는 절대 `pdfjs-dist`로 폴백하지 않고 `PdfDocumentError`로 거절한다.
 - 설치본에서만 깨지는 문제를 막는 우회가 두 군데 있고, 개발 실행에서는 드러나지 않으므로 지우지 않는다. 폴백 경로의 pdfjs는 `DOMMatrix`가 없으면 import 단계에서 죽어서 순수 JS 대체 구현을 먼저 설치하고, 워커 모듈을 글자 그대로의 경로로 import해 번들에 넣는다. `ppt-to-text`는 의존성을 번들러가 따라가지 못하는 require 뒤에 숨기므로 `globalThis.CFB`와 `cptable`을 먼저 채운 뒤 지연 import한다.
-- 옛 PPT의 글자 디코딩은 코드페이지 1200(UTF-16LE)만 지원한다.
+- 옛 PPT의 글자 디코딩은 Rust 사이드카 경로가 UTF-16LE(코드페이지 1200)와 ASCII/CP1252 레코드(`TextBytesAtom`)를 모두 처리하고, TypeScript 폴백 경로(`ppt-to-text`)는 코드페이지 1200(UTF-16LE)만 지원한다.
 - zip으로 된 문서가 `WHOLE_ZIP_READ_MAX_BYTES`(50MB)를 넘으면 `readZipTextParts`로 글이 든 파트(XML·관계·JSON·HTML·평문, 확장자 없는 파트)만 디스크에서 압축된 채 옮겨 작은 zip을 만들고, 나머지 파트는 이름만 남겨 내용을 비운다. 형식별 읽기와 zip 관문은 그 작은 zip에 그대로 돈다. 그 이하는 통째로 읽는다. 읽은 글은 통째로 읽을 때와 같아야 한다(`tests/large-documents.test.ts`). zip64는 거절한다(결정 0091).
 - 한글 문서는 문단을 한 줄로, 표를 행마다 칸을 `|`로 이어 적는다. 병합된 칸은 첫 자리에 적고 걸친 자리는 비우되, 줄 끝에 이어지는 빈 자리는 적지 않는다. 한 칸에 문단이 셋을 넘는 표(글을 배치하려고 쓴 표)는 행으로 적지 않고 칸의 문단을 줄로 푼다. 메모가 있으면 본문·표 뒤에 `### Comments` 블록을 붙인다. 첫 줄은 `- 작성자 (p.N): 첫 줄`이고 이어지는 줄은 두 칸 들여쓰며, 작성자가 없으면 `unknown`, 쪽을 모르면 `(p.N)`을 뺀다. 메모가 없으면 블록을 붙이지 않아 본문 출력이 그대로다.
 - 문단과 표를 따라가는 읽기가 닿지 못한 글자(글상자, 머리말, 표 안의 표 등)는 엔진의 평문 내보내기에서 찾아 제자리에 끼워 넣는다(`withMissingText`). 엔진 평문만 쓰지 않는 이유는 그쪽이 빈 누름틀에 안내 문구를 적고 표를 줄 구분 없이 풀기 때문이다.
