@@ -1,6 +1,7 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import JSZip from 'jszip'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import {
   ParseSidecarClient,
@@ -164,8 +165,58 @@ describe('ParseSidecarClient live binary protocol', () => {
     const cancelRes = await client.cancel('nonexistent-request-id')
     expect(cancelRes).toEqual({ cancelled: false })
 
+    // extract_thumbnail round-trip (ok + not_found + malformed_response handled below)
+    const zip = new JSZip()
+    const fakePng = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xaa, 0xbb])
+    zip.file('docProps/thumbnail.png', fakePng)
+    const docxPath = join(dir, 'thumb.docx')
+    writeFileSync(docxPath, await zip.generateAsync({ type: 'nodebuffer' }))
+    const thumbOk = await client.extractThumbnail({ path: docxPath, ext: 'docx' })
+    expect(thumbOk).toEqual({
+      status: 'ok',
+      mime: 'image/png',
+      dataBase64: fakePng.toString('base64'),
+      entry: 'docProps/thumbnail.png',
+    })
+
+    const noThumbZip = new JSZip()
+    noThumbZip.file('word/document.xml', '<w:document/>')
+    const noThumbPath = join(dir, 'no-thumb.docx')
+    writeFileSync(noThumbPath, await noThumbZip.generateAsync({ type: 'nodebuffer' }))
+    const thumbMissing = await client.extractThumbnail({ path: noThumbPath, ext: 'docx' })
+    expect(thumbMissing).toEqual({ status: 'not_found' })
+
     await client.shutdown()
     expect(client.pid()).toBeNull()
+  })
+
+  it('throws SidecarInfraError(malformed_response) on malformed extract_thumbnail result', async () => {
+    const script = writeFakeSidecarScript(`
+import { createInterface } from 'node:readline'
+const rl = createInterface({ input: process.stdin })
+rl.on('line', (line) => {
+  const req = JSON.parse(line)
+  process.stdout.write(JSON.stringify({
+    version: 1,
+    requestId: req.requestId,
+    ok: true,
+    result: { status: 'ok', mime: 'image/png' },
+  }) + '\\n')
+})
+`)
+    const client = trackClient(
+      new ParseSidecarClient({
+        binaryPath: process.execPath,
+        args: [script],
+        idleTimeoutMs: null,
+      }),
+    )
+
+    await expect(
+      client.extractThumbnail({ path: '/tmp/fake.docx', ext: 'docx' }),
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof SidecarInfraError && err.code === 'malformed_response',
+    )
   })
 
   it('matches concurrent out-of-order responses by requestId', async () => {

@@ -5,6 +5,7 @@ use serde_json::Value;
 
 pub const PROTOCOL_VERSION: u8 = 1;
 pub const DEFAULT_MAX_BODY_CHARS: usize = 1_000_000;
+pub const DEFAULT_MAX_THUMBNAIL_BYTES: usize = 5 * 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "command", rename_all = "snake_case")]
@@ -20,6 +21,12 @@ pub enum Command {
         max_body_chars: Option<usize>,
         #[serde(default, rename = "redactNamespaces")]
         redact_namespaces: Vec<String>,
+    },
+    ExtractThumbnail {
+        path: PathBuf,
+        ext: String,
+        #[serde(default, rename = "maxBytes")]
+        max_bytes: Option<usize>,
     },
     ScanDir {
         root: PathBuf,
@@ -136,6 +143,28 @@ pub enum ExtractResult {
         message: String,
     },
     Unsupported {
+        message: String,
+    },
+}
+
+/// Result payload of `extract_thumbnail`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum ThumbnailResult {
+    Ok {
+        mime: String,
+        #[serde(rename = "dataBase64")]
+        data_base64: String,
+        entry: String,
+    },
+    NotFound {},
+    Fallback {
+        #[serde(rename = "fallbackReason")]
+        fallback_reason: FallbackReason,
+    },
+    Rejected {
+        #[serde(rename = "rejectCode")]
+        reject_code: RejectCode,
         message: String,
     },
 }

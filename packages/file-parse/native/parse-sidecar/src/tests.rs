@@ -8,8 +8,11 @@ use flate2::write::DeflateEncoder;
 use serde_json::Value;
 use tempfile::tempdir;
 
+use crate::extract::thumbnail::{encode_base64, extract_thumbnail, sniff_image_mime};
 use crate::extract::{ExtractOptions, extract_file, rels};
-use crate::protocol::{ExtractResult, FallbackReason, RejectCode, TokenizedStrings};
+use crate::protocol::{
+    ExtractResult, FallbackReason, RejectCode, ThumbnailResult, TokenizedStrings,
+};
 use crate::scan::{document_extension, is_hidden_entry, is_supported_tree_file, scan_dir};
 use crate::tokenize::{is_cjk, tokenize_text, truncate_utf16_units};
 use crate::zip_gate::{DEFAULT_ZIP_LIMITS, ZipArchive, ZipGateError, ZipLimits, is_text_part};
@@ -1043,4 +1046,239 @@ fn extract_csv_euc_kr_and_utf16_bom() {
             ..
         }
     ));
+}
+
+#[test]
+fn base64_encoder_matches_rfc4648_vectors() {
+    assert_eq!(encode_base64(b""), "");
+    assert_eq!(encode_base64(b"f"), "Zg==");
+    assert_eq!(encode_base64(b"fo"), "Zm8=");
+    assert_eq!(encode_base64(b"foo"), "Zm9v");
+    assert_eq!(encode_base64(b"foob"), "Zm9vYg==");
+    assert_eq!(encode_base64(b"fooba"), "Zm9vYmE=");
+    assert_eq!(encode_base64(b"foobar"), "Zm9vYmFy");
+}
+
+#[test]
+fn sniff_image_mime_detects_supported_formats_and_rejects_junk() {
+    assert_eq!(
+        sniff_image_mime(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+        Some("image/png")
+    );
+    assert_eq!(
+        sniff_image_mime(&[0xFF, 0xD8, 0xFF, 0xE0, 0x00]),
+        Some("image/jpeg")
+    );
+    assert_eq!(sniff_image_mime(b"GIF89a\x01\x00"), Some("image/gif"));
+    assert_eq!(sniff_image_mime(b"BM\x36\x00\x00\x00"), Some("image/bmp"));
+    assert_eq!(sniff_image_mime(b"RIFF\x20\x00\x00\x00WEBP"), Some("image/webp"));
+    assert_eq!(sniff_image_mime(b"NOT_AN_IMAGE"), None);
+    assert_eq!(sniff_image_mime(&[0x89, 0x50]), None);
+}
+
+#[test]
+fn extract_thumbnail_handles_all_zip_formats_case_insensitivity_and_priority() {
+    let dir = tempdir().unwrap();
+    let png = [0x89u8, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01, 0x02];
+    let jpg = [0xFFu8, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46];
+    let bmp = [0x42u8, 0x4D, 0x1E, 0x00, 0x00, 0x00, 0x00, 0x00];
+    let gif = b"GIF89a\x01\x00\x01\x00";
+
+    // HWPX Preview/PrvImage.bmp (case-insensitive)
+    let hwpx = build_test_zip(&[TestZipEntry::deflate("preview/PRVIMAGE.BMP", &bmp)]);
+    let hwpx_path = write_temp_file(dir.path(), "sample.hwpx", &hwpx);
+    assert_eq!(
+        extract_thumbnail(&hwpx_path, "hwpx", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Ok {
+            mime: "image/bmp".to_owned(),
+            data_base64: encode_base64(&bmp),
+            entry: "preview/PRVIMAGE.BMP".to_owned(),
+        }
+    );
+
+    // ZIP-based .hwp (HWPX saved under .hwp extension)
+    let hwp_zip_path = write_temp_file(dir.path(), "renamed.hwp", &hwpx);
+    assert!(matches!(
+        extract_thumbnail(&hwp_zip_path, "hwp", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Ok { ref mime, .. } if mime == "image/bmp"
+    ));
+
+    // ODT / XMind Thumbnails/thumbnail.png
+    let odt = build_test_zip(&[
+        TestZipEntry::stored("mimetype", b"application/vnd.oasis.opendocument.text"),
+        TestZipEntry::deflate("Thumbnails/thumbnail.png", &png),
+    ]);
+    let odt_path = write_temp_file(dir.path(), "sample.odt", &odt);
+    assert_eq!(
+        extract_thumbnail(&odt_path, "odt", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Ok {
+            mime: "image/png".to_owned(),
+            data_base64: encode_base64(&png),
+            entry: "Thumbnails/thumbnail.png".to_owned(),
+        }
+    );
+
+    // OOXML docProps/thumbnail.jpeg + invalid higher-priority candidate skipped
+    let docx = build_test_zip(&[
+        TestZipEntry::deflate("docProps/thumbnail.png", b"corrupt-not-png"),
+        TestZipEntry::deflate("docProps/thumbnail.jpeg", &jpg),
+    ]);
+    let docx_path = write_temp_file(dir.path(), "sample.docx", &docx);
+    assert_eq!(
+        extract_thumbnail(&docx_path, "docx", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Ok {
+            mime: "image/jpeg".to_owned(),
+            data_base64: encode_base64(&jpg),
+            entry: "docProps/thumbnail.jpeg".to_owned(),
+        }
+    );
+
+    // Priority: Preview/PrvImage.png wins over docProps/thumbnail.gif
+    let multi = build_test_zip(&[
+        TestZipEntry::deflate("docProps/thumbnail.gif", gif),
+        TestZipEntry::stored("Preview/PrvImage.png", &png),
+    ]);
+    let multi_path = write_temp_file(dir.path(), "multi.pptx", &multi);
+    assert_eq!(
+        extract_thumbnail(&multi_path, "pptx", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Ok {
+            mime: "image/png".to_owned(),
+            data_base64: encode_base64(&png),
+            entry: "Preview/PrvImage.png".to_owned(),
+        }
+    );
+
+    // No thumbnail entry -> NotFound
+    let empty_zip = build_test_zip(&[TestZipEntry::deflate("word/document.xml", b"<w:document/>")]);
+    let empty_path = write_temp_file(dir.path(), "no-thumb.docx", &empty_zip);
+    assert_eq!(
+        extract_thumbnail(&empty_path, "docx", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::NotFound {}
+    );
+
+    // Oversized thumbnail skipped when exceeding max_bytes
+    let mut big_png = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    big_png.resize(2048, 0xAA);
+    let capped_zip = build_test_zip(&[
+        TestZipEntry::deflate("docProps/thumbnail.png", &big_png),
+        TestZipEntry::deflate("docProps/thumbnail.gif", gif),
+    ]);
+    let capped_path = write_temp_file(dir.path(), "capped.xlsx", &capped_zip);
+    assert_eq!(
+        extract_thumbnail(&capped_path, "xlsx", Some(512), &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Ok {
+            mime: "image/gif".to_owned(),
+            data_base64: encode_base64(gif),
+            entry: "docProps/thumbnail.gif".to_owned(),
+        }
+    );
+}
+
+#[test]
+fn extract_thumbnail_enforces_security_gates_and_never_falls_back_on_rejects() {
+    let dir = tempdir().unwrap();
+    let png = [0x89u8, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01, 0x02];
+
+    // 1. Lying-declaration ZIP bomb -> ZipRejected
+    let mut bomb_entry = TestZipEntry::deflate("word/media/bomb.bin", &vec![0u8; 256 * 1024]);
+    bomb_entry.declared_usize = Some(64);
+    let bomb_zip = build_test_zip(&[
+        TestZipEntry::deflate("docProps/thumbnail.png", &png),
+        bomb_entry,
+    ]);
+    let bomb_path = write_temp_file(dir.path(), "bomb.docx", &bomb_zip);
+    assert!(matches!(
+        extract_thumbnail(&bomb_path, "docx", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Rejected {
+            reject_code: RejectCode::ZipRejected,
+            ..
+        }
+    ));
+
+    // 2. Encrypted entry flag -> ZipRejected
+    let mut enc_entry = TestZipEntry::deflate("docProps/thumbnail.png", &png);
+    enc_entry.flags |= 0x0001;
+    let enc_zip = build_test_zip(&[enc_entry]);
+    let enc_path = write_temp_file(dir.path(), "enc.pptx", &enc_zip);
+    assert!(matches!(
+        extract_thumbnail(&enc_path, "pptx", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Rejected {
+            reject_code: RejectCode::ZipRejected,
+            ..
+        }
+    ));
+
+    // 3. Path traversal entry -> ZipRejected
+    let trav_zip = build_test_zip(&[
+        TestZipEntry::deflate("../evil.txt", b"escape"),
+        TestZipEntry::deflate("docProps/thumbnail.png", &png),
+    ]);
+    let trav_path = write_temp_file(dir.path(), "trav.docx", &trav_zip);
+    assert!(matches!(
+        extract_thumbnail(&trav_path, "docx", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Rejected {
+            reject_code: RejectCode::ZipRejected,
+            ..
+        }
+    ));
+
+    // 4. Encrypted ODT manifest -> PasswordProtected
+    let enc_manifest = r#"<?xml version="1.0"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml">
+    <manifest:encryption-data manifest:checksum-type="SHA256"/>
+  </manifest:file-entry>
+</manifest:manifest>"#;
+    let enc_odt = build_test_zip(&[
+        TestZipEntry::stored("mimetype", b"application/vnd.oasis.opendocument.text"),
+        TestZipEntry::deflate("META-INF/manifest.xml", enc_manifest.as_bytes()),
+        TestZipEntry::deflate("Thumbnails/thumbnail.png", &png),
+    ]);
+    let enc_odt_path = write_temp_file(dir.path(), "locked.odt", &enc_odt);
+    assert!(matches!(
+        extract_thumbnail(&enc_odt_path, "odt", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Rejected {
+            reject_code: RejectCode::PasswordProtected,
+            ..
+        }
+    ));
+
+    // 5. Encrypted OOXML (OLE2 + EncryptedPackage) -> PasswordProtected
+    let mut ole_enc = vec![0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+    ole_enc.extend_from_slice(&[0u8; 32]);
+    for ch in "EncryptedPackage".encode_utf16() {
+        ole_enc.extend_from_slice(&ch.to_le_bytes());
+    }
+    let ole_enc_path = write_temp_file(dir.path(), "locked.docx", &ole_enc);
+    assert!(matches!(
+        extract_thumbnail(&ole_enc_path, "docx", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Rejected {
+            reject_code: RejectCode::PasswordProtected,
+            ..
+        }
+    ));
+
+    // 6. Content mismatch (plain text disguised as .hwpx) -> ContentMismatch
+    let mismatch_path = write_temp_file(dir.path(), "fake.hwpx", b"not a zip at all");
+    assert!(matches!(
+        extract_thumbnail(&mismatch_path, "hwpx", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Rejected {
+            reject_code: RejectCode::ContentMismatch,
+            ..
+        }
+    ));
+
+    // 7. OLE2 .hwp -> Fallback(UnsupportedFormat) (handled by HWP5 WASM)
+    let ole_hwp_path = write_temp_file(
+        dir.path(),
+        "real.hwp",
+        &[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, 0, 0],
+    );
+    assert_eq!(
+        extract_thumbnail(&ole_hwp_path, "hwp", None, &AtomicBool::new(false)).unwrap(),
+        ThumbnailResult::Fallback {
+            fallback_reason: FallbackReason::UnsupportedFormat,
+        }
+    );
 }
