@@ -12,6 +12,41 @@ import {
 
 export const CONNECTOR_PICK_MAX = 20
 
+const ISO_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/
+
+/** Format ISO-8601 UTC timestamps into a clean local date/time in the active UI language */
+export function formatPickerSubtitle(
+  item: ConnectorPickerItem,
+  lang: string,
+  pageCountText?: string,
+): string {
+  const parts: string[] = []
+  if (pageCountText) parts.push(pageCountText)
+  const raw = item.subtitle.trim()
+  if (raw) {
+    if (ISO_TIMESTAMP_RE.test(raw)) {
+      const d = new Date(raw)
+      if (!Number.isNaN(d.getTime())) {
+        try {
+          parts.push(
+            new Intl.DateTimeFormat(lang, {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+            }).format(d),
+          )
+        } catch {
+          parts.push(d.toLocaleString())
+        }
+      } else {
+        parts.push(raw)
+      }
+    } else {
+      parts.push(raw)
+    }
+  }
+  return parts.join(' · ')
+}
+
 export function ConnectorPickerWindow({
   init,
   api,
@@ -25,6 +60,9 @@ export function ConnectorPickerWindow({
       connectorPickerText(lang, key, params),
     [lang],
   )
+  const isRemote = kind === 'notion' || kind === 'canva'
+  const unavailableKey: ConnectorPickerStringKey =
+    kind === 'canva' ? 'canvaUnavailable' : 'notionUnavailable'
 
   const [items, setItems] = useState<ConnectorPickerItem[]>([])
   const [query, setQuery] = useState('')
@@ -33,6 +71,7 @@ export function ConnectorPickerWindow({
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [working, setWorking] = useState(false)
+  const [workingMode, setWorkingMode] = useState<'attach' | 'open'>('attach')
   const [notice, setNotice] = useState<string | null>(null)
 
   const runList = useCallback(
@@ -45,16 +84,16 @@ export function ConnectorPickerWindow({
           setItems(res.items)
         } else {
           setItems([])
-          setError(res.error || t('notionUnavailable'))
+          setError(res.error || t(unavailableKey))
         }
       } catch {
         setItems([])
-        setError(t('notionUnavailable'))
+        setError(t(unavailableKey))
       } finally {
         setLoading(false)
       }
     },
-    [api, t],
+    [api, t, unavailableKey],
   )
 
   useEffect(() => {
@@ -62,7 +101,7 @@ export function ConnectorPickerWindow({
   }, [runList])
 
   const filteredItems = useMemo(() => {
-    if (kind === 'notion') return items
+    if (isRemote) return items
     const q = query.trim().toLowerCase()
     const tagQuery = q.startsWith('#') ? q.slice(1) : ''
     return items.filter((item) => {
@@ -77,7 +116,7 @@ export function ConnectorPickerWindow({
         (item.tags ?? []).some((tag) => tag.toLowerCase().includes(q))
       )
     })
-  }, [items, kind, query, vaultFilter])
+  }, [items, isRemote, query, vaultFilter])
 
   const toggle = (item: ConnectorPickerItem) => {
     if (item.disabledReason === 'unsaved') {
@@ -99,20 +138,43 @@ export function ConnectorPickerWindow({
 
   const attach = async () => {
     setWorking(true)
+    setWorkingMode('attach')
     setNotice(null)
     const res = await api.choose([...selected]).catch(() => null)
     if (!res || !res.ok) {
       setWorking(false)
-      setNotice(res && !res.ok ? res.error : t('notionUnavailable'))
+      setNotice(res && !res.ok ? res.error : t(unavailableKey))
+    }
+  }
+
+  const openSelectedInTab = async () => {
+    const firstId = [...selected][0]
+    if (!firstId || !api.openInTab) return
+    setWorking(true)
+    setWorkingMode('open')
+    setNotice(null)
+    const res = await api.openInTab(firstId).catch(() => null)
+    if (!res || !res.ok) {
+      setWorking(false)
+      setNotice(res && !res.ok ? res.error : t(unavailableKey))
     }
   }
 
   const onSubmitSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    if (kind === 'notion') {
+    if (isRemote) {
       void runList(query)
     }
   }
+
+  const searchPlaceholderKey: ConnectorPickerStringKey =
+    kind === 'obsidian'
+      ? 'searchObsidianPlaceholder'
+      : kind === 'canva'
+        ? 'searchCanvaPlaceholder'
+        : 'searchNotionPlaceholder'
+  const emptyKey: ConnectorPickerStringKey =
+    kind === 'obsidian' ? 'emptyObsidian' : kind === 'canva' ? 'emptyCanva' : 'emptyNotion'
 
   return (
     <div className="cp">
@@ -122,13 +184,11 @@ export function ConnectorPickerWindow({
           className="cp-search-input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={t(
-            kind === 'obsidian' ? 'searchObsidianPlaceholder' : 'searchNotionPlaceholder',
-          )}
+          placeholder={t(searchPlaceholderKey)}
           autoFocus
           disabled={working}
         />
-        {kind === 'notion' && (
+        {isRemote && (
           <button type="submit" className="cp-ghost" disabled={loading || working}>
             {t('searchButton')}
           </button>
@@ -168,12 +228,17 @@ export function ConnectorPickerWindow({
             </button>
           </div>
         ) : filteredItems.length === 0 ? (
-          <p className="cp-note">{t(kind === 'obsidian' ? 'emptyObsidian' : 'emptyNotion')}</p>
+          <p className="cp-note">{t(emptyKey)}</p>
         ) : (
           <ul className="cp-list">
             {filteredItems.map((item) => {
               const picked = selected.has(item.id)
               const blocked = item.disabledReason === 'unsaved'
+              const subText = formatPickerSubtitle(
+                item,
+                lang,
+                item.pageCount ? t('pageCount', { n: String(item.pageCount) }) : undefined,
+              )
               return (
                 <li key={item.id}>
                   <button
@@ -194,7 +259,7 @@ export function ConnectorPickerWindow({
                         {item.title}
                       </span>
                       <span className="cp-sub">
-                        {item.subtitle}
+                        {subText}
                         {item.tags && item.tags.length > 0
                           ? ` · ${item.tags.slice(0, 4).map((tag) => `#${tag}`).join(' ')}`
                           : ''}
@@ -211,7 +276,7 @@ export function ConnectorPickerWindow({
       <div className="cp-foot">
         <span className="cp-count">
           {working
-            ? t('attaching')
+            ? t(workingMode === 'open' ? 'openingInTab' : 'attaching')
             : notice
               ? notice
               : t('selectedCount', { n: String(selected.size) })}
@@ -224,6 +289,16 @@ export function ConnectorPickerWindow({
         >
           {t('cancel')}
         </button>
+        {kind === 'canva' && api.openInTab && (
+          <button
+            type="button"
+            className="cp-ghost"
+            onClick={() => void openSelectedInTab()}
+            disabled={working || selected.size !== 1}
+          >
+            {t('openInTab')}
+          </button>
+        )}
         <button
           type="button"
           className="cp-primary"

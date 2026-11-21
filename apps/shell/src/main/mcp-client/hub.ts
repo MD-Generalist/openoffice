@@ -186,6 +186,7 @@ export interface McpHub {
   // Main-process internal accessors for user-initiated attach pickers (never exposed via IPC)
   registeredVaults(): McpVaultEntry[]
   notionPickerStatus(): { available: boolean; serverId: string | null }
+  canvaPickerStatus(): { available: boolean; serverId: string | null }
   listToolsForUserPicker(
     serverId: string,
     signal?: AbortSignal,
@@ -682,10 +683,19 @@ export function createMcpHub(deps: McpHubDeps): McpHub {
       }
     })
     const presetId = matchPresetOfServer(server)
+    const presetSpec = presetId ? MCP_PRESETS[presetId] : null
+    const presetGuide =
+      presetSpec && 'presetInstructions' in presetSpec ? presetSpec.presetInstructions : null
     const vaultInstructions =
       server.kind === 'vault'
         ? obsidianServerInstructions(server.vaults.filter((v) => v.enabled)) || null
         : null
+    const serverInstructions =
+      server.instructions && server.pendingInstructions === null ? server.instructions.text : null
+    const mergedInstructions =
+      server.kind === 'vault'
+        ? vaultInstructions
+        : [serverInstructions, presetGuide].filter(Boolean).join('\n\n') || null
     return {
       name: server.name,
       status: status.status,
@@ -698,12 +708,7 @@ export function createMcpHub(deps: McpHubDeps): McpHub {
       ...(server.kind === 'vault'
         ? { vaults: server.vaults.map(({ id, name, enabled }) => ({ id, name, enabled })) }
         : {}),
-      instructions:
-        server.kind === 'vault'
-          ? vaultInstructions
-          : server.instructions && server.pendingInstructions === null
-            ? server.instructions.text
-            : null,
+      instructions: mergedInstructions,
       tools,
     }
   }
@@ -1389,7 +1394,9 @@ export function createMcpHub(deps: McpHubDeps): McpHub {
       notify()
       return { ok: true, id: server.id }
     }
-    const env: Record<string, string> = {}
+    const env: Record<string, string> = {
+      ...('defaultEnv' in spec && spec.defaultEnv ? spec.defaultEnv : {}),
+    }
     if ('requiredEnv' in spec && spec.requiredEnv) {
       const value = (input.lawOc ?? '').trim()
       if (!value || value.includes('\0')) return invalid('invalid', spec.requiredEnv)
@@ -1549,18 +1556,29 @@ export function createMcpHub(deps: McpHubDeps): McpHub {
     return server ? server.vaults.map((v) => ({ ...v })) : []
   }
 
-  function notionPickerStatus(): { available: boolean; serverId: string | null } {
-    const notion = store.get().servers.find((s) => matchPresetOfServer(s) === 'notion')
-    if (!notion) return { available: false, serverId: null }
-    const live = lives.get(notion.id)
+  function remotePresetPickerStatus(presetId: 'notion' | 'canva'): {
+    available: boolean
+    serverId: string | null
+  } {
+    const server = store.get().servers.find((s) => matchPresetOfServer(s) === presetId)
+    if (!server) return { available: false, serverId: null }
+    const live = lives.get(server.id)
     if (live?.loginRequired || live?.remote?.needsSignIn() === true) {
-      return { available: false, serverId: notion.id }
+      return { available: false, serverId: server.id }
     }
-    const hasOAuthToken = Boolean(notion.oauth && notion.oauth.tokens !== '')
-    const hasAuthHeader = Object.entries(notion.headers).some(
+    const hasOAuthToken = Boolean(server.oauth && server.oauth.tokens !== '')
+    const hasAuthHeader = Object.entries(server.headers).some(
       ([k, v]) => k.toLowerCase() === 'authorization' && v.trim() !== '',
     )
-    return { available: hasOAuthToken || hasAuthHeader, serverId: notion.id }
+    return { available: hasOAuthToken || hasAuthHeader, serverId: server.id }
+  }
+
+  function notionPickerStatus(): { available: boolean; serverId: string | null } {
+    return remotePresetPickerStatus('notion')
+  }
+
+  function canvaPickerStatus(): { available: boolean; serverId: string | null } {
+    return remotePresetPickerStatus('canva')
   }
 
   async function listToolsForUserPicker(
@@ -1742,6 +1760,7 @@ export function createMcpHub(deps: McpHubDeps): McpHub {
     setVaultEnabled,
     registeredVaults,
     notionPickerStatus,
+    canvaPickerStatus,
     listToolsForUserPicker,
     callForUserPicker,
     stopAll,

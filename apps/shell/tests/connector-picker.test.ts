@@ -11,7 +11,17 @@ import {
   fetchNotionPagesToTemp,
   findNotionTools,
   parseNotionSearchResults,
+  unwrapNotionFetchMarkdown,
 } from '../src/main/connector-picker/notion-picker'
+import {
+  buildCanvaSearchInput,
+  exportCanvaDesignToTemp,
+  fetchCanvaDesignsToTemp,
+  findCanvaTools,
+  formatCanvaDesignMarkdown,
+  isAllowedCanvaDownloadUrl,
+  parseCanvaSearchResults,
+} from '../src/main/connector-picker/canva-picker'
 
 let tempDir: string
 let vaultDir: string
@@ -117,6 +127,124 @@ describe('Notion page picker backend', () => {
       expect(res.omittedNonText).toBe(2)
       const saved = await readFile(res.paths[0]!, 'utf8')
       expect(saved).toContain('# Roadmap 2026')
+    }
+  })
+
+  it('unwraps Notion MCP JSON and <page>/<content> XML envelopes into clean Markdown', () => {
+    const raw = JSON.stringify({
+      metadata: { type: 'page' },
+      title: '강의안 요약',
+      url: 'https://www.notion.so/example-123',
+      text: 'Here is the result of "fetch" for the Page:\n<page url="https://www.notion.so/example-123"><ancestor-path>Root</ancestor-path><properties>{"title":"강의안 요약"}</properties><content>\n## 개요\n- 첫째 항목\n- 둘째 항목\n</content></page>',
+    })
+    const cleaned = unwrapNotionFetchMarkdown(raw, 'fallback')
+    expect(cleaned).toBe('# 강의안 요약\n\n## 개요\n- 첫째 항목\n- 둘째 항목\n')
+    expect(cleaned).not.toContain('"metadata"')
+    expect(cleaned).not.toContain('<ancestor-path>')
+  })
+})
+
+describe('Canva design picker backend', () => {
+  it('builds schema-valid search inputs and parses search results with epoch timestamps', () => {
+    expect(buildCanvaSearchInput('')).toMatchObject({ sort_by: 'modified_descending', limit: 30 })
+    expect(buildCanvaSearchInput('')).not.toHaveProperty('query')
+    expect(buildCanvaSearchInput('수행평가')).toMatchObject({
+      query: '수행평가',
+      sort_by: 'relevance',
+      limit: 30,
+    })
+
+    const items = parseCanvaSearchResults(
+      JSON.stringify({
+        items: [
+          {
+            design_id: 'DAHCFRp2u74',
+            title: 'PBL 수행평가 설계하기',
+            updated_at: 1771856225,
+            page_count: 47,
+            design_types: ['presentation'],
+          },
+        ],
+      }),
+    )
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      id: 'DAHCFRp2u74',
+      title: 'PBL 수행평가 설계하기',
+      pageCount: 47,
+      designTypes: ['presentation'],
+    })
+    expect(items[0]!.subtitle).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it('formats read-design JSON into compact Markdown and exports presentations as PPTX', async () => {
+    const tools = findCanvaTools([
+      { name: 'search-designs' },
+      { name: 'read-design' },
+      { name: 'get-export-formats' },
+      { name: 'export-design' },
+    ])!
+    expect(tools.exportTool?.name).toBe('export-design')
+
+    const md = formatCanvaDesignMarkdown(
+      JSON.stringify({
+        design_metadata: { title: '수업 자료', page_count: 2 },
+        design_content: [
+          { page_number: 1, elements: [{ text: '1쪽 제목' }, { text: '핵심 내용' }] },
+          { page_number: 2, elements: [{ text: '2쪽 정리' }] },
+        ],
+        presenter_notes: [{ note: '학생 질문 유도' }],
+      }),
+      'fallback',
+    )
+    expect(md).toContain('# 수업 자료')
+    expect(md).toContain('## Page 1')
+    expect(md).toContain('1쪽 제목')
+    expect(md).toContain('## Presenter Notes')
+    expect(md).toContain('학생 질문 유도')
+
+    const canvaDir = join(tempDir, 'canva')
+    const attachRes = await fetchCanvaDesignsToTemp({
+      serverId: 'canva-1',
+      selectedItems: [{ id: 'DAHCFRp2u74', title: '수업 자료', subtitle: '' }],
+      readTool: tools.readTool,
+      callForUserPicker: async () => ({
+        ok: true,
+        output: JSON.stringify({ design_metadata: { title: '수업 자료' }, design_content: [{ text: '본문' }] }),
+        isError: false,
+      }),
+      attachDir: canvaDir,
+    })
+    expect(attachRes.ok).toBe(true)
+    if (attachRes.ok) {
+      expect(await readFile(attachRes.paths[0]!, 'utf8')).toContain('# 수업 자료')
+    }
+
+    expect(isAllowedCanvaDownloadUrl('https://export-download.canva.com/abc/file.pptx')).toBe(true)
+    expect(isAllowedCanvaDownloadUrl('http://export-download.canva.com/abc/file.pptx')).toBe(false)
+    expect(isAllowedCanvaDownloadUrl('https://127.0.0.1/file.pptx')).toBe(false)
+
+    const exportRes = await exportCanvaDesignToTemp({
+      serverId: 'canva-1',
+      item: { id: 'DAHCFRp2u74', title: '수업 자료', subtitle: '', designTypes: ['presentation'] },
+      tools,
+      callForUserPicker: async (_sid, toolName) => {
+        if (toolName === 'get-export-formats') {
+          return { ok: true, output: JSON.stringify({ formats: ['pdf', 'pptx', 'png'] }), isError: false }
+        }
+        return {
+          ok: true,
+          output: JSON.stringify({ urls: ['https://export-download.canva.com/file.pptx'] }),
+          isError: false,
+        }
+      },
+      fetchBytes: async () => new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
+      attachDir: canvaDir,
+    })
+    expect(exportRes.ok).toBe(true)
+    if (exportRes.ok) {
+      expect(exportRes.format).toBe('pptx')
+      expect(exportRes.path).toMatch(/\.pptx$/)
     }
   })
 })

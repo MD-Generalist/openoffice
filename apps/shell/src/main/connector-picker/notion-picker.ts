@@ -247,6 +247,56 @@ function safeSnapshotName(title: string, id: string, index: number): string {
   return `${base}-${shortId}.md`
 }
 
+/**
+ * Unwrap Notion MCP's fetch envelope (JSON `{ title, url, text }` plus
+ * `<page>` / `<ancestor-path>` / `<iconMetadata>` / `<content>` XML wrappers)
+ * into clean, readable Markdown so attached snapshots stay compact and legible.
+ */
+export function unwrapNotionFetchMarkdown(rawOutput: string, fallbackTitle?: string): string {
+  let title = (fallbackTitle ?? '').trim()
+  let text = rawOutput.trim()
+
+  const parsed = tryParseJson(text)
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const rec = parsed as Record<string, unknown>
+    if (typeof rec.title === 'string' && rec.title.trim()) {
+      title = rec.title.trim()
+    }
+    if (typeof rec.text === 'string' && rec.text.trim()) {
+      text = rec.text.trim()
+    } else if (typeof rec.markdown === 'string' && rec.markdown.trim()) {
+      text = rec.markdown.trim()
+    } else if (typeof rec.content === 'string' && rec.content.trim()) {
+      text = rec.content.trim()
+    }
+  }
+
+  // Strip Notion MCP's conversational preamble ("Here is the result of \"fetch\"...")
+  text = text.replace(/^Here is the result of ["']?fetch["']?[^\n]*\n+/i, '').trim()
+
+  // Extract inner <content>...</content> when wrapped in Notion's <page> XML envelope
+  const contentMatch = text.match(/<content>([\s\S]*?)<\/content>/i)
+  if (contentMatch) {
+    text = contentMatch[1]!.trim()
+  } else {
+    text = text
+      .replace(/<ancestor-path>[\s\S]*?<\/ancestor-path>/gi, '')
+      .replace(/<iconMetadata>[\s\S]*?<\/iconMetadata>/gi, '')
+      .replace(/<properties>[\s\S]*?<\/properties>/gi, '')
+      .replace(/<\/?page\b[^>]*>/gi, '')
+      .trim()
+  }
+
+  // Collapse runs of 3+ blank lines and normalize CRLF
+  text = text.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+
+  if (!text) return title ? `# ${title}\n` : ''
+  if (title && !/^#\s+/.test(text)) {
+    return `# ${title}\n\n${text}\n`
+  }
+  return `${text}\n`
+}
+
 function countNonTextElements(markdown: string): number {
   const tagMatches =
     markdown.match(/<(?:image|img|file|video|audio|pdf|embed|bookmark)\b[^>]*>/gi)?.length ?? 0
@@ -274,7 +324,7 @@ export interface FetchNotionPagesParams {
 
 /**
  * Fetch up to 20 selected Notion pages through the user-picker channel and save
- * each page's text content as a temporary `.md` file in `attachDir`.
+ * each page's cleaned Markdown content as a temporary `.md` file in `attachDir`.
  */
 export async function fetchNotionPagesToTemp(
   params: FetchNotionPagesParams,
@@ -304,9 +354,14 @@ export async function fetchNotionPagesToTemp(
       failed += 1
       continue
     }
-    omittedNonText += countNonTextElements(res.output)
+    const cleaned = unwrapNotionFetchMarkdown(res.output, item.title)
+    if (!cleaned.trim()) {
+      failed += 1
+      continue
+    }
+    omittedNonText += countNonTextElements(cleaned)
     const filePath = join(params.attachDir, safeSnapshotName(item.title, item.id, i))
-    await atomicWriteFile(filePath, Buffer.from(res.output, 'utf8'))
+    await atomicWriteFile(filePath, Buffer.from(cleaned, 'utf8'))
     paths.push(filePath)
   }
 

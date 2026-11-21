@@ -22,6 +22,7 @@ import {
   ipcMain,
   nativeImage,
   nativeTheme,
+  net,
   screen,
   safeStorage,
   powerMonitor,
@@ -10583,7 +10584,7 @@ app.whenReady().then(async () => {
     lang: () => currentLang(),
     theme: () => currentTheme(),
   })
-  // Direct attachment picker for Obsidian vault notes and Notion pages.
+  // Direct attachment picker for Obsidian vault notes, Notion pages, and Canva designs.
   createConnectorPicker({
     hub: mcpHub,
     openIntegrations: () => {
@@ -10599,6 +10600,12 @@ app.whenReady().then(async () => {
     theme: () => currentTheme(),
     tempDir: app.getPath('temp'),
     isUnsaved: (absPath) => fileHasUnsavedChanges(absPath),
+    openGeneratedPath: (path) => openGeneratedDocument(path),
+    fetchUrlBytes: async (url, signal) => {
+      const res = await net.fetch(url, signal ? { signal } : undefined)
+      if (!res.ok) throw new Error(`Download failed (${res.status})`)
+      return new Uint8Array(await res.arrayBuffer())
+    },
   })
   // Which open documents have unsaved changes, for the attachment readers of the
   // editor mains and the knowledge base: a file being edited is not read as

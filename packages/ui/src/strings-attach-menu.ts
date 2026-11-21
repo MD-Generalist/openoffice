@@ -1,12 +1,13 @@
 import { createI18n, defineStrings, type Lang, type Params } from '@genoffice/i18n'
 
 /**
- * Strings for the Obsidian and Notion direct-attach menu items and wire-result
- * notes in `AiAttachMenu`. `zh` defines the canonical key set across all 22 languages.
+ * Strings for the Obsidian, Notion, and Canva direct-attach menu items and
+ * wire-result notes in `AiAttachMenu`. `zh` defines the canonical key set across all 22 languages.
  */
 const zh = {
   attachFromObsidian: '从 Obsidian 保管库附加笔记',
   attachFromNotion: '附加 Notion 页面',
+  attachFromCanva: '从 Canva 导入设计',
   connectorBusy: '另一个选择窗口已打开，请先完成或关闭它。',
   connectorNotConnected: '尚未连接此服务，请先在“设置 › 集成”中连接。',
   connectorFailed: '无法读取所选内容，请重试。',
@@ -19,6 +20,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   en: {
     attachFromObsidian: 'Attach notes from Obsidian vault',
     attachFromNotion: 'Attach Notion pages',
+    attachFromCanva: 'Import from Canva',
     connectorBusy: 'Another picker window is already open. Finish or close it first.',
     connectorNotConnected: 'This service is not connected yet. Connect it in Settings › Integrations.',
     connectorFailed: 'Could not read the selected items. Please try again.',
@@ -28,6 +30,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   ja: {
     attachFromObsidian: 'Obsidian 保管庫からノートを添付',
     attachFromNotion: 'Notion ページを添付',
+    attachFromCanva: 'Canva からデザインを取り込む',
     connectorBusy: '別の選択ウィンドウが開いています。先に完了するか閉じてください。',
     connectorNotConnected: 'このサービスはまだ接続されていません。「設定 › 連携」で接続してください。',
     connectorFailed: '選択した項目を読み込めませんでした。もう一度お試しください。',
@@ -37,6 +40,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   ko: {
     attachFromObsidian: 'Obsidian 볼트에서 노트 첨부',
     attachFromNotion: 'Notion 페이지 첨부',
+    attachFromCanva: 'Canva에서 디자인 가져오기',
     connectorBusy: '다른 선택 창이 이미 열려 있습니다. 먼저 마치거나 닫아 주세요.',
     connectorNotConnected: '아직 연결되지 않았습니다. 설정 ▸ 연동에서 먼저 연결해 주세요.',
     connectorFailed: '고른 항목을 불러오지 못했습니다. 다시 시도해 주세요.',
@@ -46,6 +50,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   fr: {
     attachFromObsidian: 'Joindre des notes du coffre Obsidian',
     attachFromNotion: 'Joindre des pages Notion',
+    attachFromCanva: 'Importer depuis Canva',
     connectorBusy: 'Une autre fenêtre de sélection est déjà ouverte. Terminez-la ou fermez-la d’abord.',
     connectorNotConnected: 'Ce service n’est pas encore connecté. Connectez-le dans Réglages › Intégrations.',
     connectorFailed: 'Impossible de lire les éléments sélectionnés. Veuillez réessayer.',
@@ -55,6 +60,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   de: {
     attachFromObsidian: 'Notizen aus Obsidian-Vault anhängen',
     attachFromNotion: 'Notion-Seiten anhängen',
+    attachFromCanva: 'Aus Canva importieren',
     connectorBusy: 'Ein anderes Auswahlfenster ist bereits geöffnet. Bitte schließen Sie es zuerst.',
     connectorNotConnected: 'Dieser Dienst ist noch nicht verbunden. Verbinden Sie ihn unter Einstellungen › Integrationen.',
     connectorFailed: 'Ausgewählte Elemente konnten nicht gelesen werden. Bitte erneut versuchen.',
@@ -64,6 +70,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   es: {
     attachFromObsidian: 'Adjuntar notas del almacén de Obsidian',
     attachFromNotion: 'Adjuntar páginas de Notion',
+    attachFromCanva: 'Importar desde Canva',
     connectorBusy: 'Ya hay otra ventana de selección abierta. Ciérrala o termínala primero.',
     connectorNotConnected: 'Este servicio aún no está conectado. Conéctalo en Ajustes › Integraciones.',
     connectorFailed: 'No se pudieron leer los elementos seleccionados. Inténtalo de nuevo.',
@@ -73,6 +80,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   th: {
     attachFromObsidian: 'แนบโน้ตจากคลัง Obsidian',
     attachFromNotion: 'แนบหน้า Notion',
+    attachFromCanva: 'นำเข้าจาก Canva',
     connectorBusy: 'มีหน้าต่างเลือกอื่นเปิดอยู่แล้ว กรุณาปิดหรือดำเนินการให้เสร็จก่อน',
     connectorNotConnected: 'ยังไม่ได้เชื่อมต่อบริการนี้ กรุณาเชื่อมต่อใน การตั้งค่า › การเชื่อมต่อ',
     connectorFailed: 'ไม่สามารถอ่านรายการที่เลือกได้ กรุณาลองอีกครั้ง',
@@ -82,6 +90,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   id: {
     attachFromObsidian: 'Lampirkan catatan dari brankas Obsidian',
     attachFromNotion: 'Lampirkan halaman Notion',
+    attachFromCanva: 'Impor dari Canva',
     connectorBusy: 'Jendela pemilih lain sudah terbuka. Selesaikan atau tutup terlebih dahulu.',
     connectorNotConnected: 'Layanan ini belum terhubung. Hubungkan di Pengaturan › Integrasi.',
     connectorFailed: 'Tidak dapat membaca item yang dipilih. Silakan coba lagi.',
@@ -91,6 +100,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   ru: {
     attachFromObsidian: 'Прикрепить заметки из хранилища Obsidian',
     attachFromNotion: 'Прикрепить страницы Notion',
+    attachFromCanva: 'Импортировать из Canva',
     connectorBusy: 'Другое окно выбора уже открыто. Сначала завершите или закройте его.',
     connectorNotConnected: 'Этот сервис ещё не подключён. Подключите его в «Настройки › Интеграции».',
     connectorFailed: 'Не удалось прочитать выбранные элементы. Повторите попытку.',
@@ -100,6 +110,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   ar: {
     attachFromObsidian: 'إرفاق ملاحظات من خزنة Obsidian',
     attachFromNotion: 'إرفاق صفحات Notion',
+    attachFromCanva: 'استيراد من Canva',
     connectorBusy: 'توجد نافذة اختيار أخرى مفتوحة بالفعل. يرجى إنهاؤها أو إغلاقها أولاً.',
     connectorNotConnected: 'هذه الخدمة غير متصلة بعد. قم بتوصيلها من الإعدادات › التكاملات.',
     connectorFailed: 'تعذرت قراءة العناصر المحددة. يرجى المحاولة مرة أخرى.',
@@ -109,6 +120,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   pt: {
     attachFromObsidian: 'Anexar notas do cofre Obsidian',
     attachFromNotion: 'Anexar páginas do Notion',
+    attachFromCanva: 'Importar do Canva',
     connectorBusy: 'Outra janela de seleção já está aberta. Conclua ou feche-a primeiro.',
     connectorNotConnected: 'Este serviço ainda não está conectado. Conecte-o em Configurações › Integrações.',
     connectorFailed: 'Não foi possível ler os itens selecionados. Tente novamente.',
@@ -118,6 +130,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   it: {
     attachFromObsidian: 'Allega note dal vault Obsidian',
     attachFromNotion: 'Allega pagine Notion',
+    attachFromCanva: 'Importa da Canva',
     connectorBusy: 'Un’altra finestra di selezione è già aperta. Completala o chiudila prima.',
     connectorNotConnected: 'Questo servizio non è ancora connesso. Connettilo in Impostazioni › Integrazioni.',
     connectorFailed: 'Impossibile leggere gli elementi selezionati. Riprova.',
@@ -127,6 +140,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   pl: {
     attachFromObsidian: 'Dołącz notatki ze skarbca Obsidian',
     attachFromNotion: 'Dołącz strony Notion',
+    attachFromCanva: 'Importuj z Canva',
     connectorBusy: 'Inne okno wyboru jest już otwarte. Najpierw je zamknij lub zakończ.',
     connectorNotConnected: 'Ta usługa nie jest jeszcze połączona. Połącz ją w Ustawienia › Integracje.',
     connectorFailed: 'Nie udało się odczytać wybranych elementów. Spróbuj ponownie.',
@@ -136,6 +150,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   cs: {
     attachFromObsidian: 'Připojit poznámky z trezoru Obsidian',
     attachFromNotion: 'Připojit stránky Notion',
+    attachFromCanva: 'Importovat z Canva',
     connectorBusy: 'Jiné okno výběru je již otevřené. Nejprve jej dokončete nebo zavřete.',
     connectorNotConnected: 'Tato služba ještě není připojena. Připojte ji v Nastavení › Integrace.',
     connectorFailed: 'Vybrané položky se nepodařilo přečíst. Zkuste to znovu.',
@@ -145,6 +160,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   nl: {
     attachFromObsidian: 'Notities uit Obsidian-kluis bijvoegen',
     attachFromNotion: 'Notion-pagina’s bijvoegen',
+    attachFromCanva: 'Importeren uit Canva',
     connectorBusy: 'Er is al een ander selectievenster geopend. Sluit of voltooi dat eerst.',
     connectorNotConnected: 'Deze service is nog niet verbonden. Verbind deze via Instellingen › Integraties.',
     connectorFailed: 'Kan de geselecteerde items niet lezen. Probeer het opnieuw.',
@@ -154,6 +170,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   ms: {
     attachFromObsidian: 'Lampirkan nota daripada peti Obsidian',
     attachFromNotion: 'Lampirkan halaman Notion',
+    attachFromCanva: 'Import daripada Canva',
     connectorBusy: 'Tetingkap pemilih lain sudah dibuka. Selesaikan atau tutupnya dahulu.',
     connectorNotConnected: 'Perkhidmatan ini belum disambungkan. Sambungkannya di Tetapan › Integrasi.',
     connectorFailed: 'Tidak dapat membaca item yang dipilih. Sila cuba lagi.',
@@ -163,6 +180,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   he: {
     attachFromObsidian: 'צירוף הערות מכספת Obsidian',
     attachFromNotion: 'צירוף דפי Notion',
+    attachFromCanva: 'ייבוא מ-Canva',
     connectorBusy: 'חלון בחירה אחר כבר פתוח. יש לסיים או לסגור אותו קודם.',
     connectorNotConnected: 'שירות זה עדיין לא מחובר. חבר אותו דרך הגדרות › אינטגרציות.',
     connectorFailed: 'לא ניתן היה לקרוא את הפריטים שנבחרו. נסה שוב.',
@@ -172,6 +190,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   hi: {
     attachFromObsidian: 'Obsidian वॉल्ट से नोट्स संलग्न करें',
     attachFromNotion: 'Notion पृष्ठ संलग्न करें',
+    attachFromCanva: 'Canva से आयात करें',
     connectorBusy: 'एक अन्य चयन विंडो पहले से खुली है। पहले उसे पूरा करें या बंद करें।',
     connectorNotConnected: 'यह सेवा अभी जुड़ी नहीं है। इसे सेटिंग्स › एकीकरण में जोड़ें।',
     connectorFailed: 'चयनित आइटम पढ़े नहीं जा सके। कृपया पुनः प्रयास करें।',
@@ -181,6 +200,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   'zh-TW': {
     attachFromObsidian: '從 Obsidian 保管庫附加筆記',
     attachFromNotion: '附加 Notion 頁面',
+    attachFromCanva: '從 Canva 匯入設計',
     connectorBusy: '另一個選擇視窗已開啟，請先完成或關閉它。',
     connectorNotConnected: '尚未連接此服務，請先在「設定 › 整合」中連接。',
     connectorFailed: '無法讀取所選項目，請重試。',
@@ -190,6 +210,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   vi: {
     attachFromObsidian: 'Đính kèm ghi chú từ kho Obsidian',
     attachFromNotion: 'Đính kèm trang Notion',
+    attachFromCanva: 'Nhập từ Canva',
     connectorBusy: 'Một cửa sổ chọn khác đang mở. Hãy hoàn tất hoặc đóng nó trước.',
     connectorNotConnected: 'Dịch vụ này chưa được kết nối. Hãy kết nối trong Cài đặt › Tích hợp.',
     connectorFailed: 'Không thể đọc các mục đã chọn. Vui lòng thử lại.',
@@ -199,6 +220,7 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
   tr: {
     attachFromObsidian: 'Obsidian kasasından not ekle',
     attachFromNotion: 'Notion sayfaları ekle',
+    attachFromCanva: 'Canva’dan içe aktar',
     connectorBusy: 'Başka bir seçim penceresi zaten açık. Önce onu tamamlayın veya kapatın.',
     connectorNotConnected: 'Bu hizmet henüz bağlı değil. Ayarlar › Entegrasyonlar bölümünden bağlayın.',
     connectorFailed: 'Seçilen öğeler okunamadı. Lütfen tekrar deneyin.',

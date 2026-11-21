@@ -15,10 +15,13 @@ const g = globalThis as {
     drivePickAttachments: () => Promise<unknown>
   }
   aiOfficeConnectorAttach?: {
-    availableSources: () => Promise<{ obsidian: boolean; notion: boolean }>
-    onSourcesChanged: (fn: (s: { obsidian: boolean; notion: boolean }) => void) => () => void
+    availableSources: () => Promise<{ obsidian: boolean; notion: boolean; canva?: boolean }>
+    onSourcesChanged: (
+      fn: (s: { obsidian: boolean; notion: boolean; canva?: boolean }) => void,
+    ) => () => void
     pickObsidianNotes: () => Promise<unknown>
     pickNotionPages: () => Promise<unknown>
+    pickCanvaDesigns?: () => Promise<unknown>
   }
 }
 
@@ -118,10 +121,11 @@ describe('AiAttachMenu', () => {
     expect(bubbleEscape).not.toHaveBeenCalled()
   })
 
-  it('shows Obsidian and Notion menu items when connector sources are available and forwards picked paths/notes', async () => {
-    let emit: ((s: { obsidian: boolean; notion: boolean }) => void) | undefined
+  it('shows Obsidian, Notion, and Canva menu items when connector sources are available and forwards picked paths/notes', async () => {
+    let emit: ((s: { obsidian: boolean; notion: boolean; canva?: boolean }) => void) | undefined
+    const pickCanvaDesigns = vi.fn().mockResolvedValue({ ok: true, paths: ['/tmp/design.md'] })
     g.aiOfficeConnectorAttach = {
-      availableSources: vi.fn().mockResolvedValue({ obsidian: true, notion: true }),
+      availableSources: vi.fn().mockResolvedValue({ obsidian: true, notion: true, canva: true }),
       onSourcesChanged: vi.fn((fn) => {
         emit = fn
         return () => {}
@@ -132,6 +136,7 @@ describe('AiAttachMenu', () => {
         paths: ['/tmp/page.md'],
         omittedNonText: 2,
       }),
+      pickCanvaDesigns,
     }
     const onPickedDrive = vi.fn()
     await act(async () => {
@@ -144,8 +149,10 @@ describe('AiAttachMenu', () => {
     })
     const obsItem = container.querySelector<HTMLButtonElement>('[data-source="obsidian"]')
     const notionItem = container.querySelector<HTMLButtonElement>('[data-source="notion"]')
+    const canvaItem = container.querySelector<HTMLButtonElement>('[data-source="canva"]')
     expect(obsItem?.textContent).toContain(connectorAttachText('ko', 'attachFromObsidian'))
     expect(notionItem?.textContent).toContain(connectorAttachText('ko', 'attachFromNotion'))
+    expect(canvaItem?.textContent).toContain(connectorAttachText('ko', 'attachFromCanva'))
 
     await act(async () => {
       notionItem!.click()
@@ -156,9 +163,19 @@ describe('AiAttachMenu', () => {
       notes: [connectorAttachText('ko', 'connectorOmittedNonText', { n: 2 })],
     })
 
-    // Dynamically hiding Notion removes its item
+    act(() => {
+      container.querySelector<HTMLButtonElement>('.ai-attach-menu-btn')!.click()
+    })
     await act(async () => {
-      emit?.({ obsidian: true, notion: false })
+      container.querySelector<HTMLButtonElement>('[data-source="canva"]')!.click()
+      await Promise.resolve()
+    })
+    expect(pickCanvaDesigns).toHaveBeenCalledTimes(1)
+    expect(onPickedDrive).toHaveBeenCalledWith({ paths: ['/tmp/design.md'], notes: [] })
+
+    // Dynamically hiding Notion & Canva removes their items
+    await act(async () => {
+      emit?.({ obsidian: true, notion: false, canva: false })
       await Promise.resolve()
     })
     act(() => {
@@ -166,6 +183,7 @@ describe('AiAttachMenu', () => {
     })
     expect(container.querySelector('[data-source="obsidian"]')).not.toBeNull()
     expect(container.querySelector('[data-source="notion"]')).toBeNull()
+    expect(container.querySelector('[data-source="canva"]')).toBeNull()
 
     expect(connectorPickedOf({ ok: false, reason: 'busy' }, 'en').notes).toHaveLength(1)
   })

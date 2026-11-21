@@ -14,14 +14,16 @@ function themeOf(value: unknown): ConnectorPickerTheme {
   return value === 'light' || value === 'dark' ? value : 'system'
 }
 
-// Standalone sandboxed preload for the Obsidian / Notion attachment picker window.
+// Standalone sandboxed preload for the Obsidian / Notion / Canva attachment picker window.
 const api: ConnectorPickerApi = {
   async getInit() {
     const init = (await ipcRenderer.invoke(
       CONNECTOR_PICKER_CHANNELS.getInit,
     )) as ConnectorPickerInit | null
+    const kind =
+      init?.kind === 'notion' || init?.kind === 'canva' ? init.kind : 'obsidian'
     return {
-      kind: init?.kind === 'notion' ? 'notion' : 'obsidian',
+      kind,
       lang: init?.lang ?? 'en',
       theme: themeOf(init?.theme),
       vaults: Array.isArray(init?.vaults) ? init.vaults : [],
@@ -36,6 +38,11 @@ const api: ConnectorPickerApi = {
     ipcRenderer.invoke(CONNECTOR_PICKER_CHANNELS.list, query) as Promise<ConnectorPickerListResult>,
   choose: (ids) =>
     ipcRenderer.invoke(CONNECTOR_PICKER_CHANNELS.choose, ids) as Promise<ConnectorPickerChooseResult>,
+  openInTab: (id) =>
+    ipcRenderer.invoke(
+      CONNECTOR_PICKER_CHANNELS.openInTab,
+      id,
+    ) as Promise<ConnectorPickerChooseResult>,
   async cancel() {
     await ipcRenderer.invoke(CONNECTOR_PICKER_CHANNELS.cancel)
   },

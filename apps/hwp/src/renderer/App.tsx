@@ -1087,6 +1087,42 @@ export default function App() {
     [phase, filePath, lang],
   )
 
+  const loadGeneratedHwpx = useCallback(
+    async (
+      path: string,
+    ): Promise<{ ok: true; mode: 'current' | 'new-tab'; title: string } | { ok: false; error: string }> => {
+      const loader = window.hwpApi.loadGeneratedHwpx
+      if (!loader) return { ok: false, error: 'Opening generated HWP files is not available here.' }
+      const editor = editorRef.current
+      let isBlank = false
+      if (editor && !filePath && !openedFileRef.current) {
+        try {
+          const [ctx, text] = await Promise.all([
+            editor.commands.context(),
+            agentBridge.readText(),
+          ])
+          isBlank = ctx.isDirty !== true && text.trim() === ''
+        } catch {
+          isBlank = false
+        }
+      }
+      const res = await loader(path, isBlank)
+      if (!res.ok) return res
+      if (res.mode === 'current') {
+        if (!editor) return { ok: false, error: 'The editor is not ready.' }
+        await editor.loadFile(res.bytes, res.name, { skipUnsavedGuard: true })
+        formatRef.current = res.format
+        setDocFormat(res.format)
+        copyNameRef.current = res.name
+        restoredRef.current = true
+        window.hwpApi.setDirty(true)
+        setDocTick((tick) => tick + 1)
+      }
+      return { ok: true, mode: res.mode, title: res.name }
+    },
+    [agentBridge, filePath],
+  )
+
   return (
     <div className={`hwp-app${presenting ? ' hwp-presenting' : ''}`} data-phase={phase}>
       {phase === 'ready' && (
@@ -1124,6 +1160,7 @@ export default function App() {
             prefill={aiPrefill}
             onPrefillTaken={takeAiPrefill}
             marksOnPage={marksOnPage}
+            loadGeneratedHwpx={loadGeneratedHwpx}
           />
         )}
         {phase === 'ready' && (

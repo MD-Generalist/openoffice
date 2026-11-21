@@ -19,7 +19,7 @@ export const connectorsUiStrings = defineStrings({
     thirdPartyNote: '此服务由外部提供方运营，与 GenOffice 无隶属关系。',
     notionDesc: '搜索并读取 Notion 页面，或在 AI 面板中直接附加页面。',
     notionNotice: '当 AI 调用 Notion 工具时，查询词和选定的文本会发送到 Notion，返回的内容会提供给当前 AI 对话。',
-    canvaDesc: '在 AI 对话中搜索并参考您的 Canva 设计。',
+    canvaDesc: '导入或在新标签页中打开我的 Canva 设计，或根据当前文档生成 Canva 设计。',
     canvaNotice: '当 AI 调用 Canva 工具时，查询词和选定的文本会发送到 Canva，返回的内容会提供给当前 AI 对话。',
     obsidianName: 'Obsidian 仓库',
     obsidianDesc: '直接读写本地 .md 笔记，无需运行 Obsidian 应用，也不会在仓库中创建额外文件。',
@@ -57,7 +57,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Search and read Notion pages, or attach pages directly in the AI panel.',
     notionNotice:
       'When the AI uses Notion tools, queries and selected text are sent to Notion, and returned content enters the AI chat.',
-    canvaDesc: 'Search and reference your Canva designs from AI chats.',
+    canvaDesc: 'Import or open your Canva designs in tabs, or create new Canva designs from your document.',
     canvaNotice:
       'When the AI uses Canva tools, queries and selected text are sent to Canva, and returned content enters the AI chat.',
     obsidianName: 'Obsidian Vault',
@@ -99,7 +99,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Notion 페이지를 검색·열람하고 AI 창에서 바로 첨부합니다.',
     notionNotice:
       'AI가 Notion 도구를 부르면 검색어와 선택한 내용이 Notion으로 전송되며, 받아 온 내용이 AI 대화에 들어갑니다.',
-    canvaDesc: 'AI 대화에서 Canva 디자인을 검색하고 참고합니다.',
+    canvaDesc: '내 Canva 디자인을 첨부하거나 탭으로 열고, 작성 중인 문서로 Canva 디자인을 만듭니다.',
     canvaNotice:
       'AI가 Canva 도구를 부르면 검색어와 선택한 내용이 Canva로 전송되며, 받아 온 내용이 AI 대화에 들어갑니다.',
     obsidianName: 'Obsidian 볼트',
@@ -141,7 +141,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Notion ページを検索・閲覧し、AI パネルに直接添付します。',
     notionNotice:
       'AI が Notion ツールを使うと、検索語や選択したテキストが Notion に送信され、結果が AI 会話に渡されます。',
-    canvaDesc: 'AI 会話から Canva のデザインを検索・参照します。',
+    canvaDesc: '自分の Canva デザインを添付・タブで開くほか、作成中の文書から Canva デザインを作成します。',
     canvaNotice:
       'AI が Canva ツールを使うと、検索語や選択したテキストが Canva に送信され、結果が AI 会話に渡されます。',
     obsidianName: 'Obsidian 保管庫',
@@ -183,7 +183,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Rechercher et lire des pages Notion, ou les joindre dans le panneau IA.',
     notionNotice:
       'Lorsque l’IA utilise les outils Notion, les requêtes et textes sélectionnés sont envoyés à Notion et les réponses reviennent dans le chat.',
-    canvaDesc: 'Rechercher et consulter vos designs Canva depuis le chat IA.',
+    canvaDesc: 'Importez ou ouvrez vos designs Canva dans un onglet, ou créez-en à partir de votre document.',
     canvaNotice:
       'Lorsque l’IA utilise les outils Canva, les requêtes et textes sélectionnés sont envoyés à Canva et les réponses reviennent dans le chat.',
     obsidianName: 'Coffre Obsidian',
@@ -225,7 +225,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Notion-Seiten durchsuchen, lesen oder direkt im KI-Panel anhängen.',
     notionNotice:
       'Wenn die KI Notion-Werkzeuge nutzt, werden Suchbegriffe und gewählter Text an Notion gesendet und Antworten in den Chat übernommen.',
-    canvaDesc: 'Canva-Designs direkt in KI-Chats durchsuchen und verwenden.',
+    canvaDesc: 'Eigene Canva-Designs importieren oder in Tabs öffnen und neue Designs aus Ihrem Dokument erstellen.',
     canvaNotice:
       'Wenn die KI Canva-Werkzeuge nutzt, werden Suchbegriffe und gewählter Text an Canva gesendet und Antworten in den Chat übernommen.',
     obsidianName: 'Obsidian-Vault',
@@ -267,7 +267,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Busca y lee páginas de Notion, o adjúntalas directamente en el panel de IA.',
     notionNotice:
       'Cuando la IA usa herramientas de Notion, las consultas y el texto seleccionado se envían a Notion y el resultado vuelve al chat.',
-    canvaDesc: 'Busca y consulta tus diseños de Canva desde los chats de IA.',
+    canvaDesc: 'Importa o abre tus diseños de Canva en pestañas, o crea nuevos diseños desde tu documento.',
     canvaNotice:
       'Cuando la IA usa herramientas de Canva, las consultas y el texto seleccionado se envían a Canva y el resultado vuelve al chat.',
     obsidianName: 'Bóveda de Obsidian',
@@ -309,7 +309,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'ค้นหาและอ่านหน้า Notion หรือแนบหน้าโดยตรงในแผง AI',
     notionNotice:
       'เมื่อ AI ใช้เครื่องมือ Notion คำค้นหาและข้อความที่เลือกจะถูกส่งไปยัง Notion และผลลัพธ์จะกลับเข้าสู่แชท AI',
-    canvaDesc: 'ค้นหาและอ้างอิงงานออกแบบ Canva จากแชท AI',
+    canvaDesc: 'นำเข้าหรือเปิดงานออกแบบ Canva ของคุณในแท็บ หรือสร้างงานออกแบบใหม่จากเอกสารของคุณ',
     canvaNotice:
       'เมื่อ AI ใช้เครื่องมือ Canva คำค้นหาและข้อความที่เลือกจะถูกส่งไปยัง Canva และผลลัพธ์จะกลับเข้าสู่แชท AI',
     obsidianName: 'คลัง Obsidian',
@@ -350,7 +350,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Cari dan baca halaman Notion, atau lampirkan langsung di panel AI.',
     notionNotice:
       'Saat AI memakai alat Notion, kueri dan teks pilihan dikirim ke Notion dan hasilnya masuk ke obrolan AI.',
-    canvaDesc: 'Cari dan rujuk desain Canva Anda dari obrolan AI.',
+    canvaDesc: 'Impor atau buka desain Canva Anda di tab, atau buat desain Canva baru dari dokumen Anda.',
     canvaNotice:
       'Saat AI memakai alat Canva, kueri dan teks pilihan dikirim ke Canva dan hasilnya masuk ke obrolan AI.',
     obsidianName: 'Brankas Obsidian',
@@ -392,7 +392,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Поиск и чтение страниц Notion, а также прямое прикрепление в панели ИИ.',
     notionNotice:
       'Когда ИИ вызывает инструменты Notion, запросы и выбранный текст отправляются в Notion, а ответ поступает в чат ИИ.',
-    canvaDesc: 'Поиск и использование ваших дизайнов Canva в чатах ИИ.',
+    canvaDesc: 'Импортируйте или открывайте свои дизайны Canva во вкладках и создавайте новые из документа.',
     canvaNotice:
       'Когда ИИ вызывает инструменты Canva, запросы и выбранный текст отправляются в Canva, а ответ поступает в чат ИИ.',
     obsidianName: 'Хранилище Obsidian',
@@ -434,7 +434,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'البحث في صفحات Notion وقراءتها، أو إرفاقها مباشرة في لوحة الذكاء الاصطناعي.',
     notionNotice:
       'عندما يستخدم الذكاء الاصطناعي أدوات Notion، تُرسل الاستعلامات والنصوص المحددة إلى Notion وتدخل النتائج إلى المحادثة.',
-    canvaDesc: 'البحث في تصاميم Canva والرجوع إليها داخل محادثات الذكاء الاصطناعي.',
+    canvaDesc: 'استيراد تصاميم Canva الخاصة بك أو فتحها في تبويب، أو إنشاء تصاميم جديدة من مستندك.',
     canvaNotice:
       'عندما يستخدم الذكاء الاصطناعي أدوات Canva، تُرسل الاستعلامات والنصوص المحددة إلى Canva وتدخل النتائج إلى المحادثة.',
     obsidianName: 'خزينة Obsidian',
@@ -475,7 +475,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Pesquise e leia páginas do Notion ou anexe-as diretamente no painel de IA.',
     notionNotice:
       'Quando a IA usa ferramentas do Notion, consultas e textos selecionados são enviados ao Notion e as respostas entram no chat.',
-    canvaDesc: 'Pesquise e consulte seus designs do Canva nos chats de IA.',
+    canvaDesc: 'Importe ou abra seus designs do Canva em abas, ou crie novos designs a partir do documento.',
     canvaNotice:
       'Quando a IA usa ferramentas do Canva, consultas e textos selecionados são enviados ao Canva e as respostas entram no chat.',
     obsidianName: 'Cofre Obsidian',
@@ -517,7 +517,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Cerca e leggi pagine Notion o allegale direttamente nel pannello IA.',
     notionNotice:
       'Quando l’IA usa gli strumenti Notion, le query e il testo selezionato vengono inviati a Notion e i risultati tornano nella chat.',
-    canvaDesc: 'Cerca e consulta i tuoi progetti Canva dalle chat IA.',
+    canvaDesc: 'Importa o apri i tuoi progetti Canva in schede, oppure crea nuovi progetti dal tuo documento.',
     canvaNotice:
       'Quando l’IA usa gli strumenti Canva, le query e il testo selezionato vengono inviati a Canva e i risultati tornano nella chat.',
     obsidianName: 'Vault Obsidian',
@@ -559,7 +559,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Wyszukuj i czytaj strony Notion lub dołączaj je bezpośrednio w panelu AI.',
     notionNotice:
       'Gdy AI używa narzędzi Notion, zapytania i wybrany tekst są wysyłane do Notion, a wyniki trafiają do czatu AI.',
-    canvaDesc: 'Wyszukuj i odwołuj się do projektów Canva w czatach AI.',
+    canvaDesc: 'Importuj lub otwieraj swoje projekty Canva w kartach albo twórz nowe z bieżącego dokumentu.',
     canvaNotice:
       'Gdy AI używa narzędzi Canva, zapytania i wybrany tekst są wysyłane do Canva, a wyniki trafiają do czatu AI.',
     obsidianName: 'Skarbiec Obsidian',
@@ -601,7 +601,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Vyhledávejte a čtěte stránky Notion nebo je připojujte přímo v panelu AI.',
     notionNotice:
       'Když AI používá nástroje Notion, dotazy a vybraný text se odesílají do Notion a výsledky se vrací do chatu.',
-    canvaDesc: 'Vyhledávejte a odkazujte na své návrhy Canva v chatech AI.',
+    canvaDesc: 'Importujte nebo otevírejte své návrhy Canva na kartách, případně vytvářejte nové z dokumentu.',
     canvaNotice:
       'Když AI používá nástroje Canva, dotazy a vybraný text se odesílají do Canva a výsledky se vrací do chatu.',
     obsidianName: 'Trezor Obsidian',
@@ -643,7 +643,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Zoek en lees Notion-pagina’s of voeg ze direct bij in het AI-paneel.',
     notionNotice:
       'Wanneer de AI Notion-hulpmiddelen gebruikt, worden zoekopdrachten en geselecteerde tekst naar Notion gestuurd.',
-    canvaDesc: 'Zoek en gebruik je Canva-ontwerpen vanuit AI-chats.',
+    canvaDesc: 'Importeer of open je eigen Canva-ontwerpen in tabbladen, of maak nieuwe vanuit je document.',
     canvaNotice:
       'Wanneer de AI Canva-hulpmiddelen gebruikt, worden zoekopdrachten en geselecteerde tekst naar Canva gestuurd.',
     obsidianName: 'Obsidian-kluis',
@@ -685,7 +685,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Cari dan baca halaman Notion, atau lampirkan terus dalam panel AI.',
     notionNotice:
       'Apabila AI menggunakan alat Notion, pertanyaan dan teks pilihan dihantar ke Notion dan hasilnya masuk ke sembang AI.',
-    canvaDesc: 'Cari dan rujuk reka bentuk Canva anda dari sembang AI.',
+    canvaDesc: 'Import atau buka reka bentuk Canva anda dalam tab, atau cipta reka bentuk baharu daripada dokumen.',
     canvaNotice:
       'Apabila AI menggunakan alat Canva, pertanyaan dan teks pilihan dihantar ke Canva dan hasilnya masuk ke sembang AI.',
     obsidianName: 'Peti Obsidian',
@@ -726,7 +726,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'חיפוש וקריאת דפי Notion או צירופם ישירות בלוח ה-AI.',
     notionNotice:
       'כאשר ה-AI משתמש בכלי Notion, שאילתות וטקסט נבחר נשלחים אל Notion והתוצאות נכנסות לשיחת ה-AI.',
-    canvaDesc: 'חיפוש ועיון בעיצובי Canva שלך מתוך שיחות AI.',
+    canvaDesc: 'ייבוא או פתיחת עיצובי Canva שלך בכרטיסיות, או יצירת עיצובים חדשים מהמסמך שלך.',
     canvaNotice:
       'כאשר ה-AI משתמש בכלי Canva, שאילתות וטקסט נבחר נשלחים אל Canva והתוצאות נכנסות לשיחת ה-AI.',
     obsidianName: 'כספת Obsidian',
@@ -767,7 +767,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Notion पेज खोजें और पढ़ें, या AI पैनल में सीधे संलग्न करें।',
     notionNotice:
       'जब AI Notion टूल का उपयोग करता है, तो प्रश्न और चुना गया पाठ Notion को भेजा जाता है और परिणाम चैट में आते हैं।',
-    canvaDesc: 'AI चैट से अपने Canva डिज़ाइन खोजें और देखें।',
+    canvaDesc: 'अपने Canva डिज़ाइन आयात करें या टैब में खोलें, या अपने दस्तावेज़ से नए डिज़ाइन बनाएँ।',
     canvaNotice:
       'जब AI Canva टूल का उपयोग करता है, तो प्रश्न और चुना गया पाठ Canva को भेजा जाता है और परिणाम चैट में आते हैं।',
     obsidianName: 'Obsidian वॉल्ट',
@@ -808,7 +808,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: '搜尋與閱讀 Notion 頁面，或在 AI 面板中直接附加頁面。',
     notionNotice:
       '當 AI 呼叫 Notion 工具時，查詢字詞與選取文字會傳送到 Notion，傳回的內容會進入 AI 對話。',
-    canvaDesc: '在 AI 對話中搜尋並參考您的 Canva 設計。',
+    canvaDesc: '匯入或在新分頁開啟我的 Canva 設計，或根據目前文件建立新的 Canva 設計。',
     canvaNotice:
       '當 AI 呼叫 Canva 工具時，查詢字詞與選取文字會傳送到 Canva，傳回的內容會進入 AI 對話。',
     obsidianName: 'Obsidian 倉庫',
@@ -849,7 +849,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Tìm kiếm và đọc trang Notion, hoặc đính kèm trực tiếp trong bảng AI.',
     notionNotice:
       'Khi AI dùng công cụ Notion, truy vấn và văn bản được chọn sẽ gửi tới Notion và kết quả sẽ vào cuộc trò chuyện AI.',
-    canvaDesc: 'Tìm kiếm và tham chiếu thiết kế Canva của bạn từ cuộc trò chuyện AI.',
+    canvaDesc: 'Nhập hoặc mở thiết kế Canva của bạn trong tab, hoặc tạo thiết kế mới từ tài liệu hiện tại.',
     canvaNotice:
       'Khi AI dùng công cụ Canva, truy vấn và văn bản được chọn sẽ gửi tới Canva và kết quả sẽ vào cuộc trò chuyện AI.',
     obsidianName: 'Kho Obsidian',
@@ -890,7 +890,7 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Notion sayfalarını arayın, okuyun veya doğrudan AI paneline ekleyin.',
     notionNotice:
       'AI, Notion araçlarını kullandığında sorgular ve seçilen metin Notion’a gönderilir ve sonuçlar sohbete gelir.',
-    canvaDesc: 'AI sohbetlerinden Canva tasarımlarınızı arayın ve referans alın.',
+    canvaDesc: 'Canva tasarımlarınızı içe aktarın veya sekmede açın, ya da belgenizden yeni tasarımlar oluşturun.',
     canvaNotice:
       'AI, Canva araçlarını kullandığında sorgular ve seçilen metin Canva’ya gönderilir ve sonuçlar sohbete gelir.',
     obsidianName: 'Obsidian Kasası',

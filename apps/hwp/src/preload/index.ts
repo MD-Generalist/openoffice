@@ -196,6 +196,8 @@ const api: HwpApi = {
   readAttachmentDocument: (path) => ipcRenderer.invoke(HWP_CHANNELS.filesReadDocument, path),
   importAttachmentAsDocument: (path, request) =>
     ipcRenderer.invoke(HWP_CHANNELS.filesImportDocument, path, request),
+  loadGeneratedHwpx: (path, intoCurrentBlank) =>
+    ipcRenderer.invoke(HWP_CHANNELS.loadGeneratedHwpx, path, intoCurrentBlank),
   noteAiRunStop: (stop) => ipcRenderer.send(HWP_CHANNELS.aiRunStop, stop),
   analyzeMedia: (op) => ipcRenderer.invoke(HWP_CHANNELS.analyzeMedia, op),
   getPathForFile: (file) => webUtils.getPathForFile(file),

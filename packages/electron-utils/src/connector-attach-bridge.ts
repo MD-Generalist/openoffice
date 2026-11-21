@@ -14,14 +14,15 @@ export interface ConnectorAttachBridge {
   onSourcesChanged(listener: (sources: ConnectorAttachSources) => void): () => void
   pickObsidianNotes(): Promise<ConnectorAttachWireResult>
   pickNotionPages(): Promise<ConnectorAttachWireResult>
+  pickCanvaDesigns(): Promise<ConnectorAttachWireResult>
 }
 
-const EMPTY_SOURCES: ConnectorAttachSources = { obsidian: false, notion: false }
+const EMPTY_SOURCES: ConnectorAttachSources = { obsidian: false, notion: false, canva: false }
 
 function normalizeSources(raw: unknown): ConnectorAttachSources {
   if (!raw || typeof raw !== 'object') return EMPTY_SOURCES
-  const r = raw as { obsidian?: unknown; notion?: unknown }
-  return { obsidian: r.obsidian === true, notion: r.notion === true }
+  const r = raw as { obsidian?: unknown; notion?: unknown; canva?: unknown }
+  return { obsidian: r.obsidian === true, notion: r.notion === true, canva: r.canva === true }
 }
 
 export function connectorAttachBridge(): ConnectorAttachBridge {
@@ -44,6 +45,10 @@ export function connectorAttachBridge(): ConnectorAttachBridge {
     pickNotionPages: () =>
       ipcRenderer
         .invoke(CONNECTOR_ATTACH_CHANNELS.pickNotion)
+        .catch((): ConnectorAttachWireResult => ({ ok: false, reason: 'unavailable' })),
+    pickCanvaDesigns: () =>
+      ipcRenderer
+        .invoke(CONNECTOR_ATTACH_CHANNELS.pickCanva)
         .catch((): ConnectorAttachWireResult => ({ ok: false, reason: 'unavailable' })),
   }
 }

@@ -28,6 +28,16 @@ import {
 import { connectorPickerText } from '../../renderer/src/i18n/strings-connector-picker'
 import type { McpHub } from '../mcp-client/hub'
 import {
+  buildCanvaSearchInput,
+  CANVA_ATTACH_SUBDIR,
+  cleanupOldCanvaFiles,
+  exportCanvaDesignToTemp,
+  fetchCanvaDesignsToTemp,
+  findCanvaTools,
+  parseCanvaSearchResults,
+  type CanvaToolSet,
+} from './canva-picker'
+import {
   cleanupOldNotionSnapshots,
   fetchNotionPagesToTemp,
   findNotionTools,
@@ -44,6 +54,10 @@ export interface ConnectorPickerDeps {
   theme: () => ConnectorPickerTheme
   tempDir: string
   isUnsaved: (absPath: string) => Promise<boolean> | boolean
+  /** Open an exported Canva PPTX/PDF file directly in a new editor tab */
+  openGeneratedPath?: (path: string) => boolean
+  /** Download bytes from an HTTPS Canva export URL (via Electron net.fetch) */
+  fetchUrlBytes?: (url: string, signal?: AbortSignal) => Promise<Uint8Array>
 }
 
 export function createConnectorPicker(deps: ConnectorPickerDeps) {
@@ -51,22 +65,31 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
   let activeKind: ConnectorPickerKind = 'obsidian'
   let settle: ((result: ConnectorAttachWireResult) => void) | null = null
   let lastItems: ConnectorPickerItem[] | null = null
-  let knownNotionItems = new Map<string, ConnectorPickerItem>()
+  let knownRemoteItems = new Map<string, ConnectorPickerItem>()
   let cachedNotionTools: { serverId: string; pair: NotionToolPair } | null = null
+  let cachedCanvaTools: { serverId: string; tools: CanvaToolSet } | null = null
   let listController: AbortController | null = null
   let chooseController: AbortController | null = null
 
-  const attachDir = join(deps.tempDir, NOTION_ATTACH_SUBDIR)
+  const notionAttachDir = join(deps.tempDir, NOTION_ATTACH_SUBDIR)
+  const canvaAttachDir = join(deps.tempDir, CANVA_ATTACH_SUBDIR)
 
   const currentSources = (): ConnectorAttachSources => ({
     obsidian: deps.hub.registeredVaults().length > 0,
     notion: deps.hub.notionPickerStatus().available,
+    canva: deps.hub.canvaPickerStatus().available,
   })
 
   let lastSources = currentSources()
   const broadcastSources = () => {
     const next = currentSources()
-    if (next.obsidian === lastSources.obsidian && next.notion === lastSources.notion) return
+    if (
+      next.obsidian === lastSources.obsidian &&
+      next.notion === lastSources.notion &&
+      next.canva === lastSources.canva
+    ) {
+      return
+    }
     lastSources = next
     for (const wc of webContents.getAllWebContents()) {
       if (!wc.isDestroyed()) {
@@ -111,6 +134,29 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
     return { ok: true, serverId: status.serverId, pair }
   }
 
+  async function resolveCanvaTools(
+    signal?: AbortSignal,
+  ): Promise<{ ok: true; serverId: string; tools: CanvaToolSet } | { ok: false; error: string }> {
+    const status = deps.hub.canvaPickerStatus()
+    if (!status.available || !status.serverId) {
+      return { ok: false, error: 'Canva is not connected or needs sign-in.' }
+    }
+    if (cachedCanvaTools && cachedCanvaTools.serverId === status.serverId) {
+      return { ok: true, serverId: status.serverId, tools: cachedCanvaTools.tools }
+    }
+    const listed = await deps.hub.listToolsForUserPicker(status.serverId, signal)
+    if (!listed.ok) return { ok: false, error: listed.error }
+    const tools = findCanvaTools(listed.tools)
+    if (!tools) {
+      return {
+        ok: false,
+        error: 'Canva search and read tools were not found on the connected server.',
+      }
+    }
+    cachedCanvaTools = { serverId: status.serverId, tools }
+    return { ok: true, serverId: status.serverId, tools }
+  }
+
   // ---- picker window IPC ---------------------------------------------------
 
   ipcMain.handle(CONNECTOR_PICKER_CHANNELS.getInit, (event): ConnectorPickerInit | null => {
@@ -142,6 +188,29 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
         return { ok: true, items: listed.items }
       }
 
+      if (activeKind === 'canva') {
+        const query = typeof rawQuery === 'string' ? rawQuery.trim() : ''
+        const resolved = await resolveCanvaTools(controller.signal)
+        if (!resolved.ok) return { ok: false, error: resolved.error }
+        const answer = await deps.hub.callForUserPicker(
+          resolved.serverId,
+          resolved.tools.searchTool.name,
+          buildCanvaSearchInput(query),
+          controller.signal,
+        )
+        if (controller.signal.aborted) return { ok: false, error: 'Cancelled' }
+        if (!answer.ok) {
+          return { ok: false, error: answer.error || 'Canva search failed.' }
+        }
+        if (answer.isError) {
+          return { ok: false, error: answer.output || 'Canva search failed.' }
+        }
+        const items = parseCanvaSearchResults(answer.output)
+        lastItems = items
+        for (const item of items) knownRemoteItems.set(item.id, item)
+        return { ok: true, items }
+      }
+
       // Notion live search
       const query = typeof rawQuery === 'string' ? rawQuery.trim() : ''
       const resolved = await resolveNotionPair(controller.signal)
@@ -161,7 +230,7 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
       }
       const items = parseNotionSearchResults(answer.output)
       lastItems = items
-      for (const item of items) knownNotionItems.set(item.id, item)
+      for (const item of items) knownRemoteItems.set(item.id, item)
       return { ok: true, items }
     },
   )
@@ -181,7 +250,6 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
         return { ok: true }
       }
 
-      // Notion page fetch -> temporary markdown snapshots
       const ids = Array.isArray(rawIds)
         ? rawIds.filter((x): x is string => typeof x === 'string')
         : []
@@ -190,7 +258,7 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
       for (const id of ids) {
         if (seen.has(id)) continue
         seen.add(id)
-        const item = knownNotionItems.get(id)
+        const item = knownRemoteItems.get(id)
         if (item) selectedItems.push(item)
       }
       if (selectedItems.length === 0) {
@@ -202,17 +270,39 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
       const controller = new AbortController()
       chooseController = controller
 
+      if (activeKind === 'canva') {
+        const resolved = await resolveCanvaTools(controller.signal)
+        if (!resolved.ok) return { ok: false, error: resolved.error }
+
+        await cleanupOldCanvaFiles(canvaAttachDir).catch(() => {})
+        const fetched = await fetchCanvaDesignsToTemp({
+          serverId: resolved.serverId,
+          selectedItems,
+          readTool: resolved.tools.readTool,
+          callForUserPicker: deps.hub.callForUserPicker,
+          attachDir: canvaAttachDir,
+          signal: controller.signal,
+        })
+        if (controller.signal.aborted) return { ok: false, error: 'Cancelled' }
+        if (!fetched.ok) {
+          return { ok: false, error: 'Could not read selected Canva designs.' }
+        }
+        finish(fetched)
+        return { ok: true }
+      }
+
+      // Notion page fetch -> temporary markdown snapshots
       const resolved = await resolveNotionPair(controller.signal)
       if (!resolved.ok) return { ok: false, error: resolved.error }
 
-      await cleanupOldNotionSnapshots(attachDir).catch(() => {})
+      await cleanupOldNotionSnapshots(notionAttachDir).catch(() => {})
       const fetched = await fetchNotionPagesToTemp({
         serverId: resolved.serverId,
         selectedItems,
         fetchTool: resolved.pair.fetchTool,
         fetchIdParam: resolved.pair.fetchIdParam,
         callForUserPicker: deps.hub.callForUserPicker,
-        attachDir,
+        attachDir: notionAttachDir,
         signal: controller.signal,
       })
       if (controller.signal.aborted) return { ok: false, error: 'Cancelled' }
@@ -220,6 +310,49 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
         return { ok: false, error: 'Could not download selected Notion pages.' }
       }
       finish(fetched)
+      return { ok: true }
+    },
+  )
+
+  ipcMain.handle(
+    CONNECTOR_PICKER_CHANNELS.openInTab,
+    async (event, rawId: unknown): Promise<ConnectorPickerChooseResult> => {
+      if (!fromWindow(event)) return { ok: false, error: 'Unavailable' }
+      if (activeKind !== 'canva' || typeof rawId !== 'string') {
+        return { ok: false, error: 'Unsupported action.' }
+      }
+      if (!deps.openGeneratedPath || !deps.fetchUrlBytes) {
+        return { ok: false, error: 'Opening exported Canva files is not available.' }
+      }
+      const item = knownRemoteItems.get(rawId)
+      if (!item) return { ok: false, error: 'Design not found in current listing.' }
+
+      chooseController?.abort('superseded')
+      const controller = new AbortController()
+      chooseController = controller
+
+      const resolved = await resolveCanvaTools(controller.signal)
+      if (!resolved.ok) return { ok: false, error: resolved.error }
+
+      await cleanupOldCanvaFiles(canvaAttachDir).catch(() => {})
+      const exported = await exportCanvaDesignToTemp({
+        serverId: resolved.serverId,
+        item,
+        tools: resolved.tools,
+        callForUserPicker: deps.hub.callForUserPicker,
+        fetchBytes: deps.fetchUrlBytes,
+        attachDir: canvaAttachDir,
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) return { ok: false, error: 'Cancelled' }
+      if (!exported.ok) return { ok: false, error: exported.error }
+
+      const opened = deps.openGeneratedPath(exported.path)
+      if (!opened) {
+        return { ok: false, error: 'Could not open the exported file in an editor tab.' }
+      }
+      // Close the modal cleanly without returning attachment paths to the caller chat
+      finish({ ok: false, reason: 'cancelled' })
       return { ok: true }
     },
   )
@@ -269,6 +402,20 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
     },
   )
 
+  ipcMain.handle(
+    CONNECTOR_ATTACH_CHANNELS.pickCanva,
+    (event): Promise<ConnectorAttachWireResult> => {
+      if (!deps.hub.canvaPickerStatus().available) {
+        return Promise.resolve({ ok: false, reason: 'not-connected' })
+      }
+      const parent = BrowserWindow.fromWebContents(event.sender)
+      if (!parent || parent.isDestroyed()) {
+        return Promise.resolve({ ok: false, reason: 'unavailable' })
+      }
+      return open('canva', parent)
+    },
+  )
+
   function open(
     kind: ConnectorPickerKind,
     parent: BrowserWindow | null,
@@ -279,7 +426,8 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
       return Promise.resolve({ ok: false, reason: 'busy' })
     }
     const lang = deps.lang()
-    const titleKey = kind === 'obsidian' ? 'obsidianTitle' : 'notionTitle'
+    const titleKey =
+      kind === 'obsidian' ? 'obsidianTitle' : kind === 'notion' ? 'notionTitle' : 'canvaTitle'
     const next = new BrowserWindow({
       width: 720,
       height: 620,
@@ -303,8 +451,9 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
     win = next
     activeKind = kind
     lastItems = null
-    knownNotionItems = new Map()
+    knownRemoteItems = new Map()
     cachedNotionTools = null
+    cachedCanvaTools = null
     next.removeMenu()
     next.webContents.setWindowOpenHandler(({ url }) => {
       const target = safeExternalUrl(url)

@@ -149,6 +149,14 @@ export interface HwpSkillDeps {
     name: string,
     handOver: boolean,
   ) => Promise<{ ok: true; title: string; handed: boolean } | { ok: false; error: string }>
+  /**
+   * Load an externally generated .hwpx/.hwp file (e.g. written by kordoc MCP)
+   * directly into the current blank Hangul tab or open it in a new tab.
+   * Absent in headless CLI mode: open_generated_hwp is then not offered.
+   */
+  loadGeneratedHwpx?: (
+    path: string,
+  ) => Promise<{ ok: true; mode: 'current' | 'new-tab'; title: string } | { ok: false; error: string }>
 }
 
 export interface HwpSkill {
@@ -179,6 +187,15 @@ export const IMPORT_ATTACHMENT_NOTE = [
   '- Pass continue_request true when the request asks for more than the conversion (a look to give it, a form to follow, edits): the request then goes on in the new document, with the assistant of that tab. Do not do the rest of the request in this document.',
   '- After the call, tell the user in a sentence that the file was opened as a new Hangul document in a new tab, and when the request was handed over, that the work goes on there.',
   '- Only Markdown files can be brought in this way. For another kind of file, read it with read_attachment and write what the user asked for with the usual tools.',
+].join('\n')
+
+/** Told to the model when externally generated .hwpx/.hwp files (e.g. from kordoc) can open in the editor. */
+export const OPEN_GENERATED_HWP_NOTE = [
+  '',
+  '',
+  '## Opening externally generated HWP / HWPX files (such as from kordoc MCP)',
+  '- For ordinary writing, tables, and formatting in this open Hangul document, prefer the built-in Hangul editor tools (insert_paragraphs, insert_table, style_paragraphs, etc.) so changes happen live with Undo support.',
+  '- When the user explicitly asks to use an external generator such as kordoc (e.g. generate_document, fill_form, patch_document, place_seal), save the output .hwpx file inside the system temp folder (never invent arbitrary drive paths) and immediately call open_generated_hwp with that exact file path so the result appears directly in the Hangul editor (loaded into this tab if blank, or opened in a new tab if this tab already has content).',
 ].join('\n')
 
 /** Hidden from the tool list while no image provider is reachable (see `createHwpSkill`). */
@@ -551,6 +568,24 @@ const IMPORT_ATTACHMENT_TOOL: HwpToolDef = {
       },
     },
     required: ['attachment'],
+  },
+}
+
+/** offered only in the desktop editor (see `createHwpSkill`): loads a generated .hwpx/.hwp into the editor */
+const OPEN_GENERATED_HWP_TOOL: HwpToolDef = {
+  name: 'open_generated_hwp',
+  edits: false,
+  description:
+    'Open an .hwpx or .hwp file written on disk (for example by kordoc MCP generate_document, fill_form, patch_document, or place_seal) directly in the Hangul editor. If the current tab is a blank new document, it loads straight into this tab; otherwise it opens in a new Hangul tab without overwriting your open document.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      path: {
+        type: 'string',
+        description: 'the exact local file path of the generated .hwpx or .hwp file',
+      },
+    },
+    required: ['path'],
   },
 }
 
@@ -1839,7 +1874,7 @@ const TOOLS: HwpToolDef[] = [
   },
 ]
 
-const ALL_TOOLS: readonly HwpToolDef[] = [...TOOLS, IMPORT_ATTACHMENT_TOOL]
+const ALL_TOOLS: readonly HwpToolDef[] = [...TOOLS, OPEN_GENERATED_HWP_TOOL, IMPORT_ATTACHMENT_TOOL]
 const TOOL_BY_NAME = new Map(ALL_TOOLS.map((tool) => [tool.name, tool]))
 
 /** The tools that change the open document, by the mark of their definitions. */
@@ -1849,6 +1884,7 @@ export const HWP_EDIT_TOOLS: ReadonlySet<string> = new Set(
 
 const withoutEditsMark = ({ edits: _edits, ...tool }: HwpToolDef): AgentToolDef => tool
 const OFFERED_TOOLS = TOOLS.map(withoutEditsMark)
+const OFFERED_OPEN_GENERATED_HWP = withoutEditsMark(OPEN_GENERATED_HWP_TOOL)
 const OFFERED_IMPORT_ATTACHMENT = withoutEditsMark(IMPORT_ATTACHMENT_TOOL)
 
 const DECLARED_NAME_OF_READ_KEY = new Map([
@@ -3487,6 +3523,29 @@ export function createHwpSkill(deps: HwpSkillDeps): HwpSkill {
               ? 'No occurrence.'
               : `${found.count} occurrence(s).\n${matchLines(found.matches, found.count)}`,
           summary: label('aiToolFind', { text: quote(text), count: found.count }),
+        }
+      }
+      case 'open_generated_hwp': {
+        const loader = deps.loadGeneratedHwpx
+        if (!loader) return bad(call, 'unknown tool: open_generated_hwp')
+        const filePath = textArg(call, 'path')?.trim() ?? ''
+        if (!filePath) {
+          return bad(call, 'path must be the local path of a generated .hwpx or .hwp file')
+        }
+        if (!/\.(hwpx?)$/i.test(filePath)) {
+          return bad(call, `only .hwpx or .hwp files can be opened here; "${filePath}" is not one.`)
+        }
+        const result = await loader(filePath)
+        if (!result.ok) return bad(call, result.error)
+        const base = result.title || filePath.split(/[\\/]/).pop() || filePath
+        const msg =
+          result.mode === 'current'
+            ? `Loaded "${base}" directly into this Hangul editor tab as an unsaved document. Tell the user the document is now open on screen and ready to edit or save.`
+            : `Opened "${base}" in a new Hangul tab without changing the document open here. Tell the user the generated document opened in a new tab.`
+        return {
+          output: msg,
+          mutated: result.mode === 'current',
+          summary: label('aiToolImport', { name: base }),
         }
       }
       case 'import_attachment': {
@@ -6103,15 +6162,16 @@ export function createHwpSkill(deps: HwpSkillDeps): HwpSkill {
           'call insert_image with attachment set to the name',
         )
         let base = SYSTEM_PROMPT + attached
+        if (deps.loadGeneratedHwpx) base += OPEN_GENERATED_HWP_NOTE
         if (deps.importAttachment) base += IMPORT_ATTACHMENT_NOTE
         if (!imageGenOn()) base += IMAGE_GEN_OFF_NOTE
         if (!pictureAnalysisOn()) base += PICTURE_ANALYSIS_OFF_NOTE
         return base
       },
       get tools(): AgentToolDef[] {
-        let offered = deps.importAttachment
-          ? [...OFFERED_TOOLS, OFFERED_IMPORT_ATTACHMENT]
-          : OFFERED_TOOLS
+        let offered = [...OFFERED_TOOLS]
+        if (deps.loadGeneratedHwpx) offered.push(OFFERED_OPEN_GENERATED_HWP)
+        if (deps.importAttachment) offered.push(OFFERED_IMPORT_ATTACHMENT)
         if (!imageGenOn()) offered = offered.filter((tool) => tool.name !== 'generate_image')
         if (!pictureAnalysisOn())
           offered = offered.filter((tool) => tool.name !== 'analyze_picture')

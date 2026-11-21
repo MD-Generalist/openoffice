@@ -21,6 +21,7 @@ interface DriveAttachBridge {
 export interface ConnectorAttachSources {
   obsidian: boolean
   notion: boolean
+  canva?: boolean
 }
 
 export type ConnectorAttachWireResult =
@@ -41,6 +42,7 @@ interface ConnectorAttachBridge {
   onSourcesChanged(listener: (sources: ConnectorAttachSources) => void): () => void
   pickObsidianNotes(): Promise<unknown>
   pickNotionPages(): Promise<unknown>
+  pickCanvaDesigns?: () => Promise<unknown>
 }
 
 function docBridge(): DocAttachBridge | null {
@@ -138,6 +140,26 @@ function IconPageOutline() {
   )
 }
 
+/** Monochrome outline layout icon for Canva designs (no third-party logos, decision 0052) */
+function IconCanvaOutline() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
+      <path d="M2.5 7h11M7.5 7v6.5" />
+    </svg>
+  )
+}
+
 export interface AiAttachMenuProps {
   readonly lang: Lang
   /** Local computer file picker callback; omit on editors without local file attachments */
@@ -171,6 +193,7 @@ export function AiAttachMenu({
   const [connectorSources, setConnectorSources] = useState<ConnectorAttachSources>({
     obsidian: false,
     notion: false,
+    canva: false,
   })
   const [pickingDocs, setPickingDocs] = useState(false)
   const [pickingDrive, setPickingDrive] = useState(false)
@@ -212,6 +235,7 @@ export function AiAttachMenu({
     const normalize = (s: ConnectorAttachSources | null | undefined): ConnectorAttachSources => ({
       obsidian: s?.obsidian === true,
       notion: s?.notion === true,
+      canva: s?.canva === true,
     })
     void b.availableSources().then((v) => live && setConnectorSources(normalize(v)))
     const off = b.onSourcesChanged((v) => setConnectorSources(normalize(v)))
@@ -255,8 +279,9 @@ export function AiAttachMenu({
   const hasDrive = driveConnected && typeof onPickedDrive === 'function'
   const hasObsidian = connectorSources.obsidian && typeof connectorHandler === 'function'
   const hasNotion = connectorSources.notion && typeof connectorHandler === 'function'
+  const hasCanva = connectorSources.canva === true && typeof connectorHandler === 'function'
 
-  if (!hasPc && !hasDocs && !hasDrive && !hasObsidian && !hasNotion) return null
+  if (!hasPc && !hasDocs && !hasDrive && !hasObsidian && !hasNotion && !hasCanva) return null
 
   const label = aiPanelText(lang, 'attachMenuLabel')
 
@@ -286,14 +311,19 @@ export function AiAttachMenu({
     }
   }
 
-  const pickConnector = async (source: 'obsidian' | 'notion') => {
+  const pickConnector = async (source: 'obsidian' | 'notion' | 'canva') => {
     const b = connectorAttachBridge()
     if (!b || !connectorHandler || pickingConnector) return
+    if (source === 'canva' && typeof b.pickCanvaDesigns !== 'function') return
     setOpen(false)
     setPickingConnector(true)
     try {
       const raw =
-        source === 'obsidian' ? await b.pickObsidianNotes() : await b.pickNotionPages()
+        source === 'obsidian'
+          ? await b.pickObsidianNotes()
+          : source === 'notion'
+            ? await b.pickNotionPages()
+            : await b.pickCanvaDesigns!()
       const picked = connectorPickedOf(raw, lang)
       if (picked.paths.length > 0 || picked.notes.length > 0) await connectorHandler(picked)
     } finally {
@@ -399,6 +429,21 @@ export function AiAttachMenu({
                 <IconPageOutline />
               </span>
               <span>{connectorAttachText(lang, 'attachFromNotion')}</span>
+            </button>
+          )}
+          {hasCanva && (
+            <button
+              type="button"
+              role="menuitem"
+              data-source="canva"
+              className="ai-attach-menu-item"
+              disabled={pickingConnector}
+              onClick={() => void pickConnector('canva')}
+            >
+              <span className="ai-attach-menu-item-icon" aria-hidden="true">
+                <IconCanvaOutline />
+              </span>
+              <span>{connectorAttachText(lang, 'attachFromCanva')}</span>
             </button>
           )}
         </div>

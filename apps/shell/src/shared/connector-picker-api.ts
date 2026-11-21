@@ -9,13 +9,14 @@ export const CONNECTOR_PICKER_CHANNELS = {
   getInit: 'connector-picker:get-init',
   list: 'connector-picker:list',
   choose: 'connector-picker:choose',
+  openInTab: 'connector-picker:open-in-tab',
   cancel: 'connector-picker:cancel',
   openSettings: 'connector-picker:open-settings',
 } as const
 
 export const CONNECTOR_PICKER_PAGE_KEY = 'aiOfficeConnectorPicker'
 
-export type ConnectorPickerKind = 'obsidian' | 'notion'
+export type ConnectorPickerKind = 'obsidian' | 'notion' | 'canva'
 export type ConnectorPickerTheme = 'light' | 'dark' | 'system'
 
 export interface ConnectorPickerVaultChip {
@@ -38,6 +39,10 @@ export interface ConnectorPickerItem {
   vaultName?: string
   tags?: string[]
   mtimeMs?: number
+  /** Page count for Canva designs */
+  pageCount?: number
+  /** Design types (e.g. ['presentation']) for Canva designs */
+  designTypes?: string[]
   disabledReason?: 'unsaved'
 }
 
@@ -52,6 +57,7 @@ export interface ConnectorPickerApi {
   onThemeChanged(handler: (theme: ConnectorPickerTheme) => void): () => void
   list(query?: string): Promise<ConnectorPickerListResult>
   choose(ids: string[]): Promise<ConnectorPickerChooseResult>
+  openInTab?(id: string): Promise<ConnectorPickerChooseResult>
   cancel(): Promise<void>
   openSettings(): Promise<void>
 }
