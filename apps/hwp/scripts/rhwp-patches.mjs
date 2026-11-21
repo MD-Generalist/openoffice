@@ -221,6 +221,17 @@
  *   followed the OS scroll setting. Ctrl/⌘+wheel now goes through the app's shared
  *   classifier (packages/ui/src/wheel-zoom.ts), as in the other editors: five percentage
  *   points per notch onto the 5% grid, a trackpad pinch in the same steps.
+ *
+ * studio-hyperlink-open, studio-hyperlink-preview
+ *   Clicking a web hyperlink in the document or the preview button in the hyperlink dialog
+ *   calls `window.open('about:blank', '_blank')` and then writes the real URL into the popup
+ *   window. In Electron `setWindowOpenHandler` routes the opened URL through `safeExternalUrl`
+ *   to `shell.openExternal` and returns `{ action: 'deny' }` (so `window.open` always returns
+ *   `null`, and `'about:blank'` is rejected). The user therefore got a "popup blocked" error
+ *   and nothing opened. Open the validated URL directly with `window.open(url, '_blank',
+ *   'noopener,noreferrer')` without expecting a window handle back; route `mailto:` the same
+ *   way so it goes through `safeExternalUrl` + `shell.openExternal` instead of navigating the
+ *   editor iframe.
  */
 
 import { CLIPBOARD_HTML_MODULE } from '../studio-plugin/clipboard-html.mjs'
@@ -1891,6 +1902,46 @@ const PATCHES = {
       },
     ],
   },
+  'studio-hyperlink-open': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]engine[\\/]input-handler-hyperlink\.ts$/,
+    find: [
+      '      web: uri => {',
+      '        const url = new URL(uri);',
+      "        if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false;",
+      "        const opened = window.open('about:blank', '_blank');",
+      "        if (!opened) { showToast({ message: '팝업이 차단되었습니다. 이 사이트의 팝업을 허용해 주세요.' }); return false; }",
+      '        opened.opener = null; opened.location.replace(url.href); return true;',
+      '      },',
+      '      mail: uri => { window.location.assign(uri); return true; },',
+    ].join('\n'),
+    replace: [
+      '      web: uri => {',
+      '        const url = new URL(uri);',
+      "        if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false;",
+      "        window.open(url.href, '_blank', 'noopener,noreferrer');",
+      '        return true;',
+      '      },',
+      "      mail: uri => { window.open(uri, '_blank', 'noopener,noreferrer'); return true; },",
+    ].join('\n'),
+  },
+  'studio-hyperlink-preview': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]ui[\\/]hyperlink-dialog\.ts$/,
+    find: [
+      '        const url = webHyperlinkUrl(this.uriInput.value);',
+      "        if (!url) throw new Error('http:// 또는 https://로 시작하는 웹 주소를 입력해 주세요.');",
+      "        const opened = window.open('about:blank', '_blank');",
+      "        if (!opened) throw new Error('팝업이 차단되었습니다. 이 사이트의 팝업을 허용해 주세요.');",
+      '        opened.opener = null;',
+      '        opened.location.replace(url);',
+      "        this.error.textContent = '';",
+    ].join('\n'),
+    replace: [
+      '        const url = webHyperlinkUrl(this.uriInput.value);',
+      "        if (!url) throw new Error('http:// 또는 https://로 시작하는 웹 주소를 입력해 주세요.');",
+      "        window.open(url, '_blank', 'noopener,noreferrer');",
+      "        this.error.textContent = '';",
+    ].join('\n'),
+  },
 }
 
 /** The patches the studio build applies, in order; the SDK's own is applied by the renderer builds. */
@@ -1946,6 +1997,8 @@ export const STUDIO_PATCHES = /** @type {const} */ ([
   'studio-hancom-object-mouse',
   'studio-object-duplicate',
   'studio-wheel-zoom',
+  'studio-hyperlink-open',
+  'studio-hyperlink-preview',
 ])
 
 /** Whether a patch is written against this file. */
