@@ -153,3 +153,4 @@
 | [0155](0155-hwp-nested-table-editing.md)                      | 한글 편집기에서 표 안의 표와 글상자 안의 표를 바깥 표처럼 고친다(엔진 패치 0055)                                 | 2026-11-17 |
 | [0156](0156-rust-parse-sidecar-and-hwp5-wasm.md)              | 첨부·색인 텍스트 추출은 독립 Rust 사이드카로, HWP 5 컨테이너 보정은 Rust WASM으로 옮긴다                         | 2026-11-20 |
 | [0157](0157-rust-quicklook-thumbnails.md)                     | 빠른 미리보기 썸네일 추출은 HWP 5 WASM과 Rust 스트리밍 사이드카로 옮기고, stdin EOF 시 진행 작업도 즉시 취소한다 | 2026-11-20 |
+| [0158](0158-rust-print-layout-wasm.md)                        | 고급 인쇄 배치의 PDF 재배치·회색조 PDF·PNG 인코딩을 사전 빌드 Rust WASM으로 옮긴다                               | 2026-11-20 |

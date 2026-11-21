@@ -145,6 +145,7 @@ jobs:
               lipo -archs "$bin" | grep -qw "$cpu" || { echo "not $cpu: $bin"; exit 1; }
             done
             test -f "$app/Contents/Resources/wasm/hwp5_bg.wasm" || { echo "missing: hwp5_bg.wasm"; exit 1; }
+            test -f "$app/Contents/Resources/wasm/print_layout_bg.wasm" || { echo "missing: print_layout_bg.wasm"; exit 1; }
           done
           # each dmg names its CPU (config.dmg.artifactName)
           ls apps/shell/release/IeumOffice-*-arm64.dmg apps/shell/release/IeumOffice-*-x64.dmg

@@ -152,6 +152,9 @@ describe('third-party license aggregation', () => {
     expect(text).toContain(
       '5. Rust crates (hwp5-wasm HWP 5 container helper, compiled into hwp5_bg.wasm)',
     )
+    expect(text).toContain(
+      '6. Rust crates (print-layout-wasm advanced print layout engine, compiled into print_layout_bg.wasm)',
+    )
   })
 })
 
@@ -197,6 +200,7 @@ const VALID_NOTICE = [
   '138 crates, all under permissive terms:',
   '40 crates, all under permissive terms:',
   '25 crates, all under permissive terms:',
+  '56 crates, all under permissive terms:',
   '',
 ].join('\n')
 
@@ -292,7 +296,7 @@ describe('packaging gate on the third-party notice', () => {
       'crate list unavailable at generation time',
     )
     const { pack, generatorRuns } = packWithNotice(partial, partial)
-    await expect(pack()).rejects.toThrow(/3 of 4 Rust crate sections are listed/)
+    await expect(pack()).rejects.toThrow(/4 of 5 Rust crate sections are listed/)
     expect(generatorRuns).toHaveLength(1)
   })
 
@@ -316,6 +320,9 @@ describe('packaging gate on the third-party notice', () => {
     }
     const common = new Map(config.extraResources.map((e) => [e.to, e.from]))
     expect(common.get('wasm/hwp5_bg.wasm')).toBe('../../packages/hwp5-wasm/pkg/hwp5_wasm_bg.wasm')
+    expect(common.get('wasm/print_layout_bg.wasm')).toBe(
+      '../../packages/print-layout/wasm/pkg/print_layout_wasm_bg.wasm',
+    )
     expect(config.win.extraResources.some((e) => e.to === 'native/ieum-parse-sidecar.exe')).toBe(
       true,
     )
@@ -327,6 +334,12 @@ describe('packaging gate on the third-party notice', () => {
       missingPaths: ['hwp5_wasm_bg.wasm'],
     })
     await expect(missingWasm.pack()).rejects.toThrow(/hwp5_wasm_bg\.wasm/)
+
+    const missingPrintLayoutWasm = packWithNotice(VALID_NOTICE, VALID_NOTICE, {
+      platform: 'linux',
+      missingPaths: ['print_layout_wasm_bg.wasm'],
+    })
+    await expect(missingPrintLayoutWasm.pack()).rejects.toThrow(/print_layout_wasm_bg\.wasm/)
 
     const missingLinuxSidecar = packWithNotice(VALID_NOTICE, VALID_NOTICE, {
       platform: 'linux',

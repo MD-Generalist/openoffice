@@ -171,6 +171,7 @@ jobs:
             test -x "$bin" || { echo "missing or not executable: $bin"; exit 1; }
           done
           test -f "$dir/resources/wasm/hwp5_bg.wasm" || { echo "missing: hwp5_bg.wasm"; exit 1; }
+          test -f "$dir/resources/wasm/print_layout_bg.wasm" || { echo "missing: print_layout_bg.wasm"; exit 1; }
           compgen -G "apps/shell/release/IeumOffice-*.AppImage" >/dev/null
           compgen -G "apps/shell/release/ieumoffice_*_amd64.deb" >/dev/null
           compgen -G "apps/shell/release/ieumoffice-*.x86_64.rpm" >/dev/null

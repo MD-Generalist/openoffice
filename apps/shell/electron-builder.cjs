@@ -71,6 +71,7 @@ function assertExtraResourceSources() {
     '../../packages/ui/template-fonts/README.md',
     '../../node_modules/@rhwp/core/rhwp_bg.wasm',
     '../../packages/hwp5-wasm/pkg/hwp5_wasm_bg.wasm',
+    '../../packages/print-layout/wasm/pkg/print_layout_wasm_bg.wasm',
     'resources/builtin-skills/builtin-skills.json',
   ]) {
     if (!existsSync(join(__dirname, rel))) {
@@ -309,9 +310,9 @@ const NOTICE_PATH = join(__dirname, 'build/THIRD-PARTY-NOTICES.txt')
 const PDFIUM_NOTICE_TERMS = ['@embedpdf/pdfium', 'Copyright 2014 PDFium Authors', 'Apache License']
 // tools/gen-third-party-notices.mjs writes this header after the repo NOTICE,
 // and one crate-count line per Rust component (xlsx-sidecar, rhwp_bg.wasm,
-// ieum-parse-sidecar, hwp5_bg.wasm)
+// ieum-parse-sidecar, hwp5_bg.wasm, print_layout_bg.wasm)
 const NOTICE_HEADER = `${PRODUCT_NAME} — Third-Party Software Notices`
-const RUST_COMPONENTS = 4
+const RUST_COMPONENTS = 5
 const CRATE_COUNT_LINE = /^[1-9]\d* crates, all under permissive terms:$/gm
 
 /**
@@ -683,6 +684,12 @@ const config = {
     {
       from: '../../packages/hwp5-wasm/pkg/hwp5_wasm_bg.wasm',
       to: 'wasm/hwp5_bg.wasm',
+    },
+    // Advanced print layout engine (PDF imposition, grayscale PDF, PNG encoding):
+    // packages/print-layout/wasm
+    {
+      from: '../../packages/print-layout/wasm/pkg/print_layout_wasm_bg.wasm',
+      to: 'wasm/print_layout_bg.wasm',
     },
     // platform system-OCR helpers for scanned-page recovery (each exists only
     // on its own build platform; electron-builder skips absent sources and the
