@@ -110,6 +110,10 @@ impl PrefixMap {
     }
 }
 
+pub(crate) fn manifest_is_encrypted(manifest_xml: Option<&str>) -> bool {
+    manifest_info(manifest_xml).1
+}
+
 fn manifest_info(manifest_xml: Option<&str>) -> (Option<String>, bool) {
     let Some(xml) = manifest_xml else {
         return (None, false);

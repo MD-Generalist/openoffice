@@ -4,6 +4,7 @@ pub mod odt;
 pub mod pptx;
 pub mod rels;
 pub mod text;
+pub mod thumbnail;
 pub mod xlsx;
 pub mod xml_util;
 pub mod xmind;
@@ -20,10 +21,10 @@ use crate::protocol::{
 use crate::tokenize::{tokenize_text, truncate_utf16_units};
 use crate::zip_gate::{DEFAULT_ZIP_LIMITS, ZipArchive, ZipGateError};
 
-const PDF_HEADER_WINDOW: usize = 1024;
+pub(crate) const PDF_HEADER_WINDOW: usize = 1024;
 const HWP3_SIGNATURE: &[u8] = b"HWP Document File";
 // UTF-16LE encoding of "EncryptedPackage" (OLE2 directory stream name for encrypted OOXML).
-const ENCRYPTED_PACKAGE_UTF16LE: &[u8] = &[
+pub(crate) const ENCRYPTED_PACKAGE_UTF16LE: &[u8] = &[
     b'E', 0, b'n', 0, b'c', 0, b'r', 0, b'y', 0, b'p', 0, b't', 0, b'e', 0, b'd', 0, b'P', 0, b'a',
     0, b'c', 0, b'k', 0, b'a', 0, b'g', 0, b'e', 0,
 ];
@@ -48,7 +49,7 @@ impl Default for ExtractOptions {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BinaryKind {
+pub(crate) enum BinaryKind {
     Zip,
     Pdf,
     Ole2,
@@ -57,7 +58,7 @@ enum BinaryKind {
 }
 
 impl BinaryKind {
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             BinaryKind::Zip => "zip",
             BinaryKind::Pdf => "pdf",
@@ -68,7 +69,7 @@ impl BinaryKind {
     }
 }
 
-fn sniff_binary(header: &[u8]) -> BinaryKind {
+pub(crate) fn sniff_binary(header: &[u8]) -> BinaryKind {
     if header.len() >= 2 && header[0] == 0x50 && header[1] == 0x4B {
         return BinaryKind::Zip;
     }
@@ -90,7 +91,11 @@ fn sniff_binary(header: &[u8]) -> BinaryKind {
     BinaryKind::Unknown
 }
 
-fn file_contains_needle(file: &mut File, needle: &[u8], cancelled: &AtomicBool) -> Result<bool, ()> {
+pub(crate) fn file_contains_needle(
+    file: &mut File,
+    needle: &[u8],
+    cancelled: &AtomicBool,
+) -> Result<bool, ()> {
     if file.seek(SeekFrom::Start(0)).is_err() {
         return Ok(false);
     }
@@ -142,7 +147,7 @@ fn finalize_ok(mut extracted: String, opts: &ExtractOptions) -> ExtractResult {
     }
 }
 
-fn normalize_ext(ext: &str) -> String {
+pub(crate) fn normalize_ext(ext: &str) -> String {
     ext.trim().trim_start_matches('.').to_ascii_lowercase()
 }
 

@@ -29,6 +29,8 @@ export {
   type SidecarScanDirResult,
   type SidecarScannedFile,
   type SidecarShutdownResult,
+  type SidecarThumbnailOptions,
+  type SidecarThumbnailResult,
   type SidecarTokens,
 } from './sidecar-client'
 export {

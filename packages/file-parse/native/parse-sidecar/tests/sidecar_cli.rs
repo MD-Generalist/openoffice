@@ -2,7 +2,11 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
+use flate2::Compression;
+use flate2::write::DeflateEncoder;
 use serde_json::{Value, json};
 use tempfile::tempdir;
 
@@ -173,4 +177,186 @@ fn sidecar_exits_cleanly_on_stdin_eof() {
     let output = child.wait_with_output().unwrap();
     assert!(output.status.success(), "sidecar did not exit 0 on EOF");
     assert!(output.stdout.is_empty(), "unexpected stdout output on bare EOF");
+}
+
+fn build_deflated_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut local_buf = Vec::new();
+    let mut central_buf = Vec::new();
+    for (name, data) in entries {
+        let mut enc = DeflateEncoder::new(Vec::new(), Compression::fast());
+        enc.write_all(data).unwrap();
+        let compressed = enc.finish().unwrap();
+        let local_offset = local_buf.len() as u32;
+        let name_bytes = name.as_bytes();
+        let csize = compressed.len() as u32;
+        let usize_val = data.len() as u32;
+
+        local_buf.extend_from_slice(&0x04034b50u32.to_le_bytes());
+        local_buf.extend_from_slice(&20u16.to_le_bytes());
+        local_buf.extend_from_slice(&0x0800u16.to_le_bytes());
+        local_buf.extend_from_slice(&8u16.to_le_bytes());
+        local_buf.extend_from_slice(&0u16.to_le_bytes());
+        local_buf.extend_from_slice(&0u16.to_le_bytes());
+        local_buf.extend_from_slice(&0u32.to_le_bytes());
+        local_buf.extend_from_slice(&csize.to_le_bytes());
+        local_buf.extend_from_slice(&usize_val.to_le_bytes());
+        local_buf.extend_from_slice(&(name_bytes.len() as u16).to_le_bytes());
+        local_buf.extend_from_slice(&0u16.to_le_bytes());
+        local_buf.extend_from_slice(name_bytes);
+        local_buf.extend_from_slice(&compressed);
+
+        central_buf.extend_from_slice(&0x02014b50u32.to_le_bytes());
+        central_buf.extend_from_slice(&20u16.to_le_bytes());
+        central_buf.extend_from_slice(&20u16.to_le_bytes());
+        central_buf.extend_from_slice(&0x0800u16.to_le_bytes());
+        central_buf.extend_from_slice(&8u16.to_le_bytes());
+        central_buf.extend_from_slice(&0u16.to_le_bytes());
+        central_buf.extend_from_slice(&0u16.to_le_bytes());
+        central_buf.extend_from_slice(&0u32.to_le_bytes());
+        central_buf.extend_from_slice(&csize.to_le_bytes());
+        central_buf.extend_from_slice(&usize_val.to_le_bytes());
+        central_buf.extend_from_slice(&(name_bytes.len() as u16).to_le_bytes());
+        central_buf.extend_from_slice(&0u16.to_le_bytes());
+        central_buf.extend_from_slice(&0u16.to_le_bytes());
+        central_buf.extend_from_slice(&0u16.to_le_bytes());
+        central_buf.extend_from_slice(&0u16.to_le_bytes());
+        central_buf.extend_from_slice(&0u32.to_le_bytes());
+        central_buf.extend_from_slice(&local_offset.to_le_bytes());
+        central_buf.extend_from_slice(name_bytes);
+    }
+    let cd_offset = local_buf.len() as u32;
+    let cd_size = central_buf.len() as u32;
+    let count = entries.len() as u16;
+    let mut out = local_buf;
+    out.extend_from_slice(&central_buf);
+    out.extend_from_slice(&0x06054b50u32.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out.extend_from_slice(&count.to_le_bytes());
+    out.extend_from_slice(&count.to_le_bytes());
+    out.extend_from_slice(&cd_size.to_le_bytes());
+    out.extend_from_slice(&cd_offset.to_le_bytes());
+    out.extend_from_slice(&0u16.to_le_bytes());
+    out
+}
+
+#[test]
+fn sidecar_extract_thumbnail_command_round_trips() {
+    let dir = tempdir().unwrap();
+    let png = [0x89u8, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0xDE, 0xAD];
+    let docx_bytes = build_deflated_zip(&[
+        ("word/document.xml", b"<w:document/>"),
+        ("docProps/thumbnail.png", &png),
+    ]);
+    let docx_path = dir.path().join("thumb.docx");
+    fs::write(&docx_path, &docx_bytes).unwrap();
+
+    let mut child = Command::new(sidecar_bin())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("failed to spawn ieum-parse-sidecar");
+
+    let mut stdin = child.stdin.take().unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let mut reader = BufReader::new(stdout);
+
+    writeln!(
+        stdin,
+        "{}",
+        json!({
+            "version": 1,
+            "requestId": "req-thumb",
+            "command": "extract_thumbnail",
+            "path": docx_path,
+            "ext": "docx"
+        })
+    )
+    .unwrap();
+    stdin.flush().unwrap();
+
+    let mut line = String::new();
+    reader.read_line(&mut line).unwrap();
+    let val: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(val["ok"], true);
+    assert_eq!(val["requestId"], "req-thumb");
+    assert_eq!(val["result"]["status"], "ok");
+    assert_eq!(val["result"]["mime"], "image/png");
+    assert_eq!(val["result"]["entry"], "docProps/thumbnail.png");
+    assert_eq!(val["result"]["dataBase64"], "iVBORw0KGgrerQ==");
+
+    writeln!(
+        stdin,
+        "{}",
+        json!({ "version": 1, "requestId": "req-shut", "command": "shutdown" })
+    )
+    .unwrap();
+    stdin.flush().unwrap();
+    line.clear();
+    reader.read_line(&mut line).unwrap();
+    let shut: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(shut["result"]["shutdown"], true);
+
+    drop(stdin);
+    let status = child.wait().unwrap();
+    assert!(status.success(), "sidecar did not exit 0 on shutdown: {status}");
+}
+
+#[test]
+fn sidecar_cancels_in_flight_heavy_work_and_exits_promptly_on_bare_stdin_eof() {
+    let dir = tempdir().unwrap();
+    // 64 MiB of zeros compresses to ~64 KiB on disk but requires full metered
+    // stream inflation during open_and_verify. Queuing 40 copies would take many
+    // seconds to drain if bare EOF did not cancel in-flight and queued tasks.
+    let zeros = vec![0u8; 64 * 1024 * 1024];
+    let heavy_zip = build_deflated_zip(&[
+        ("word/document.xml", b"<w:document/>"),
+        ("word/media/huge.bin", &zeros),
+    ]);
+    let heavy_path = dir.path().join("heavy.docx");
+    fs::write(&heavy_path, &heavy_zip).unwrap();
+
+    let mut child = Command::new(sidecar_bin())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("failed to spawn ieum-parse-sidecar");
+
+    let mut stdin = child.stdin.take().unwrap();
+    for idx in 0..40 {
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "version": 1,
+                "requestId": format!("heavy-{idx}"),
+                "command": "extract_thumbnail",
+                "path": heavy_path,
+                "ext": "docx"
+            })
+        )
+        .unwrap();
+    }
+    stdin.flush().unwrap();
+
+    // Allow workers to dequeue and enter the inflate verification loop.
+    thread::sleep(Duration::from_millis(30));
+
+    let started = Instant::now();
+    // Simulate abrupt parent death: drop stdin without sending shutdown.
+    drop(stdin);
+    let output = child.wait_with_output().unwrap();
+    let elapsed = started.elapsed();
+
+    assert!(
+        output.status.success(),
+        "sidecar did not exit 0 on bare EOF during heavy work: {:?}",
+        output.status
+    );
+    assert!(
+        elapsed < Duration::from_secs(3),
+        "sidecar took too long ({elapsed:?}) to cancel in-flight work on bare EOF"
+    );
 }
