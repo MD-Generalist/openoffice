@@ -2,8 +2,9 @@
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AiAttachMenu } from '../src/AiAttachMenu'
+import { AiAttachMenu, connectorPickedOf } from '../src/AiAttachMenu'
 import { aiPanelText } from '../src/strings-ai-panel'
+import { connectorAttachText } from '../src/strings-attach-menu'
 
 const g = globalThis as {
   IS_REACT_ACT_ENVIRONMENT?: boolean
@@ -12,6 +13,12 @@ const g = globalThis as {
     driveConnected: () => Promise<boolean>
     onDriveConnectedChanged: (fn: (connected: boolean) => void) => () => void
     drivePickAttachments: () => Promise<unknown>
+  }
+  aiOfficeConnectorAttach?: {
+    availableSources: () => Promise<{ obsidian: boolean; notion: boolean }>
+    onSourcesChanged: (fn: (s: { obsidian: boolean; notion: boolean }) => void) => () => void
+    pickObsidianNotes: () => Promise<unknown>
+    pickNotionPages: () => Promise<unknown>
   }
 }
 
@@ -22,6 +29,7 @@ beforeEach(() => {
   g.IS_REACT_ACT_ENVIRONMENT = true
   delete g.aiOfficeDocs
   delete g.aiOfficeDriveAi
+  delete g.aiOfficeConnectorAttach
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -32,6 +40,7 @@ afterEach(() => {
   container.remove()
   delete g.aiOfficeDocs
   delete g.aiOfficeDriveAi
+  delete g.aiOfficeConnectorAttach
 })
 
 describe('AiAttachMenu', () => {
@@ -107,5 +116,57 @@ describe('AiAttachMenu', () => {
 
     expect(container.querySelector('.ai-attach-menu-pop')).toBeNull()
     expect(bubbleEscape).not.toHaveBeenCalled()
+  })
+
+  it('shows Obsidian and Notion menu items when connector sources are available and forwards picked paths/notes', async () => {
+    let emit: ((s: { obsidian: boolean; notion: boolean }) => void) | undefined
+    g.aiOfficeConnectorAttach = {
+      availableSources: vi.fn().mockResolvedValue({ obsidian: true, notion: true }),
+      onSourcesChanged: vi.fn((fn) => {
+        emit = fn
+        return () => {}
+      }),
+      pickObsidianNotes: vi.fn().mockResolvedValue({ ok: true, paths: ['/vault/a.md'] }),
+      pickNotionPages: vi.fn().mockResolvedValue({
+        ok: true,
+        paths: ['/tmp/page.md'],
+        omittedNonText: 2,
+      }),
+    }
+    const onPickedDrive = vi.fn()
+    await act(async () => {
+      root.render(<AiAttachMenu lang="ko" onPickPc={vi.fn()} onPickedDrive={onPickedDrive} />)
+      await Promise.resolve()
+    })
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('.ai-attach-menu-btn')!.click()
+    })
+    const obsItem = container.querySelector<HTMLButtonElement>('[data-source="obsidian"]')
+    const notionItem = container.querySelector<HTMLButtonElement>('[data-source="notion"]')
+    expect(obsItem?.textContent).toContain(connectorAttachText('ko', 'attachFromObsidian'))
+    expect(notionItem?.textContent).toContain(connectorAttachText('ko', 'attachFromNotion'))
+
+    await act(async () => {
+      notionItem!.click()
+      await Promise.resolve()
+    })
+    expect(onPickedDrive).toHaveBeenCalledWith({
+      paths: ['/tmp/page.md'],
+      notes: [connectorAttachText('ko', 'connectorOmittedNonText', { n: 2 })],
+    })
+
+    // Dynamically hiding Notion removes its item
+    await act(async () => {
+      emit?.({ obsidian: true, notion: false })
+      await Promise.resolve()
+    })
+    act(() => {
+      container.querySelector<HTMLButtonElement>('.ai-attach-menu-btn')!.click()
+    })
+    expect(container.querySelector('[data-source="obsidian"]')).not.toBeNull()
+    expect(container.querySelector('[data-source="notion"]')).toBeNull()
+
+    expect(connectorPickedOf({ ok: false, reason: 'busy' }, 'en').notes).toHaveLength(1)
   })
 })

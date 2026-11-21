@@ -1,7 +1,18 @@
 export { AiPanelSideButton } from './AiPanelSideButton'
 export { AiPanelHeader, type AiPanelHeaderProps } from './AiPanelHeader'
 export { AiEmptyHints, type AiEmptyHintsProps } from './AiEmptyHints'
-export { AiAttachMenu, type AiAttachMenuProps } from './AiAttachMenu'
+export {
+  AiAttachMenu,
+  connectorPickedOf,
+  type AiAttachMenuProps,
+  type ConnectorAttachSources,
+  type ConnectorAttachWireResult,
+} from './AiAttachMenu'
+export {
+  CONNECTOR_ATTACH_STRINGS,
+  connectorAttachText,
+  type ConnectorAttachStringKey,
+} from './strings-attach-menu'
 export { AiWorkSteps, type AiWorkStep, type AiWorkStepsProps } from './AiWorkSteps'
 export { AiReplyFooter, type AiReplyFooterProps } from './AiReplyFooter'
 export { AiScrollToBottom, useScrollToBottom, type ScrollToBottomState } from './AiScrollToBottom'
@@ -165,8 +176,10 @@ export { McpPermissionCard, McpPermissionPrompt } from './McpPermissionCard'
 export { McpServerButton } from './McpServerButton'
 export {
   resolveMcpWindowState,
+  useDriveWindow,
   useMcpPermissionRequests,
   useMcpWindow,
+  type DriveWindowView,
   type McpWindowView,
 } from './use-mcp-window'
 export {
