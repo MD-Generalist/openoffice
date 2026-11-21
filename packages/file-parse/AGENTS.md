@@ -29,7 +29,8 @@
 - 터미널 명령어(`packages/cli`)의 읽기는 이 패키지를 지나지 않고, 가리기를 적용하지 않는다.
 - 한글 문서를 고치거나 저장하지 않는다. 그것은 `apps/hwp`의 편집기가 한다. 여기서는 같은 엔진(`@rhwp/core`)으로 열어 글자만 꺼낸다.
 - 읽기에 시간 제한을 두지 않는다. 칸이 수만 개인 표가 든 한글 문서는 엔진이 여는 데만 10초 넘게 걸린다. 파일 색인은 전용 저우선순위 사이드카 인스턴스(또는 작업자 스레드)와 120초 제한 안에서 부르지만, 첨부·MCP·열린 탭 읽기는 대화형 사이드카 싱글턴(시간 제한 없음, 2분 유휴 시 종료)이나 메인 프로세스에서 바로 부른다.
-- 독립 Rust 추출 사이드카(`ieum-parse-sidecar`, `native/parse-sidecar/`)는 원본 `xlsx-sidecar`와 완전히 분리돼 있으며 네트워크 크레이트를 싣지 않는다. 7개 ZIP 형식(`.docx`, `.xlsx`, `.xlsm`, `.pptx`, `.odt`, `.epub`, `.xmind` 및 ZIP 기반 `.doc`), 가리기 없는 평문/표(`.csv`, `.tsv`, `.xml`, `.log`, `.py`), 폴더 재귀 탐색(`scan_dir`), 색인 본문 CJK 토큰화(`tokenize: true`, 100만 자 상한)를 담당한다. PDF, HWP/HWPX, 옛 바이너리 `.doc`/`.ppt`, draw.io, 이미지, 가리기 표시가 있는 텍스트·마크업(`.md`, `.markdown`, `.txt`, `.json`, `.html`, `.htm`)은 TypeScript 경로가 맡는다.
+- 독립 Rust 추출 사이드카(`ieum-parse-sidecar`, `native/parse-sidecar/`)는 원본 `xlsx-sidecar`와 완전히 분리돼 있으며 네트워크 크레이트를 싣지 않는다. 7개 ZIP 형식(`.docx`, `.xlsx`, `.xlsm`, `.pptx`, `.odt`, `.epub`, `.xmind` 및 ZIP 기반 `.doc`), 가리기 없는 평문/표(`.csv`, `.tsv`, `.xml`, `.log`, `.py`), 폴더 재귀 탐색(`scan_dir`), 색인 본문 CJK 토큰화(`tokenize: true`, 100만 자 상한), 그리고 빠른 미리보기용 ZIP 내장 썸네일 스트리밍 추출(`extract_thumbnail`, `.hwpx`·ZIP `.hwp`·OOXML·ODT·XMind, 최대 5 MiB)을 담당한다. PDF, HWP/HWPX 본문, 옛 바이너리 `.doc`/`.ppt`, draw.io, 이미지, 가리기 표시가 있는 텍스트·마크업(`.md`, `.markdown`, `.txt`, `.json`, `.html`, `.htm`)은 TypeScript 경로가 맡는다.
+- 부모 프로세스가 정상 `shutdown` 없이 갑자기 끊겨 표준 입력이 닫히면(bare stdin EOF) 사이드카는 유휴 상태뿐 아니라 진행 중·대기 중인 모든 작업까지 즉시 취소하고(`pool.shutdown(true)`) 종료한다.
 
 ## 항상 지켜야 하는 것
 

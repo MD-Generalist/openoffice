@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
+use ieum_parse_sidecar::extract::thumbnail::extract_thumbnail;
 use ieum_parse_sidecar::extract::{ExtractOptions, extract_file};
 use ieum_parse_sidecar::protocol::{Command, PROTOCOL_VERSION, Request, Response};
 use ieum_parse_sidecar::scan::scan_dir;
@@ -33,6 +34,7 @@ struct QueueState {
     queue: VecDeque<WorkItem>,
     active: HashMap<String, Arc<AtomicBool>>,
     closed: bool,
+    suppress_output: bool,
 }
 
 struct WorkerPool {
@@ -47,6 +49,7 @@ impl WorkerPool {
                 queue: VecDeque::new(),
                 active: HashMap::new(),
                 closed: false,
+                suppress_output: false,
             }),
             Condvar::new(),
         ));
@@ -108,14 +111,15 @@ impl WorkerPool {
         true
     }
 
-    /// Signals all workers to stop, cancels any in-flight tasks on explicit
-    /// shutdown, and joins all worker threads.
+    /// Signals all workers to stop, cancels queued and in-flight tasks when
+    /// `cancel_in_flight` is true, and joins all worker threads.
     fn shutdown(self, cancel_in_flight: bool) {
         let (lock, cv) = &*self.state;
         {
             let mut st = lock.lock().unwrap_or_else(|p| p.into_inner());
             st.closed = true;
             if cancel_in_flight {
+                st.suppress_output = true;
                 for flag in st.active.values() {
                     flag.store(true, Ordering::Release);
                 }
@@ -146,11 +150,15 @@ fn worker_loop(state: Arc<(Mutex<QueueState>, Condvar)>, output: SharedOutput) {
         let request_id = item.request.request_id.clone();
         let response = execute_request(item.request, &item.cancelled);
 
-        {
+        let suppress_output = {
             let mut st = lock.lock().unwrap_or_else(|p| p.into_inner());
             st.active.remove(&request_id);
-        }
+            st.suppress_output
+        };
 
+        if suppress_output {
+            continue;
+        }
         if write_response(&output, &response).is_err() {
             break;
         }
@@ -201,6 +209,21 @@ fn execute_request(request: Request, cancelled: &AtomicBool) -> Response {
                 ),
             }
         }
+        Command::ExtractThumbnail {
+            path,
+            ext,
+            max_bytes,
+        } => match extract_thumbnail(&path, &ext, max_bytes, cancelled) {
+            Ok(result) => match serde_json::to_value(result) {
+                Ok(v) => Response::success(request_id, v),
+                Err(e) => Response::failure(request_id, "serialize_error", e.to_string()),
+            },
+            Err(()) => Response::failure(
+                request_id,
+                "cancelled",
+                "Request was cancelled by the client.".to_owned(),
+            ),
+        },
         Command::ScanDir {
             root,
             max_depth,
@@ -240,7 +263,6 @@ fn main() {
         .unwrap_or(4);
     let pool = WorkerPool::new(num_workers, Arc::clone(&output));
 
-    let mut explicit_shutdown = false;
     for line in BufReader::new(stdin.lock()).lines() {
         let line = match line {
             Ok(line) => line,
@@ -314,7 +336,6 @@ fn main() {
                         serde_json::json!({ "shutdown": true }),
                     ),
                 );
-                explicit_shutdown = true;
                 break;
             }
             _ => {
@@ -323,5 +344,7 @@ fn main() {
         }
     }
 
-    pool.shutdown(explicit_shutdown);
+    // Cancel queued and in-flight work on both explicit shutdown and abrupt
+    // parent disconnect (bare stdin EOF / broken pipe) so no orphan work lingers.
+    pool.shutdown(true);
 }

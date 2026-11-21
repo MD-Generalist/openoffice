@@ -93,6 +93,13 @@ pub struct ZipEntryInfo {
     pub data_start: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReadCappedBytes {
+    Missing,
+    TooLarge,
+    Bytes(Vec<u8>),
+}
+
 pub struct ZipArchive<R: Read + Seek> {
     reader: R,
     limits: ZipLimits,
@@ -458,6 +465,92 @@ impl<R: Read + Seek> ZipArchive<R> {
             }
         }
         true
+    }
+
+    /// Returns true if any entry path attempts traversal (`..`), starts with
+    /// `/`, or contains a Windows backslash separator.
+    pub fn has_unsafe_entry_paths(&self) -> bool {
+        self.entries.iter().any(|entry| {
+            entry.name.starts_with('/')
+                || entry.name.contains('\\')
+                || entry.name.split('/').any(|seg| seg == "..")
+        })
+    }
+
+    /// Reads an entry only if its uncompressed size does not exceed `max_bytes`.
+    /// Checks `cancelled` periodically during reading/inflation.
+    pub fn read_entry_bytes_capped(
+        &mut self,
+        name: &str,
+        max_bytes: usize,
+        cancelled: &AtomicBool,
+    ) -> Result<ReadCappedBytes, ZipGateError> {
+        if cancelled.load(Ordering::Acquire) {
+            return Err(ZipGateError::Cancelled);
+        }
+        let Some(&idx) = self.by_name.get(name) else {
+            return Ok(ReadCappedBytes::Missing);
+        };
+        let entry = self.entries[idx].clone();
+        let cap = entry.usize_declared.min(self.limits.max_part_bytes);
+        let max_u64 = max_bytes as u64;
+        if entry.usize_declared > max_u64 {
+            return Ok(ReadCappedBytes::TooLarge);
+        }
+        self.reader.seek(SeekFrom::Start(entry.data_start))?;
+
+        if entry.method == 0 {
+            if entry.csize > cap {
+                return Err(under_declared(&entry.name, entry.usize_declared));
+            }
+            if entry.csize > max_u64 {
+                return Ok(ReadCappedBytes::TooLarge);
+            }
+            let total = entry.csize as usize;
+            let mut out = Vec::with_capacity(total.min(64 * 1024));
+            let mut remaining = total;
+            let mut buf = [0u8; SCRATCH_BUF_LEN];
+            while remaining > 0 {
+                if cancelled.load(Ordering::Acquire) {
+                    return Err(ZipGateError::Cancelled);
+                }
+                let want = remaining.min(buf.len());
+                self.reader.read_exact(&mut buf[..want])?;
+                out.extend_from_slice(&buf[..want]);
+                remaining -= want;
+            }
+            return Ok(ReadCappedBytes::Bytes(out));
+        }
+
+        let bounded = (&mut self.reader).take(entry.csize);
+        let mut decoder = DeflateDecoder::new(bounded);
+        let mut out = Vec::with_capacity((entry.usize_declared as usize).min(64 * 1024));
+        let mut buf = [0u8; SCRATCH_BUF_LEN];
+        loop {
+            if cancelled.load(Ordering::Acquire) {
+                return Err(ZipGateError::Cancelled);
+            }
+            match decoder.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let next_len = (out.len() as u64).saturating_add(n as u64);
+                    if next_len > cap {
+                        return Err(under_declared(&entry.name, entry.usize_declared));
+                    }
+                    if next_len > max_u64 {
+                        return Ok(ReadCappedBytes::TooLarge);
+                    }
+                    out.extend_from_slice(&buf[..n]);
+                }
+                Err(e) => {
+                    return Err(ZipGateError::Rejected(format!(
+                        "zip rejected: part {} cannot be inflated: {e}",
+                        entry.name
+                    )));
+                }
+            }
+        }
+        Ok(ReadCappedBytes::Bytes(out))
     }
 
     pub fn read_entry_bytes(&mut self, name: &str) -> Result<Option<Vec<u8>>, ZipGateError> {

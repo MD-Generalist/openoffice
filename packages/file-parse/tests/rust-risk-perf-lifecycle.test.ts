@@ -6,12 +6,13 @@
  * - shutdown(), stop(), and parent exit (stdin EOF) leave ZERO orphan OS processes
  */
 import { spawn } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import JSZip from 'jszip'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { assertZipInflatesWithinLimits } from '@genoffice/docx-engine'
 import {
   parseFileToText,
   ParseSidecarClient,
@@ -66,6 +67,29 @@ async function buildMediaDocx(mediaMiB: number, marker: string): Promise<Uint8Ar
   )
   zip.file('word/media/video.bin', Buffer.alloc(mediaMiB * 1024 * 1024), { compression: 'STORE' })
   return zip.generateAsync({ type: 'uint8array', compression: 'STORE' })
+}
+
+async function buildMediaDocxWithThumbnail(mediaMiB: number): Promise<{
+  bytes: Uint8Array
+  thumbBase64: string
+}> {
+  const zip = new JSZip()
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x11, 0x22, 0x33, 0x44])
+  zip.file(
+    '[Content_Types].xml',
+    `${XML_DECL}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Default Extension="png" ContentType="image/png"/></Types>',
+  )
+  zip.file(
+    'word/document.xml',
+    `${XML_DECL}<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+      '<w:body><w:p><w:r><w:t>ThumbnailBench</w:t></w:r></w:p></w:body></w:document>',
+  )
+  zip.file('docProps/thumbnail.png', png, { compression: 'DEFLATE' })
+  zip.file('word/media/video.bin', Buffer.alloc(mediaMiB * 1024 * 1024), { compression: 'STORE' })
+  const bytes = await zip.generateAsync({ type: 'uint8array', compression: 'STORE' })
+  return { bytes, thumbBase64: png.toString('base64') }
 }
 
 beforeAll(() => {
@@ -127,6 +151,58 @@ describe('Track A performance, memory baseline, and process lifecycle', () => {
         `tsHeapDelta=${tsHeapDeltaMb.toFixed(1)}MiB | 105MiB DOCX rust=${rust105Ms.toFixed(1)}ms ` +
         `parentRssDelta=${rssDeltaHugeMb.toFixed(1)}MiB`,
     )
+  }, 45_000)
+
+  it('benchmarks 64 MiB media ZIP thumbnail extraction: streaming Rust sidecar vs JSZip', async () => {
+    const { bytes, thumbBase64 } = await buildMediaDocxWithThumbnail(64)
+    const filePath = join(workDir, 'thumb-64m.docx')
+    writeFileSync(filePath, bytes)
+
+    const client = new ParseSidecarClient()
+    try {
+      // Warm up sidecar process and OS file handle / AV cache before timing either backend
+      await client.extractThumbnail({ path: filePath, ext: 'docx' })
+
+      const rssBeforeRust = process.memoryUsage().rss
+      const heapBeforeRust = process.memoryUsage().heapUsed
+      const t0Rust = performance.now()
+      const rustRes = await client.extractThumbnail({ path: filePath, ext: 'docx' })
+      const rustMs = performance.now() - t0Rust
+      const rustRssDeltaMb = (process.memoryUsage().rss - rssBeforeRust) / (1024 * 1024)
+      const rustHeapDeltaMb = (process.memoryUsage().heapUsed - heapBeforeRust) / (1024 * 1024)
+
+      expect(rustRes).toEqual({
+        status: 'ok',
+        mime: 'image/png',
+        dataBase64: thumbBase64,
+        entry: 'docProps/thumbnail.png',
+      })
+
+      // Compare against legacy Quick Look JSZip path (readFile + zip-bomb gate + JSZip.loadAsync)
+      const rssBeforeJs = process.memoryUsage().rss
+      const heapBeforeJs = process.memoryUsage().heapUsed
+      const t0Js = performance.now()
+      const raw = readFileSync(filePath)
+      await assertZipInflatesWithinLimits(raw)
+      const zip = await JSZip.loadAsync(raw)
+      const entry = zip.file('docProps/thumbnail.png')
+      const img = await entry!.async('uint8array')
+      const jsBase64 = Buffer.from(img).toString('base64')
+      const jsMs = performance.now() - t0Js
+      const jsRssDeltaMb = (process.memoryUsage().rss - rssBeforeJs) / (1024 * 1024)
+      const jsHeapDeltaMb = (process.memoryUsage().heapUsed - heapBeforeJs) / (1024 * 1024)
+
+      expect(jsBase64).toBe(thumbBase64)
+      expect(rustRssDeltaMb).toBeLessThan(32)
+      expect(rustMs).toBeLessThan(jsMs)
+
+      console.info(
+        `[perf-baseline:thumbnail-64m] rust=${rustMs.toFixed(1)}ms (rssDelta=${rustRssDeltaMb.toFixed(1)}MiB, heapDelta=${rustHeapDeltaMb.toFixed(1)}MiB) ` +
+          `vs jszip=${jsMs.toFixed(1)}ms (rssDelta=${jsRssDeltaMb.toFixed(1)}MiB, heapDelta=${jsHeapDeltaMb.toFixed(1)}MiB)`,
+      )
+    } finally {
+      await client.shutdown()
+    }
   }, 45_000)
 
   it('benchmarks 1,000,000-character CJK+Latin body tokenization in Rust sidecar', async () => {
@@ -191,5 +267,47 @@ describe('Track A performance, memory baseline, and process lifecycle', () => {
       })
     })
     expect(await waitForPidExit(childPid, 4_000)).toBe(true)
-  }, 20_000)
+
+    // 4. Abrupt parent exit while heavy deflated ZIP work is in-flight -> must cancel and exit fast
+    const heavyZip = new JSZip()
+    heavyZip.file('word/document.xml', '<w:document/>')
+    heavyZip.file('word/media/zeros.bin', Buffer.alloc(64 * 1024 * 1024), {
+      compression: 'DEFLATE',
+    })
+    const heavyPath = join(workDir, 'heavy-inflight.docx')
+    writeFileSync(heavyPath, await heavyZip.generateAsync({ type: 'nodebuffer' }))
+
+    const inFlightParentScript = `
+      const { spawn } = require('node:child_process');
+      const child = spawn(process.argv[1], [], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+      process.stdout.write(String(child.pid) + '\\n');
+      for (let i = 0; i < 20; i++) {
+        child.stdin.write(JSON.stringify({
+          version: 1,
+          requestId: 'heavy-' + i,
+          command: 'extract_thumbnail',
+          path: process.argv[2],
+          ext: 'docx',
+        }) + '\\n');
+      }
+      setTimeout(() => process.exit(0), 40);
+    `
+    const inFlightPid = await new Promise<number>((resolve, reject) => {
+      const parent = spawn(process.execPath, ['-e', inFlightParentScript, sidecarBin, heavyPath], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      let out = ''
+      parent.stdout.on('data', (d) => {
+        out += String(d)
+      })
+      parent.on('error', reject)
+      parent.on('exit', () => {
+        const parsed = Number.parseInt(out.trim(), 10)
+        if (!Number.isFinite(parsed)) reject(new Error(`invalid in-flight child pid: ${out}`))
+        else resolve(parsed)
+      })
+    })
+    expect(await waitForPidExit(inFlightPid, 3_000)).toBe(true)
+  }, 25_000)
 })

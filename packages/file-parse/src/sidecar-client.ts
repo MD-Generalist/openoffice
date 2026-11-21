@@ -77,6 +77,34 @@ export interface SidecarExtractOptions {
   readonly timeoutMs?: number | null
 }
 
+export type SidecarThumbnailResult =
+  | {
+      readonly status: 'ok'
+      readonly mime: string
+      readonly dataBase64: string
+      readonly entry: string
+    }
+  | {
+      readonly status: 'not_found'
+    }
+  | {
+      readonly status: 'fallback'
+      readonly fallbackReason: SidecarFallbackReason
+    }
+  | {
+      readonly status: 'rejected'
+      readonly rejectCode: SidecarRejectCode
+      readonly message: string
+    }
+
+export interface SidecarThumbnailOptions {
+  readonly path: string
+  readonly ext: string
+  readonly maxBytes?: number
+  readonly requestId?: string
+  readonly timeoutMs?: number | null
+}
+
 export interface SidecarScannedFile {
   readonly path: string
   readonly mtimeMs: number
@@ -209,6 +237,64 @@ function validateExtractResult(raw: unknown): SidecarExtractResult {
   }
 }
 
+function validateThumbnailResult(raw: unknown): SidecarThumbnailResult {
+  if (!isObject(raw) || typeof raw.status !== 'string') {
+    throw new SidecarInfraError(
+      'Malformed extract_thumbnail result from parse sidecar.',
+      'malformed_response',
+    )
+  }
+  switch (raw.status) {
+    case 'ok':
+      if (
+        typeof raw.mime !== 'string' ||
+        typeof raw.dataBase64 !== 'string' ||
+        typeof raw.entry !== 'string'
+      ) {
+        throw new SidecarInfraError(
+          'Malformed extract_thumbnail ok result: missing mime, dataBase64, or entry.',
+          'malformed_response',
+        )
+      }
+      return {
+        status: 'ok',
+        mime: raw.mime,
+        dataBase64: raw.dataBase64,
+        entry: raw.entry,
+      }
+    case 'not_found':
+      return { status: 'not_found' }
+    case 'fallback':
+      if (
+        raw.fallbackReason !== 'redaction_present' &&
+        raw.fallbackReason !== 'unsupported_format'
+      ) {
+        throw new SidecarInfraError(
+          'Malformed extract_thumbnail fallback result: unknown fallbackReason.',
+          'malformed_response',
+        )
+      }
+      return { status: 'fallback', fallbackReason: raw.fallbackReason }
+    case 'rejected':
+      if (typeof raw.rejectCode !== 'string' || typeof raw.message !== 'string') {
+        throw new SidecarInfraError(
+          'Malformed extract_thumbnail rejected result.',
+          'malformed_response',
+        )
+      }
+      return {
+        status: 'rejected',
+        rejectCode: raw.rejectCode as SidecarRejectCode,
+        message: raw.message,
+      }
+    default:
+      throw new SidecarInfraError(
+        `Unknown extract_thumbnail status from parse sidecar: ${raw.status}`,
+        'malformed_response',
+      )
+  }
+}
+
 export class ParseSidecarClient {
   private process: ChildProcessWithoutNullStreams | null = null
   private lines: Interface | null = null
@@ -243,6 +329,20 @@ export class ParseSidecarClient {
       options.timeoutMs,
     )
     return validateExtractResult(raw)
+  }
+
+  async extractThumbnail(options: SidecarThumbnailOptions): Promise<SidecarThumbnailResult> {
+    const raw = await this.request(
+      {
+        command: 'extract_thumbnail',
+        path: options.path,
+        ext: options.ext,
+        ...(options.maxBytes !== undefined ? { maxBytes: options.maxBytes } : {}),
+      },
+      options.requestId,
+      options.timeoutMs,
+    )
+    return validateThumbnailResult(raw)
   }
 
   async scanDir(options: SidecarScanDirOptions): Promise<SidecarScanDirResult> {
