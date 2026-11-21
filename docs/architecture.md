@@ -170,18 +170,19 @@ EPUB 편집기 화면 ── epub:read-chapter·apply-edits·save 등 ──→ 
 - 양식: 양식 스킬을 부르면 뒷단(`templateTabs`)이 양식 사본을 그 형식 편집기의 제목 없는 새 탭으로 열고, 넘겨주기(`queueSkillHandoffFor`/`takeSkillHandoff`)로 요청과 칩을 그 탭의 AI 창에 넘긴다. 받는 창은 보내기 전 문지기를 거쳐 실행한다. 내용이 있는 문서에서는 먼저 어디에서 할지 묻고, 새 문서를 고르면 저장된 지금 문서의 경로가 넘겨주기의 `attach`로 가서 받는 창의 첨부가 된다(결정 0118).
 - 에이전트 창: 세션을 시작할 때 켜진 스킬이 묶음으로 복사된다(위 "에이전트 모드의 흐름"). 세션 MCP 서버의 `propose_skill`·`propose_skill_install`은 창에 카드와 미리보기를 띄우기만 한다.
 
-## 사용자 MCP 서버가 지나는 길 (결정 0100)
+## 사용자 MCP 서버와 통합 커넥터가 지나는 길 (결정 0100, 0161)
 
 ```
-설정 → 연동 카드(메인 창) ─ mcp-servers:* ─────┐
-편집기 AI 창 9곳·홈 AI 질문 ─ aiOfficeMcpTools ──┼→ 껍데기 앱 뒷단 mcp-client/ 허브 ─┬→ 주소 서버(Streamable HTTP, 예전 SSE)
-                              (mcp-tools:*)       │   mcp-servers.json(비밀값 봉인)    │    + 브라우저 로그인(127.0.0.1 루프백)
-에이전트 창의 프로그램 ─ 세션 중계 서버(루프백, 토큰) ┘   mcp-runtimes/(받은 실행 환경)  └→ 내 PC 서버(셸 없는 하위 프로세스, 빈 작업 폴더)
+설정 → 연동 카드(메인 창) ─ mcp-servers:* ──────┐
+편집기 AI 창 10곳·홈 AI 질문 ─ aiOfficeMcpTools ─┼→ 껍데기 앱 뒷단 mcp-client/ 허브 ─┬→ 주소 서버(Streamable HTTP, 예전 SSE / Notion·Canva 프리셋)
+                               (mcp-tools:*)      │   mcp-servers.json(비밀값 봉인)   ├→ 내 PC 서버(셸 없는 하위 프로세스 / Korean Law·kordoc 프리셋)
+첨부 가능 편집기 8곳 ─ aiOfficeConnectorAttach ───┼→ connector-picker/ 선택 창        └→ 내장 Obsidian 볼트(obsidian-vault.ts, 로컬 .md 직접 처리)
+에이전트 창의 프로그램 ─ 세션 중계 서버(루프백, 토큰) ┘   mcp-runtimes/(받은 실행 환경)
 ```
 
-- 서버와 맺는 연결은 허브(`apps/shell/src/main/mcp-client/hub.ts`) 하나가 서버마다 하나씩 쥐고, 모든 창이 함께 쓴다. 보관(`store.ts`, `secrets.ts`), 주소 판정(`address.ts`), 주소 서버와 로그인(`remote.ts`, `oauth.ts`, `oauth-loopback.ts`), 내 PC 서버(`local.ts`, `local-launch.ts`), 실행 환경 받기(`runtimes.ts`, `runtime-pins.ts`, `runtime-archive.ts`), 지문(`fingerprint.ts`), 도구 목록 맞추기(`listing.ts`), 붙여넣기 읽기(`paste.ts`, `toml.ts`)가 그 아래에 있다. 창구는 `hub-ipc.ts`가, 앱에 묶는 일은 `hub-app.ts`가 한다.
-- 편집기 창과 홈 창의 preload는 공용 다리(`@genoffice/electron-utils/mcp-tools-bridge`, `window.aiOfficeMcpTools`)로 도구 목록을 받고 호출한다. 화면이 받는 것은 서버 이름, 상태, 승인된 도구 정의와 안내뿐이다. 주소, 열쇠, 명령은 받지 않는다. 설정 창구(`mcp-servers:*`)는 껍데기 앱의 메인 창만 부를 수 있다.
-- AI 창 쪽 판단은 `packages/agent-core`에 있다. `createUserMcpSkill`(`user-mcp-skill.ts`)이 다리에서 받은 서버 목록으로 도구(`mcp__〈서버〉__〈도구〉`)와 지시문 덩어리를 만들고, `ask` 도구는 화면의 허락 카드(`packages/ui`의 `McpPermissionCard`)에 묻고, 다리로 호출하고, 결과를 `shapeMcpResult`로 거른다. 받은 내용 지키기(`guardReceivedContent`, `user-mcp/keep-inside.ts`)는 드라이브 차단과 주소 확인(`guardOutbound`) 안쪽에 씌워진다. 입력칸 옆의 서버 단추는 `packages/ui`의 `McpServerButton`이다.
+- 서버와 맺는 연결은 허브(`apps/shell/src/main/mcp-client/hub.ts`) 하나가 서버마다 하나씩 쥐고, 모든 창이 함께 쓴다. 보관(`store.ts`, `secrets.ts`), 추천 프리셋(`presets.ts`), 내장 Obsidian 볼트(`obsidian-vault.ts`, `obsidian-tools.ts`), 주소 판정(`address.ts`), 주소 서버와 로그인(`remote.ts`, `oauth.ts`, `oauth-loopback.ts`), 내 PC 서버(`local.ts`, `local-launch.ts`), 실행 환경 받기(`runtimes.ts`, `runtime-pins.ts`, `runtime-archive.ts`), 지문(`fingerprint.ts`), 도구 목록 맞추기(`listing.ts`), 붙여넣기 읽기(`paste.ts`, `toml.ts`)가 그 아래에 있다. 창구는 `hub-ipc.ts`가, 앱에 묶는 일은 `hub-app.ts`가 한다.
+- 편집기 창과 홈 창의 preload는 공용 다리(`@genoffice/electron-utils/mcp-tools-bridge`, `window.aiOfficeMcpTools`)로 도구 목록을 받고 호출한다. 첨부 가능 편집기 8곳의 preload는 추가로 `window.aiOfficeConnectorAttach`(`@genoffice/electron-utils/connector-attach-bridge`)를 열어 Obsidian 노트·Notion 페이지 직접 첨부 창(`apps/shell/src/main/connector-picker/`)을 띄운다. 화면이 받는 것은 서버 이름, 상태, 볼트 이름·켜짐 여부, 승인된 도구 정의와 안내뿐이다. 주소, 열쇠, 명령은 받지 않는다. 설정 창구(`mcp-servers:*`)는 껍데기 앱의 메인 창만 부를 수 있다.
+- AI 창 쪽 판단은 `packages/agent-core`에 있다. `createUserMcpSkill`(`user-mcp-skill.ts`)이 다리에서 받은 서버 목록으로 도구(`mcp__〈서버〉__〈도구〉`)와 지시문 덩어리를 만들고, `ask` 도구는 화면의 허락 카드(`packages/ui`의 `McpPermissionCard`)에 묻고, 다리로 호출하고, 결과를 `shapeMcpResult`로 거른다. 로컬 전용(`localOnly: true`, 내장 Obsidian 볼트)은 인터넷 도구 꺼짐·드라이브 읽기 뒤에도 유지되지만 `keepResultsInside`는 그대로 바깥 도구를 막는다. `windowDriveState`가 편집기 대화별 Google 드라이브 켜기/끄기를 관리하며 `McpWindowState.newConversation()`과 동기화된다. 입력칸 옆의 통합 첨부 메뉴는 `AiAttachMenu`, 연결 단추는 `McpServerButton`(`packages/ui`)이다.
 - 한 번의 호출: 모델이 `mcp__…` 도구를 요청 → 화면의 도구 반복이 문지기(인터넷 스위치, 주소 확인, 드라이브, 받은 내용 지키기)와 허락 카드를 거침 → 다리 → 허브가 서버 상태를 보고 연결을 맺거나(처음이면) 내 PC 서버를 띄움 → 서버 → 결과를 화면으로 → 반복이 대화에 붙임. 구독 프로그램은 여전히 한 차례의 답만 내고, 도구는 앱이 실행한다.
 - 에이전트 창: 세션을 시작할 때 `agent/agent-mcp-relay.ts`가 켜진 서버마다 같은 이름의 중계 MCP 서버(루프백, 빈 포트, 세션 토큰)를 열고, 실행부(`packages/ai-provider/src/agent-session/`)가 세션 MCP 설정에 넣는다. 중계는 받은 호출을 같은 허브로 넘기고, `ask` 도구는 에이전트 창의 카드로 묻는다. 서버의 열쇠와 환경 변수는 프로그램에 가지 않는다.
 - 내 PC 서버의 프로세스는 구독 프로그램과 같은 자식 등록부에 올라, 앱이 끝나거나 강제로 꺼진 뒤 다음에 켤 때 정리된다.

@@ -156,3 +156,4 @@
 | [0158](0158-rust-print-layout-wasm.md)                        | 고급 인쇄 배치의 PDF 재배치·회색조 PDF·PNG 인코딩을 사전 빌드 Rust WASM으로 옮긴다                               | 2026-11-20 |
 | [0159](0159-rust-legacy-doc-ppt-extraction.md)                | 옛 바이너리 Office(`.doc`·`.ppt`) 첨부·색인 텍스트 추출을 `ieum-parse-sidecar`로 옮긴다                          | 2026-11-21 |
 | [0160](0160-pdfium-file-parse.md)                             | 첨부·색인용 PDF 텍스트 추출 기본 경로를 번들된 PDFium WASM으로 전환한다                                          | 2026-11-21 |
+| [0161](0161-unified-connectors-and-obsidian-vault.md)         | 설정 ▸ 연동 상단에 6개 연결 서비스를 통합하고, Obsidian 볼트는 내장 로컬 커넥터로 구현한다                       | 2026-11-21 |

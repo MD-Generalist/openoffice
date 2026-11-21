@@ -582,9 +582,12 @@ metadata:
     {
       "id": "…", // made by the app; never shown as a name
       "name": "korean-law",
-      "kind": "remote", // "remote" | "local"
+      "kind": "remote", // "remote" | "local" | "vault"
+      "presetId": null, // "notion" | "canva" | "korean-law" | "kordoc" | null
       "enabled": true,
       "keepResultsInside": true,
+      // vault only (kind === "vault", built-in Obsidian vault connector)
+      "vaults": [{ "id": "…", "name": "Notes", "path": "…", "enabled": true }],
       // remote only
       "url": "https://law.example.com/mcp",
       "transport": "auto", // "auto" (Streamable HTTP, then SSE) | "sse"
@@ -626,7 +629,7 @@ metadata:
 
 - 서버 이름: `^[A-Za-z0-9_-]+$`, 1~24자, `__` 없음, `_`로 시작하거나 끝나지 않음. 대소문자를 가리지 않고 서로 겹치지 않는다. `ieumoffice-editor`(앱 MCP 서버)는 쓸 수 없다.
 - 도구 이름은 `[A-Za-z0-9_-]` 밖의 글자를 `_`로 바꾼다. 전체 이름은 `^[A-Za-z0-9_-]{1,64}$`여야 한다. 바꾼 이름이 비었거나, 64자를 넘거나, 같은 서버의 다른 도구와 같아지면(둘 다) 켤 수 없다.
-- 앱 자체 도구는 `mcp__`로 시작하지 않는다. 이 앞붙이가 붙은 이름은 모두 바깥 도구로 친다.
+- 앱 자체 도구는 `mcp__`로 시작하지 않는다. 이 앞붙이가 붙은 이름은 로컬 전용 내장 커넥터(`localOnly: true`, `kind: 'vault'` Obsidian 볼트)를 빼면 모두 바깥 도구로 친다. 내장 볼트도 `keepResultsInside` 기본 켬과 미확인 URL 규칙은 그대로 따른다(결정 0161).
 
 **붙여넣기 형식.** 사람이 붙여넣은 글만 읽는다. 다른 프로그램의 설정 파일은 열지 않는다. 글에 코드 울타리(```)가 있으면 첫 블록을 읽는다.
 
@@ -638,7 +641,7 @@ metadata:
 
 **클라이언트로서.** `initialize`의 `capabilities`는 `{}`, `clientInfo`는 제품 이름과 앱 판이다. 서버의 sampling, elicitation, roots 요청은 거절한다. 도구 목록과 호출(`tools/list`, `tools/call`), 목록 변경 알림(`notifications/tools/list_changed`)만 쓴다. 결과는 `content`의 글 블록과 `structuredContent`(JSON 글, 같은 JSON이 글 블록에 이미 있으면 뺌)만 AI에게 넘기고, 나머지 블록은 개수만 알린다. `isError`는 도구 오류다. 호출마다 60초, 결과는 200,000자에서 자른다. 주소 서버에는 설정한 헤더 가운데 프로토콜이 쓰는 이름(`content-type`, `accept`, `mcp-session-id`, `mcp-protocol-version`, `last-event-id`)은 보내지 않는다.
 
-**편집기 다리.** 편집기 9곳과 홈 창의 preload가 `window.aiOfficeMcpTools`(`@genoffice/electron-utils/mcp-tools-bridge`)로 내준다. `list()`, `call(server, tool, input, callId)`, `cancel(callId)`, `onChanged(listener)`, `retry(server)`, `openSettings(server)`가 있고, 목록의 도구에는 서버가 `destructiveHint: true`를 붙였을 때만 `destructive: true`가 붙는다(허락 카드의 "지우거나 바꿀 수 있음" 표시). `call`의 답은 두 종류의 서버 모두 뒷단에서 거르고 자른 글 `{ ok: true, output, isError }`이거나 거절 `{ ok: false, error }`다(`@genoffice/agent-core/user-mcp/result`의 `McpCallAnswer`). 서버가 돌려준 결과 그대로는 창으로 건너가지 않는다. 창이 닫히면 그 창의 호출은 끊긴다. 창구는 `mcp-tools:list`, `mcp-tools:call`, `mcp-tools:cancel`, `mcp-tools:retry`, `mcp-tools:open-settings`와 변경 알림 `mcp-tools:changed`다. 목록에는 승인된 도구 정의와 상태만 있고 비밀값은 없다. 껍데기 앱이 없는 창은 빈 목록과 거절을 받는다. 설정 화면의 창구(`mcp-servers:*`)는 껍데기 앱의 메인 창에만 답한다. 바깥 프로그램에 약속하는 것은 아니다.
+**편집기 다리.** 편집기 10곳과 홈 창의 preload가 `window.aiOfficeMcpTools`(`@genoffice/electron-utils/mcp-tools-bridge`)로 내준다. `list()`, `call(server, tool, input, callId, options?)`, `cancel(callId)`, `onChanged(listener)`, `retry(server)`, `openSettings(server)`, `openIntegrations()`가 있고, 목록의 도구에는 서버가 `destructiveHint: true`를 붙였을 때만 `destructive: true`가 붙는다(허락 카드의 "지우거나 바꿀 수 있음" 표시). `call`의 답은 두 종류의 서버와 내장 볼트 모두 뒷단에서 거르고 자른 글 `{ ok: true, output, isError }`이거나 거절 `{ ok: false, error }`다(`@genoffice/agent-core/user-mcp/result`의 `McpCallAnswer`). 서버가 돌려준 결과 그대로는 창으로 건너가지 않는다. 창이 닫히면 그 창의 호출은 끊긴다. 창구는 `mcp-tools:list`, `mcp-tools:call`, `mcp-tools:cancel`, `mcp-tools:retry`, `mcp-tools:open-settings`, `mcp-tools:open-integrations`와 변경 알림 `mcp-tools:changed`다. 목록에는 승인된 도구 정의와 상태만 있고 비밀값은 없다. 껍데기 앱이 없는 창은 빈 목록과 거절을 받는다. 설정 화면의 창구(`mcp-servers:*`, 프리셋 연결·볼트 관리 `connect-preset`, `pick-vault-folder`, `add-vault`, `remove-vault`, `rename-vault`, `set-vault-enabled` 포함)는 껍데기 앱의 메인 창에만 답한다. 첨부 가능 편집기 8곳의 preload는 추가로 `window.aiOfficeConnectorAttach`(`@genoffice/electron-utils/connector-attach-bridge`, 창구 `connector:attach-sources`, `connector:attach-sources-changed`, `connector:pick-obsidian`, `connector:pick-notion`)를 내준다. 바깥 프로그램에 약속하는 것은 아니다.
 
 ## 구독 연결 상태 (앱 안의 창구)
 
