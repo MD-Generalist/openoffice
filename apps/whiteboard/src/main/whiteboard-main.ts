@@ -795,3 +795,74 @@ export function whiteboardRecoveryAvailable(filePath: string): boolean {
 export function whiteboardUiTheme(): 'light' | 'dark' {
   return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
 }
+
+export function whiteboardIsDirty(wcId: number): boolean {
+  return views.get(wcId)?.dirty === true
+}
+
+export function whiteboardTabIdentity(wcId: number): {
+  filePath: string | null
+  title: string
+  untitled: boolean
+  imported?: 'excalidraw'
+  sourcePath?: string
+  dirty: boolean
+} | null {
+  const st = views.get(wcId)
+  if (!st) return null
+  if (st.importSourcePath) {
+    const stem = basename(st.importSourcePath).replace(/\.excalidraw(\.(png|svg))?$/i, '')
+    return {
+      filePath: null,
+      title: stem || tm('untitled'),
+      untitled: true,
+      imported: 'excalidraw',
+      sourcePath: st.importSourcePath,
+      dirty: st.dirty,
+    }
+  }
+  return {
+    filePath: st.filePath,
+    title: st.filePath ? basename(st.filePath) : tm('untitled'),
+    untitled: st.filePath === null,
+    dirty: st.dirty,
+  }
+}
+
+export async function requestWhiteboardClose(
+  contents: WebContents,
+  parent?: BrowserWindow | null,
+): Promise<boolean> {
+  if (contents.isDestroyed()) return true
+  const st = views.get(contents.id)
+  if (!st || !st.dirty) return true
+  const owner = parent ?? parentOf(contents)
+  const opts = {
+    type: 'question' as const,
+    buttons: [tm('btnSave'), tm('btnDontSave'), tm('btnCancel')],
+    defaultId: 0,
+    cancelId: 2,
+    message: tm('closeUnsavedMsg'),
+    detail: tm('closeUnsavedDetail'),
+  }
+  const { response } = owner
+    ? await dialog.showMessageBox(owner, opts)
+    : await dialog.showMessageBox(opts)
+  if (response === 2) return false
+  if (response === 1) {
+    whiteboardMarkDontSave(contents)
+    return true
+  }
+  return whiteboardTriggerCloseSave(contents)
+}
+
+let recoveryTitleHook: ((contents: WebContents) => string | undefined) | null = null
+export function setWhiteboardRecoveryTitleHook(
+  hook: (contents: WebContents) => string | undefined,
+): void {
+  recoveryTitleHook = hook
+}
+
+export function whiteboardRecoveryTitleOf(contents: WebContents): string | undefined {
+  return recoveryTitleHook?.(contents)
+}

@@ -47,14 +47,37 @@ import type {
 export * from './types'
 export { WhiteboardArchiveHandle, WhiteboardOpenError }
 
-const PKG_WASM_PATH = fileURLToPath(new URL('../pkg/whiteboard_engine_bg.wasm', import.meta.url))
+function computePkgWasmPath(): string {
+  try {
+    if (typeof import.meta?.url === 'string' && import.meta.url.startsWith('file:')) {
+      return fileURLToPath(new URL('../pkg/whiteboard_engine_bg.wasm', import.meta.url))
+    }
+  } catch {
+    // Non-file URL (e.g., jsdom or bundled CJS); fall through to runtime resolution.
+  }
+  return ''
+}
+
+const PKG_WASM_PATH = computePkgWasmPath()
 
 function resolveWasmPath(): string {
-  if (existsSync(PKG_WASM_PATH)) return PKG_WASM_PATH
+  const envOverride = process.env.GENOFFICE_WHITEBOARD_WASM_PATH
+  if (envOverride && existsSync(envOverride)) return envOverride
+  if (PKG_WASM_PATH && existsSync(PKG_WASM_PATH)) return PKG_WASM_PATH
   const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
   if (resourcesPath) {
     const packaged = join(resourcesPath, 'wasm', 'whiteboard_engine_bg.wasm')
     if (existsSync(packaged)) return packaged
+  }
+  if (typeof __dirname === 'string') {
+    for (const rel of [
+      '../wasm/whiteboard_engine_bg.wasm',
+      '../pkg/whiteboard_engine_bg.wasm',
+      '../../packages/whiteboard-engine/pkg/whiteboard_engine_bg.wasm',
+    ]) {
+      const candidate = join(__dirname, rel)
+      if (existsSync(candidate)) return candidate
+    }
   }
   return PKG_WASM_PATH
 }
