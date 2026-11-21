@@ -175,17 +175,15 @@ const subscription: WhiteboardSubscriptionApi = {
 
 const ai: WhiteboardAiApi = {
   getSettings: () => ipcRenderer.invoke(AI_CHANNELS.getSettings),
-  onSettingsChanged: (handler) => listen<[unknown]>(AI_CHANNELS.settingsChanged, handler),
-  listModels: (provider) => ipcRenderer.invoke(AI_CHANNELS.listModels, provider),
-  getPanelPrefs: () => ipcRenderer.invoke(AI_CHANNELS.getPanelPrefs) as Promise<AiPanelPrefs>,
-  setPanelPrefs: (patch) => ipcRenderer.invoke(AI_CHANNELS.setPanelPrefs, patch),
-  stream: (request) => ipcRenderer.invoke(AI_CHANNELS.stream, request),
-  abort: (streamId) => ipcRenderer.send(AI_CHANNELS.abort, streamId),
-  onChunk: (handler) =>
-    listen<[{ streamId: string; chunk: AiStreamChunk }]>(AI_CHANNELS.chunk, handler),
-  onDone: (handler) => listen<[{ streamId: string }]>(AI_CHANNELS.done, handler),
-  onError: (handler) => listen<[{ streamId: string; error: string }]>(AI_CHANNELS.error, handler),
-  openSettings: () => ipcRenderer.send(AI_CHANNELS.openSettings),
+  setSettings: (settings) => ipcRenderer.invoke(AI_CHANNELS.setSettings, settings),
+  onSettingsChanged: (handler) => listen<[]>(AI_CHANNELS.settingsChanged, handler),
+  getPanelPrefs: () => ipcRenderer.invoke(APP_CHANNELS.getAiPanelPrefs) as Promise<AiPanelPrefs>,
+  setPanelPrefs: (patch) => ipcRenderer.invoke(APP_CHANNELS.setAiPanelPrefs, patch),
+  onPanelPrefsChanged: (handler) => listen<[AiPanelPrefs]>(APP_CHANNELS.aiPanelPrefsChanged, handler),
+  aiStream: (request) => ipcRenderer.invoke(AI_CHANNELS.stream, request),
+  aiStreamCancel: (requestId) => ipcRenderer.invoke(AI_CHANNELS.streamCancel, requestId),
+  onAiStream: (handler) => listen<[AiStreamChunk]>(AI_CHANNELS.streamChunk, handler),
+  openModelSettings: () => ipcRenderer.invoke(AI_CHANNELS.openModelSettings),
   addAttachments: () => ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiAddAttachments),
   addAttachmentPaths: (paths) => ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiAddAttachmentPaths, paths),
   readAttachment: (path, offset, maxChars) =>
@@ -193,8 +191,8 @@ const ai: WhiteboardAiApi = {
   readAttachmentImage: (path) => ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiReadAttachmentImage, path),
   savePastedImage: (bytes, mime) =>
     ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiSavePastedImage, bytes, mime),
-  webSearch: (query) => ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiWebSearch, query),
-  webFetch: (url) => ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiWebFetch, url),
+  webSearch: (query, maxResults) => ipcRenderer.invoke(AI_CHANNELS.webSearch, query, maxResults),
+  readUrl: (url, offset) => ipcRenderer.invoke(AI_CHANNELS.readUrl, url, offset),
   imageSearch: (query) => ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiImageSearch, query),
   generateImage: (op) => ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiGenerateImage, op),
   fetchImage: (url) => ipcRenderer.invoke(WHITEBOARD_CHANNELS.fetchImage, url),

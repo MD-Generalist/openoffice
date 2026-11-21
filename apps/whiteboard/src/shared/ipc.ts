@@ -69,27 +69,32 @@ export const APP_CHANNELS = {
   languageChanged: 'app:language-changed',
   getTheme: 'app:get-theme',
   themeChanged: 'app:theme-changed',
-  getAutoSaveDefault: 'app:get-autosave-default',
-  autoSaveDefaultChanged: 'app:autosave-default-changed',
+  getAutoSaveDefault: 'app:get-auto-save-default',
+  autoSaveDefaultChanged: 'app:auto-save-default-changed',
   chromePressed: 'app:chrome-pressed',
+  getAiPanelPrefs: 'app:get-ai-panel-prefs',
+  setAiPanelPrefs: 'app:set-ai-panel-prefs',
+  aiPanelPrefsChanged: 'app:ai-panel-prefs-changed',
+  openSourcePath: 'home:open-path',
 } as const
 
 export const AI_CHANNELS = {
   getSettings: 'ai:get-settings',
+  setSettings: 'ai:set-settings',
   settingsChanged: 'ai:settings-changed',
-  listModels: 'ai:list-models',
-  getPanelPrefs: 'ai:get-panel-prefs',
-  setPanelPrefs: 'ai:set-panel-prefs',
+  openModelSettings: 'ai:open-model-settings',
   stream: 'ai:stream',
-  abort: 'ai:abort',
-  chunk: 'ai:chunk',
-  done: 'ai:done',
-  error: 'ai:error',
-  openSettings: 'ai:open-settings',
+  streamChunk: 'ai:stream-chunk',
+  streamCancel: 'ai:stream-cancel',
+  webSearch: 'ai:web-search',
+  readUrl: 'ai:read-url',
 } as const
 
-export type UiTheme = 'light' | 'dark'
-export type AutoSaveDefault = 'on' | 'off'
+export type UiTheme = 'light' | 'dark' | 'system'
+export interface AutoSaveDefault {
+  on: boolean
+  updatedAt: number
+}
 export type SaveMode = 'save' | 'save-as' | 'autosave'
 export type SaveRequestMode = 'save' | 'save-as'
 export type ExportFormat = 'png' | 'svg' | 'pdf'
@@ -375,26 +380,25 @@ export interface WhiteboardHandoffApi {
 
 export interface WhiteboardAiApi {
   getSettings(): Promise<unknown>
-  onSettingsChanged(handler: (settings: unknown) => void): () => void
-  listModels(provider: string): Promise<unknown>
+  setSettings(settings: unknown): Promise<void>
+  onSettingsChanged(handler: () => void): () => void
   getPanelPrefs(): Promise<AiPanelPrefs>
   setPanelPrefs(patch: Partial<AiPanelPrefs>): Promise<void>
-  stream(request: unknown): Promise<{ streamId: string }>
-  abort(streamId: string): void
-  onChunk(handler: (payload: { streamId: string; chunk: AiStreamChunk }) => void): () => void
-  onDone(handler: (payload: { streamId: string }) => void): () => void
-  onError(handler: (payload: { streamId: string; error: string }) => void): () => void
-  openSettings(): void
+  onPanelPrefsChanged(handler: (prefs: AiPanelPrefs) => void): () => void
+  aiStream(request: unknown): Promise<void>
+  aiStreamCancel(requestId: string): Promise<void>
+  onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
+  openModelSettings(): Promise<void>
   addAttachments(): Promise<AttachmentAddResult>
   addAttachmentPaths(paths: string[]): Promise<AttachmentAddResult>
   readAttachment(path: string, offset?: number, maxChars?: number): Promise<AttachmentReadResult>
   readAttachmentImage(path: string): Promise<AttachmentImageResult>
   savePastedImage(bytes: Uint8Array, mime: string): Promise<AttachmentMeta | null>
-  webSearch(query: string): Promise<unknown>
-  webFetch(url: string): Promise<unknown>
+  webSearch(query: string, maxResults?: number): Promise<unknown>
+  readUrl(url: string, offset?: number): Promise<unknown>
   imageSearch(query: string): Promise<unknown>
   generateImage(op: { prompt: string; aspectRatio?: string; model?: string }): Promise<unknown>
-  fetchImage(url: string): Promise<{ ok: boolean; bytes?: Uint8Array; mime?: string; error?: string }>
+  fetchImage(url: string): Promise<{ base64: string; mime: string } | null>
   resolveFilePath(file: File): string
 }
 
