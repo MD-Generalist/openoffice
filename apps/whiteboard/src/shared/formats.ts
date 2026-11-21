@@ -4,10 +4,7 @@
  */
 
 export type WhiteboardInputFormat =
-  | 'whiteboard'
-  | 'excalidraw'
-  | 'excalidraw.png'
-  | 'excalidraw.svg'
+  'whiteboard' | 'excalidraw' | 'excalidraw.png' | 'excalidraw.svg'
 
 export function detectWhiteboardFormat(fileName: string): WhiteboardInputFormat | null {
   const lower = fileName.toLowerCase()
@@ -24,9 +21,7 @@ export function isExcalidrawFormat(format: WhiteboardInputFormat | null): boolea
 
 export function whiteboardBaseName(filePath: string): string {
   const base = filePath.split(/[\\/]/).pop() ?? ''
-  return base
-    .replace(/\.excalidraw\.(png|svg)$/i, '')
-    .replace(/\.(whiteboard|excalidraw)$/i, '')
+  return base.replace(/\.excalidraw\.(png|svg)$/i, '').replace(/\.(whiteboard|excalidraw)$/i, '')
 }
 
 export function safeFileNameBase(raw: string): string {

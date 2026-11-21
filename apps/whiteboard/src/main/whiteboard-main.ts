@@ -87,7 +87,12 @@ import {
 
 export { setWhiteboardProvisionalTitleHook } from './ai-attachments'
 export { exportWhiteboardHeadless } from './headless-main'
-export { whiteboardApplyOps, whiteboardReadBytes, whiteboardReadPage, whiteboardReadText } from './mcp-queries'
+export {
+  whiteboardApplyOps,
+  whiteboardReadBytes,
+  whiteboardReadPage,
+  whiteboardReadText,
+} from './mcp-queries'
 export { excalidrawOpenRefusal, whiteboardOpenRefusal } from './open-check'
 export { DONT_SAVE_HOLD_MS as WHITEBOARD_DONT_SAVE_HOLD_MS } from './recovery-main'
 
@@ -259,12 +264,15 @@ export function registerWhiteboardIpc(): void {
     return openPathAsResult(pending, e.sender.id)
   })
 
-  ipcMain.handle(WHITEBOARD_CHANNELS.openFile, async (e, filePath: unknown): Promise<OpenFileResult> => {
-    if (typeof filePath !== 'string' || !filePath.trim()) {
-      return { ok: false, error: tm('failUnreadable') }
-    }
-    return openPathAsResult(filePath, e.sender.id)
-  })
+  ipcMain.handle(
+    WHITEBOARD_CHANNELS.openFile,
+    async (e, filePath: unknown): Promise<OpenFileResult> => {
+      if (typeof filePath !== 'string' || !filePath.trim()) {
+        return { ok: false, error: tm('failUnreadable') }
+      }
+      return openPathAsResult(filePath, e.sender.id)
+    },
+  )
 
   ipcMain.handle(
     WHITEBOARD_CHANNELS.saveTarget,
@@ -376,6 +384,7 @@ export function registerWhiteboardIpc(): void {
         viewSaved(e.sender.id, targetPath)
         st.onDirty?.(false)
         if (wasDifferent) st.onFilePath?.(targetPath)
+        fileSavedHook?.(e.sender, targetPath)
         return { ok: true, filePath: targetPath }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -403,6 +412,7 @@ export function registerWhiteboardIpc(): void {
         viewSaved(e.sender.id, writtenPath)
         st.onDirty?.(false)
         st.onFilePath?.(writtenPath)
+        fileSavedHook?.(e.sender, writtenPath)
         return { ok: true, filePath: writtenPath }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -446,7 +456,9 @@ export function registerWhiteboardIpc(): void {
   })
 
   ipcMain.handle(WHITEBOARD_CHANNELS.openFailed, (e, message: unknown) => {
-    views.get(e.sender.id)?.onOpenFailed?.(typeof message === 'string' ? message : tm('failCorrupt'))
+    views
+      .get(e.sender.id)
+      ?.onOpenFailed?.(typeof message === 'string' ? message : tm('failCorrupt'))
   })
 
   ipcMain.handle(
@@ -633,10 +645,7 @@ export function createWhiteboardView(options: CreateWhiteboardViewOptions = {}):
     recoveryNowWaiters.delete(wcId)
   })
 
-  const url = rendererUrl(
-    runtime.rendererUrl ?? process.env.WHITEBOARD_RENDERER_URL,
-    'whiteboard',
-  )
+  const url = rendererUrl(runtime.rendererUrl ?? process.env.WHITEBOARD_RENDERER_URL, 'whiteboard')
   void wc.loadURL(url)
   return view
 }
@@ -727,14 +736,12 @@ export async function whiteboardSaveToPath(
     viewSaved(contents.id, targetPath)
     st.onDirty?.(false)
     st.onFilePath?.(targetPath)
+    fileSavedHook?.(contents, targetPath)
   }
   return true
 }
 
-export function whiteboardSendMenuCommand(
-  contents: WebContents,
-  cmd: WhiteboardMenuCommand,
-): void {
+export function whiteboardSendMenuCommand(contents: WebContents, cmd: WhiteboardMenuCommand): void {
   if (!contents.isDestroyed()) {
     contents.send(WHITEBOARD_CHANNELS.menuCommand, cmd)
   }
@@ -854,6 +861,13 @@ export async function requestWhiteboardClose(
     return true
   }
   return whiteboardTriggerCloseSave(contents)
+}
+
+let fileSavedHook: ((contents: WebContents, filePath: string) => void) | null = null
+export function setWhiteboardFileSavedHook(
+  hook: (contents: WebContents, filePath: string) => void,
+): void {
+  fileSavedHook = hook
 }
 
 let recoveryTitleHook: ((contents: WebContents) => string | undefined) | null = null

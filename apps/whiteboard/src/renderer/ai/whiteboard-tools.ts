@@ -77,7 +77,8 @@ export const WHITEBOARD_TOOLS: readonly AgentToolDef[] = [
       properties: {
         template: {
           type: 'object',
-          description: 'Declarative template JSON document with schemaVersion: 1 and pages[].blocks[].',
+          description:
+            'Declarative template JSON document with schemaVersion: 1 and pages[].blocks[].',
         },
       },
       required: ['template'],
@@ -102,7 +103,10 @@ export const WHITEBOARD_TOOLS: readonly AgentToolDef[] = [
       type: 'object',
       properties: {
         url: { type: 'string', description: 'HTTP/HTTPS image URL to download and embed' },
-        base64: { type: 'string', description: 'Raw base64 raster image bytes (alternative to url)' },
+        base64: {
+          type: 'string',
+          description: 'Raw base64 raster image bytes (alternative to url)',
+        },
         alt: { type: 'string', description: 'Short image description' },
         x: { type: 'number', description: 'Optional canvas X coordinate' },
         y: { type: 'number', description: 'Optional canvas Y coordinate' },
@@ -152,7 +156,8 @@ export async function runWhiteboardTool(
   backend: WhiteboardImageBackend = defaultImageBackend(),
 ): Promise<WhiteboardToolResult> {
   if (name === WHITEBOARD_TOOL_NAMES.read) {
-    const pageRef = typeof input.page === 'string' && input.page.trim() ? input.page.trim() : undefined
+    const pageRef =
+      typeof input.page === 'string' && input.page.trim() ? input.page.trim() : undefined
     const view = pageRef ? await host.readPage(pageRef) : await host.readBoard()
     if (!view) {
       return { output: `page not found: ${pageRef ?? ''}`, isError: true }
@@ -174,7 +179,10 @@ export async function runWhiteboardTool(
     const res = await host.applyOps(ops, { defaultPageId })
     if (!res.ok) {
       const reasons = (res.failures ?? [])
-        .map((f) => `op[${f.index}]: ${f.error?.code ?? 'error'} — ${f.error?.message ?? 'invalid operation'}`)
+        .map(
+          (f) =>
+            `op[${f.index}]: ${f.error?.code ?? 'error'} — ${f.error?.message ?? 'invalid operation'}`,
+        )
         .join('\n')
       return {
         output: `Edit refused (nothing changed):\n${reasons || 'invalid operations'}`,
@@ -247,7 +255,7 @@ export async function runWhiteboardTool(
   }
 
   if (name === WHITEBOARD_TOOL_NAMES.insertImage) {
-    let bytes: Uint8Array | null = null
+    let bytes: Uint8Array
     if (typeof input.base64 === 'string' && input.base64.trim()) {
       try {
         bytes = base64ToUint8(input.base64)

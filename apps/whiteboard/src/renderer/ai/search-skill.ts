@@ -47,7 +47,8 @@ export function createSearchSkill(): AgentSkill {
     executeTool: async (call) => {
       if (call.name === 'read_url') {
         const url = String(call.input.url ?? '').trim()
-        if (!url) return { output: 'url must not be empty', isError: true, summary: t('aiToolReadUrl') }
+        if (!url)
+          return { output: 'url must not be empty', isError: true, summary: t('aiToolReadUrl') }
         const offset = Math.max(0, Math.floor(Number(call.input.offset) || 0))
         const r = (await window.whiteboardApi.ai.readUrl(url, offset)) as {
           ok: boolean
@@ -60,7 +61,11 @@ export function createSearchSkill(): AgentSkill {
           error?: string
         }
         if (!r?.ok) {
-          return { output: r?.error ?? 'read_url failed', isError: true, summary: t('aiToolReadUrl') }
+          return {
+            output: r?.error ?? 'read_url failed',
+            isError: true,
+            summary: t('aiToolReadUrl'),
+          }
         }
         const finalUrl = r.url ?? url
         const text = r.text ?? ''
@@ -76,8 +81,12 @@ export function createSearchSkill(): AgentSkill {
         return { output: `unknown tool: ${call.name}`, isError: true, summary: call.name }
       }
       const query = String(call.input.query ?? '').trim()
-      if (!query) return { output: 'query must not be empty', isError: true, summary: t('aiToolWebSearch') }
-      const r = (await window.whiteboardApi.ai.webSearch(query, Number(call.input.maxResults) || 6)) as {
+      if (!query)
+        return { output: 'query must not be empty', isError: true, summary: t('aiToolWebSearch') }
+      const r = (await window.whiteboardApi.ai.webSearch(
+        query,
+        Number(call.input.maxResults) || 6,
+      )) as {
         method?: string
         error?: string
         answer?: string

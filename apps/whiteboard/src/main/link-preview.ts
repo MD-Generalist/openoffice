@@ -64,7 +64,8 @@ function attributesOf(tag: string): Map<string, string> {
   const pattern = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g
   for (const match of tag.matchAll(pattern)) {
     const name = match[1]!.toLowerCase()
-    if (!found.has(name)) found.set(name, decodeHtmlEntities(match[2] ?? match[3] ?? match[4] ?? ''))
+    if (!found.has(name))
+      found.set(name, decodeHtmlEntities(match[2] ?? match[3] ?? match[4] ?? ''))
   }
   return found
 }
@@ -170,7 +171,10 @@ export async function readWhiteboardLinkPreview(rawUrl: unknown): Promise<LinkPr
       signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
     })
     if (!response || !response.ok) {
-      return { ok: false, error: response ? `HTTP ${response.status}` : 'blocked or unreachable URL' }
+      return {
+        ok: false,
+        error: response ? `HTTP ${response.status}` : 'blocked or unreachable URL',
+      }
     }
     const contentType = response.headers.get('content-type') ?? ''
     if (!/text\/html|application\/xhtml/i.test(contentType)) {

@@ -78,7 +78,8 @@ const core: WhiteboardCoreApi = {
   readLinkPreview: (url) => ipcRenderer.invoke(WHITEBOARD_CHANNELS.readLinkPreview, url),
   openHelp: () => ipcRenderer.send(WHITEBOARD_CHANNELS.openHelp),
   openFailed: (message) => ipcRenderer.invoke(WHITEBOARD_CHANNELS.openFailed, message),
-  onMenuCommand: (handler) => listen<[WhiteboardMenuCommand]>(WHITEBOARD_CHANNELS.menuCommand, handler),
+  onMenuCommand: (handler) =>
+    listen<[WhiteboardMenuCommand]>(WHITEBOARD_CHANNELS.menuCommand, handler),
   getLanguage: () => ipcRenderer.invoke(APP_CHANNELS.getLanguage),
   onLanguageChanged: (handler) => listen<[Lang]>(APP_CHANNELS.languageChanged, handler),
   getTheme: () => ipcRenderer.invoke(APP_CHANNELS.getTheme),
@@ -113,9 +114,11 @@ const recovery: WhiteboardRecoveryApi = {
 }
 
 const queries: WhiteboardQueryApi = {
-  onReadRequest: (handler) => listen<[WhiteboardReadQuery]>(WHITEBOARD_CHANNELS.readRequest, handler),
+  onReadRequest: (handler) =>
+    listen<[WhiteboardReadQuery]>(WHITEBOARD_CHANNELS.readRequest, handler),
   sendReadResult: (reply) => ipcRenderer.send(WHITEBOARD_CHANNELS.readResult, reply),
-  onApplyRequest: (handler) => listen<[WhiteboardApplyQuery]>(WHITEBOARD_CHANNELS.applyRequest, handler),
+  onApplyRequest: (handler) =>
+    listen<[WhiteboardApplyQuery]>(WHITEBOARD_CHANNELS.applyRequest, handler),
   sendApplyResult: (reply) => ipcRenderer.send(WHITEBOARD_CHANNELS.applyResult, reply),
   onBytesRequest: (handler) => listen<[]>(WHITEBOARD_CHANNELS.bytesRequest, handler),
   sendBytesResult: (reply) => ipcRenderer.send(WHITEBOARD_CHANNELS.bytesResult, reply),
@@ -179,16 +182,19 @@ const ai: WhiteboardAiApi = {
   onSettingsChanged: (handler) => listen<[]>(AI_CHANNELS.settingsChanged, handler),
   getPanelPrefs: () => ipcRenderer.invoke(APP_CHANNELS.getAiPanelPrefs) as Promise<AiPanelPrefs>,
   setPanelPrefs: (patch) => ipcRenderer.invoke(APP_CHANNELS.setAiPanelPrefs, patch),
-  onPanelPrefsChanged: (handler) => listen<[AiPanelPrefs]>(APP_CHANNELS.aiPanelPrefsChanged, handler),
+  onPanelPrefsChanged: (handler) =>
+    listen<[AiPanelPrefs]>(APP_CHANNELS.aiPanelPrefsChanged, handler),
   aiStream: (request) => ipcRenderer.invoke(AI_CHANNELS.stream, request),
   aiStreamCancel: (requestId) => ipcRenderer.invoke(AI_CHANNELS.streamCancel, requestId),
   onAiStream: (handler) => listen<[AiStreamChunk]>(AI_CHANNELS.streamChunk, handler),
   openModelSettings: () => ipcRenderer.invoke(AI_CHANNELS.openModelSettings),
   addAttachments: () => ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiAddAttachments),
-  addAttachmentPaths: (paths) => ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiAddAttachmentPaths, paths),
+  addAttachmentPaths: (paths) =>
+    ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiAddAttachmentPaths, paths),
   readAttachment: (path, offset, maxChars) =>
     ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiReadAttachment, path, offset, maxChars),
-  readAttachmentImage: (path) => ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiReadAttachmentImage, path),
+  readAttachmentImage: (path) =>
+    ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiReadAttachmentImage, path),
   savePastedImage: (bytes, mime) =>
     ipcRenderer.invoke(WHITEBOARD_CHANNELS.aiSavePastedImage, bytes, mime),
   webSearch: (query, maxResults) => ipcRenderer.invoke(AI_CHANNELS.webSearch, query, maxResults),

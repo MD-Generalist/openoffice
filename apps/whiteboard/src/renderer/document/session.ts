@@ -206,7 +206,10 @@ export class WhiteboardSession implements WhiteboardAiHost {
   }
 
   /** Commits a new validated BoardDocument as one undo step. */
-  commitDocument(nextDoc: BoardDocument, options: { isAiStep?: boolean; nextPageId?: string } = {}): void {
+  commitDocument(
+    nextDoc: BoardDocument,
+    options: { isAiStep?: boolean; nextPageId?: string } = {},
+  ): void {
     const prevSnapshot = structuredClone(this.doc)
     const prevPageId = this.activePageId
     const revBefore = this.revision
@@ -354,12 +357,12 @@ export class WhiteboardSession implements WhiteboardAiHost {
     return created
   }
 
-  /** Serializes `.whiteboard` bytes (byte-identical if unchanged since open). */
+  /** Serializes `.whiteboard` bytes (byte-identical if unchanged since open or last save). */
   async serializeForSave(options: { updateThumbnail?: boolean } = {}): Promise<{
     bytes: Uint8Array
     unchanged: boolean
   }> {
-    if (!this.isDirty() && !this.archive.isChanged()) {
+    if (!this.isDirty() && this.filePath !== null) {
       return { bytes: this.archive.save(), unchanged: true }
     }
     if (options.updateThumbnail && this.doc.pages[0]) {
@@ -400,12 +403,7 @@ export class WhiteboardSession implements WhiteboardAiHost {
   }
 
   async captureCurrentPagePng(maxEdge = 1600): Promise<CapturedPagePng | null> {
-    const rendered = renderPageToSvg(
-      this.doc,
-      this.activePageId,
-      this.getAllResourceDataUrls(),
-      48,
-    )
+    const rendered = renderPageToSvg(this.doc, this.activePageId, this.getAllResourceDataUrls(), 48)
     if (!rendered) return null
     const png = await renderSvgToPngBytes(rendered.svg, rendered.width, rendered.height, maxEdge)
     if (!png) return null

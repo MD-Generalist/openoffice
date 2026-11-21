@@ -312,9 +312,9 @@ const NOTICE_PATH = join(__dirname, 'build/THIRD-PARTY-NOTICES.txt')
 const PDFIUM_NOTICE_TERMS = ['@embedpdf/pdfium', 'Copyright 2014 PDFium Authors', 'Apache License']
 // tools/gen-third-party-notices.mjs writes this header after the repo NOTICE,
 // and one crate-count line per Rust component (xlsx-sidecar, rhwp_bg.wasm,
-// ieum-parse-sidecar, hwp5_bg.wasm, print_layout_bg.wasm)
+// ieum-parse-sidecar, hwp5_bg.wasm, print_layout_bg.wasm, whiteboard_engine_bg.wasm)
 const NOTICE_HEADER = `${PRODUCT_NAME} — Third-Party Software Notices`
-const RUST_COMPONENTS = 5
+const RUST_COMPONENTS = 6
 const CRATE_COUNT_LINE = /^[1-9]\d* crates, all under permissive terms:$/gm
 
 /**

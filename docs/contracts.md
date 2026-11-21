@@ -205,6 +205,21 @@ draw.io 다이어그램(`.drawio`, `.dio`, `.drawio.svg`, `.drawio.png`)을 읽�
 - `delete_topic`은 지우면 보존 요소(경계, 부유 주제, 부름말, 요약 아래 가지)를 잃는 주제를 개수와 함께 거절한다(`op_rejected`, `detail.preserved`). 가운데 주제는 지우거나 옮기지 못한다.
 - MCP 도구는 `map_read`, `map_apply`, `map_create`다. `map_create`는 `out`이 꼭 있어야 한다.
 
+## 화이트보드 명령
+
+화이트보드(`.whiteboard`)를 읽고 고치고 개요를 뽑고 만들고 그림·PDF로 바꾼다. 열기·읽기·고치기·개요·생성은 `@genoffice/whiteboard-engine`(Rust WASM)으로 앱 없이 이 프로세스에서 돈다. Excalidraw(`.excalidraw`, `.excalidraw.png`, `.excalidraw.svg`)는 CLI에서 종료 코드 2(`unsupported`)로 거절하고 앱에서 열어 가져오라고 안내한다.
+
+| 명령                                                                                                                                   | 동작                                                                                                                                               | 앱        |
+| -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `whiteboard read <파일> [--page <id\|번호\|이름>]`                                                                                     | 쪽마다 구조화 읽기 표. `--json`의 `detail`은 `{ boardId, title, pages, objects }`                                                                  | 필요 없음 |
+| `whiteboard apply <파일> (--ops <JSON\|@파일\|-> \| --template <JSON\|@파일\|->) [--page <id>] [--out <경로>] [--best-effort\|--stop-on-error] [--force]` | 연산 묶음이나 선언형 템플릿을 적용해 `.whiteboard`로 쓴다. 바뀐 것이 없으면 파일을 쓰지 않는다                                                   | 필요 없음 |
+| `whiteboard outline <파일> [--page <id\|번호\|이름>]`                                                                                  | 결정적 마크다운 개요 추출                                                                                                                          | 필요 없음 |
+| `create --type whiteboard --out <경로> [--title <글>] [--ops <JSON\|@파일\|->] [--template <JSON\|@파일\|->]`                          | 새 `.whiteboard` 생성(선택적 초기 연산·템플릿 적용)                                                                                                | 필요 없음 |
+| `convert <파일.whiteboard> --to pdf\|png\|svg [--page <n>] [--out <경로>]`                                                             | `--headless-export`로 밝은 색 기준 PDF·PNG·SVG 내보내기                                                                                            | 필요      |
+| `guide whiteboard`                                                                                                                     | 연산·템플릿 안내                                                                                                                                   | 필요 없음 |
+
+- MCP 도구는 `whiteboard_read`, `whiteboard_apply`, `create_whiteboard`다.
+
 ## 웹 페이지 읽기 (`read-url`)
 
 `ieumoffice read-url <url> [--offset <n>]`은 http(s) 주소 하나를 그 사이트에서 받아 읽을 수 있는 글로 돌려준다. HTML은 글자로 바꾸고, GitHub `blob` 주소는 raw 주소로 바꿔 읽는다. 주소는 `fetchWithSsrfGuard`를 지나며 사설·루프백 주소와 그런 곳으로 가는 리다이렉트는 거절한다. 한 번에 50,000자를 주고, 이어 읽기는 `--offset`(기본 0)으로 한다. 제공자·구독·자동 호출 장부를 쓰지 않는다. 비공개 GitHub 파일은 설정의 읽기 토큰을 쓰며, 그 토큰은 `api.github.com` 요청에만 실린다.
@@ -311,6 +326,7 @@ draw.io 다이어그램(`.drawio`, `.dio`, `.drawio.svg`, `.drawio.png`)을 읽�
 - 두 도구의 `document`는 `open_documents`가 준 id나 경로다. 없으면 앞에 있는 다이어그램이다(초점을 가진 떼어 낸 창의 다이어그램, 아니면 앱 창에서 활성인 다이어그램 탭). 앞에 다이어그램이 없으면 열린 다이어그램의 목록(한 줄에 하나씩 id, 경로, 제목)을 오류 글에 담아 거절한다. 앱 안 MCP 서버의 오류는 글 하나(`isError`)이고 따로 `detail` 칸이 없어서, 목록은 오류 글에 있다. 다른 종류의 문서를 주면 거절한다. 뒤에 있는 탭을 고치면 그 탭을 앞으로 낸다.
 - `get_app_info`의 `families`에 `{ family: "drawio", label: "diagram", editor: { open: ["drawio", "dio", "drawio.svg", "drawio.png", "vsdx"], save: ["drawio", "dio", "drawio.svg", "drawio.png"], export: ["png", "svg", "pdf"] } }`가 있다. `mcp` 항목은 없다.
 - 에이전트 모드의 세션 서버에는 두 다이어그램 도구가 없다(도구 목록은 그대로다). 그 서버의 `open_documents`는 다이어그램 탭도 목록에 내고 `read`로 같은 글을 읽는다.
+- `open_documents`의 목록에 화이트보드 탭이 `kind: "whiteboard"`, `type: "whiteboard"`로 나온다(떼어 낸 창도 같다). 앱 안 MCP는 `read_whiteboard`(열린 화이트보드의 읽기 표)·`apply_whiteboard_ops`(연산 묶음 또는 선언형 템플릿 적용, 호출당 실행 취소 1단계)를 제공하고, `get_app_info`의 `families`에 `{ family: "whiteboard", label: "whiteboard", editor: { open: ["whiteboard", "excalidraw", "excalidraw.png", "excalidraw.svg"], save: ["whiteboard"], export: ["png", "svg", "pdf"] } }`가 있다.
 
 ## 에이전트 스킬
 
@@ -343,7 +359,7 @@ metadata:
 
 - `ieum-title`: 사람이 붙인 제목. 어떤 언어든 된다(결정 0128). 기본 스킬이 아닌 스킬에 이 값이 있으면 화면과 `/` 목록이 이 제목을 보이고 `name`을 옆에 작게 붙인다. 없으면 `name`을 보인다. 편집 화면과 스킬 카드에서 적고, 비우고 저장하면 이 줄이 지워진다. 앱은 고칠 때 값이 바뀌지 않은 앞머리 줄을 적힌 글자 그대로 둔다.
 - `ieum-template`: 스킬 폴더 안 `assets/` 아래 양식 문서의 상대 경로.
-- `ieum-editors`: 이 스킬을 쓰는 편집기(결정 0122). 빈칸으로 나눈 편집기 이름이고 `docs`·`sheets`·`slides`·`hwp`·`pdf`·`markdown`·`html`·`mindmap`·`epub`·`diagram` 가운데에서 쓴다(`@genoffice/agent-core/skill-editors`의 `SKILL_EDITORS`). 없으면 모든 편집기다. 모르는 이름은 무시하고, 아는 이름이 하나도 없으면 모든 편집기로 읽는다. 새 판의 앱이 더한 편집기 이름 때문에 옛 판에서 스킬이 사라지지 않게 하려는 것이다. 앱은 고칠 때 선택이 바뀌지 않았으면 적힌 글자를 그대로 둔다. 이름은 저장되는 값이라 바꾸지 않는다.
+- `ieum-editors`: 이 스킬을 쓰는 편집기(결정 0122). 빈칸으로 나눈 편집기 이름이고 `docs`·`sheets`·`slides`·`hwp`·`pdf`·`markdown`·`html`·`mindmap`·`epub`·`diagram`·`whiteboard` 가운데에서 쓴다(`@genoffice/agent-core/skill-editors`의 `SKILL_EDITORS`). 없으면 모든 편집기다. 모르는 이름은 무시하고, 아는 이름이 하나도 없으면 모든 편집기로 읽는다. 새 판의 앱이 더한 편집기 이름 때문에 옛 판에서 스킬이 사라지지 않게 하려는 것이다. 앱은 고칠 때 선택이 바뀌지 않았으면 적힌 글자를 그대로 둔다. 이름은 저장되는 값이라 바꾸지 않는다.
 - 이음오피스가 새로 만드는 이름은 소문자·숫자·하이픈만 쓰고, 하이픈으로 시작하거나 끝나지 않으며 `--`가 없다.
 
 **내보내기 zip과 꾸러미(결정 0120).** 내보낸 zip은 맨 위에 스킬 이름의 폴더가 있고, 그 안이 스킬 폴더 그대로다(아래 출처 기록은 빠진다). 스킬 하나는 `<이름>.zip`이고, 여러 개(꾸러미)는 저장 창이 "〈첫 스킬〉 외 N개.zip"을 제안한다(화면 언어의 말, Windows 파일 이름에 쓸 수 없는 글자는 뺀다. 쓸 말이 없으면 `skills.zip`, 결정 0128). 파일 이름은 사람이 바꿀 수 있고 내용과 상관없다. 꾸러미는 맨 위 폴더마다 스킬 하나다. 이름이 같은 스킬 둘은 한 꾸러미에 넣지 않는다. 다른 프로그램에서는 맨 위 폴더를 하나씩 스킬 폴더에 풀어 넣으면 된다. 가져오기는 이 꼴 말고도 zip 안의 `SKILL.md` 폴더를 모두 찾지만, 창에 끌어 놓은 zip은 맨 위에 `SKILL.md`가 있거나 맨 위 폴더마다 `SKILL.md`가 있을 때만 스킬로 본다(`__MACOSX`와 `.`으로 시작하는 폴더, 맨 위의 낱 파일은 따지지 않는다).
@@ -376,8 +392,8 @@ metadata:
 | `agentProjectPrefs`     | 프로젝트 폴더 절대 경로 → `{ codexWebSearch: 'cached' \| 'live' \| 'disabled', codexNetwork }`                                                                                                                                                                                                     | 없음(`cached`, 거짓)                                                                   |
 | `hwpDefaultFormat`      | `'hwp'` 또는 `'hwpx'`. 파일이 없는 새 한글 문서의 첫 저장에 먼저 제안할 형식                                                                                                                                                                                                                       | `hwp`                                                                                  |
 | `slidesAiFonts`         | `{ mode: 'auto' \| 'sans' \| 'serif' \| 'serifTitle', sans, serif }`. AI가 새 발표 자료를 만들 때 요청에 글꼴이 없으면 쓰는 글꼴. `sans`·`serif`는 글꼴 이름(80자까지). 모르는 부분은 그 부분만 기본으로 읽는다                                                                                    | 화면 언어가 한국어·영어면 `sans`, 나머지는 `auto`. 글꼴은 `Pretendard`·`Noto Serif KR` |
-| `homeKinds`             | `{ order?, hidden? }`. 홈의 새 문서 카드·새로 만들기 메뉴의 순서와 뺀 종류(`docx`·`xlsx`·`pptx`·`md`·`html`·`xmind`·`hwp`·`pdf`·`pdfTools`). 처음 상태와 다른 것만 적는다                                                                                                                          | 없음(모두, 처음 순서)                                                                  |
-| `editors`               | `{ off: [...] }`. 끈 항목의 id(`docs`·`sheets`·`slides`·`pdf`·`pdfTools`·`markdown`·`html`·`mindmap`·`diagram`·`hwp`·`epub`, 결정 0143). 모르는 id는 읽을 때 버린다. 편집기 10개(`pdfTools` 제외)가 모두 꺼진 값은 쓰지 않고, 그런 값이 있으면 모두 켜짐으로 읽는다. `homeKinds`의 숨김과는 따로다 | 없음(모두 켜짐)                                                                        |
+| `homeKinds`             | `{ order?, hidden? }`. 홈의 새 문서 카드·새로 만들기 메뉴의 순서와 뺀 종류(`docx`·`xlsx`·`pptx`·`md`·`html`·`xmind`·`drawio`·`whiteboard`·`hwp`·`pdf`·`pdfTools`). 처음 상태와 다른 것만 적는다                                                                                                       | 없음(모두, 처음 순서)                                                                  |
+| `editors`               | `{ off: [...] }`. 끈 항목의 id(`docs`·`sheets`·`slides`·`pdf`·`pdfTools`·`markdown`·`html`·`mindmap`·`diagram`·`whiteboard`·`hwp`·`epub`, 결정 0143). 모르는 id는 읽을 때 버린다. 편집기 11개(`pdfTools` 제외)가 모두 꺼진 값은 쓰지 않고, 그런 값이 있으면 모두 켜짐으로 읽는다. `homeKinds`의 숨김과는 따로다 | 없음(모두 켜짐)                                                                        |
 | `aiFeatures`            | `false`일 때만 쓴다. 앱 화면의 AI 기능을 모두 감추고 화면 경로의 AI 실행을 멈춘다. 로그인·키·스킬·다른 설정은 지우지 않는다. 터미널 명령어와 MCP는 이 값을 따르지 않는다                                                                                                                           | 없음(켜짐)                                                                             |
 | `editorPickSeen`        | 참. 첫 실행 안내의 고르기 단계나 기존 사용자의 한 번 고르기를 한 번 지났는지                                                                                                                                                                                                                       | 없음(아직 안 봄)                                                                       |
 

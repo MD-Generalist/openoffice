@@ -8,12 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
-import {
-  aiVisible,
-  useAppChoice,
-  useAutoSavePref,
-  useSplitPaneFocusPing,
-} from '@genoffice/ui'
+import { aiVisible, useAppChoice, useAutoSavePref, useSplitPaneFocusPing } from '@genoffice/ui'
 import type {
   ExportFormat,
   ExportPageImage,
@@ -197,9 +192,7 @@ export default function App(): ReactElement {
     (s: WhiteboardSession, scope: 'all' | 'current'): PrintPage[] => {
       const doc = s.getDocument()
       const pages =
-        scope === 'current'
-          ? doc.pages.filter((p) => p.id === s.getActivePageId())
-          : doc.pages
+        scope === 'current' ? doc.pages.filter((p) => p.id === s.getActivePageId()) : doc.pages
       const urls = s.getAllResourceDataUrls()
       const out: PrintPage[] = []
       for (const page of pages) {
@@ -346,7 +339,9 @@ export default function App(): ReactElement {
         }
         void s.applyOps(q.ops ?? [], { defaultPageId: q.defaultPageId }).then((res) => {
           if (!res.ok) {
-            const msg = res.failures?.map((f) => f.error?.message ?? 'edit failed').join('; ') || 'edit failed'
+            const msg =
+              res.failures?.map((f) => f.error?.message ?? 'edit failed').join('; ') ||
+              'edit failed'
             window.whiteboardApi.queries.sendApplyResult({ id: q.id, error: msg })
           } else {
             window.whiteboardApi.queries.sendApplyResult({ id: q.id, result: res })

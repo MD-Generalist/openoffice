@@ -29,8 +29,7 @@ export interface InsertImageInput {
 }
 
 export type InsertImageResult =
-  | { ok: true; objectId: string; resourceId: string }
-  | { ok: false; error: string }
+  { ok: true; objectId: string; resourceId: string } | { ok: false; error: string }
 
 export interface WhiteboardAiHost {
   /** Reads the full board structured table (every page) with selection flags. */

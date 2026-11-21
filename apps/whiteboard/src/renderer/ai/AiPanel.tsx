@@ -204,19 +204,16 @@ export function AiPanel({
       }
 
       if (!loopRef.current) {
-        const transport = createElectronTransport(
-          () => settingsRef.current!,
-          {
-            getLang: () => langRef.current,
-            onStreamError: (err) => {
-              lastStreamErrorRef.current = err
-            },
-            onSubscriptionUsage: (reported) => {
-              setUsage((prev) => mergeSubscriptionUsage(prev, reported))
-            },
-            onInputTruncated: () => setInputTruncated(true),
+        const transport = createElectronTransport(() => settingsRef.current!, {
+          getLang: () => langRef.current,
+          onStreamError: (err) => {
+            lastStreamErrorRef.current = err
           },
-        )
+          onSubscriptionUsage: (reported) => {
+            setUsage((prev) => mergeSubscriptionUsage(prev, reported))
+          },
+          onInputTruncated: () => setInputTruncated(true),
+        })
         const wbSkill = createWhiteboardSkill({
           host: () => host,
           context: () => contextRef.current,
@@ -419,12 +416,7 @@ export function AiPanel({
         >
           +
         </button>
-        <button
-          type="button"
-          className="wb-btn"
-          title={t('aiCollapsePanel')}
-          onClick={onCollapse}
-        >
+        <button type="button" className="wb-btn" title={t('aiCollapsePanel')} onClick={onCollapse}>
           ×
         </button>
       </>

@@ -43,14 +43,7 @@ import { renderPageToSvg, richTextPlain } from '../export/render-svg'
 import { useI18n } from '../i18n/locale'
 
 type ToolKind =
-  | 'select'
-  | 'sticky'
-  | 'text'
-  | 'shape'
-  | 'connector'
-  | 'pen'
-  | 'highlighter'
-  | 'eraser'
+  'select' | 'sticky' | 'text' | 'shape' | 'connector' | 'pen' | 'highlighter' | 'eraser'
 
 const STICKY_COLORS = ['#FEF08A', '#FBCFE8', '#BFDBFE', '#BBF7D0', '#FED7AA', '#DDD6FE'] as const
 const STROKE_COLORS = ['#0F172A', '#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED'] as const
@@ -146,7 +139,13 @@ export function WhiteboardEditor({
     points?: Array<[number, number, number]>
   } | null>(null)
   const [liveStroke, setLiveStroke] = useState<Array<[number, number, number]> | null>(null)
-  const [dragDelta, setDragDelta] = useState<{ id: string; dx: number; dy: number; dw: number; dh: number } | null>(null)
+  const [dragDelta, setDragDelta] = useState<{
+    id: string
+    dx: number
+    dy: number
+    dw: number
+    dh: number
+  } | null>(null)
 
   useEffect(() => session.subscribe(() => setTick((n) => n + 1)), [session])
 
@@ -154,7 +153,8 @@ export function WhiteboardEditor({
   const activePage = session.getActivePage()
   const activePageId = activePage?.id ?? ''
   const selectedIds = session.getSelection()
-  const highlightSet = useMemo(() => new Set(session.getHighlights()), [session.getHighlights()])
+  const highlights = session.getHighlights()
+  const highlightSet = useMemo(() => new Set(highlights), [highlights])
   const importSummary = session.getImportSummary()
 
   const pageObjects = useMemo(
@@ -166,8 +166,7 @@ export function WhiteboardEditor({
   )
   const objectsById = useMemo(() => new Map(pageObjects.map((o) => [o.id, o])), [pageObjects])
 
-  const selectedObj =
-    selectedIds.length === 1 ? (objectsById.get(selectedIds[0]!) ?? null) : null
+  const selectedObj = selectedIds.length === 1 ? (objectsById.get(selectedIds[0]!) ?? null) : null
 
   const clientToBoard = useCallback(
     (clientX: number, clientY: number) => {
@@ -190,7 +189,10 @@ export function WhiteboardEditor({
     }
     const targetW = activePage.format === 'freeform' ? 1280 : activePage.width || 1280
     const targetH = activePage.format === 'freeform' ? 800 : activePage.height || 720
-    const nextZoom = Math.max(0.2, Math.min(2, Math.min((rect.width - 64) / targetW, (rect.height - 64) / targetH)))
+    const nextZoom = Math.max(
+      0.2,
+      Math.min(2, Math.min((rect.width - 64) / targetW, (rect.height - 64) / targetH)),
+    )
     setZoom(Number(nextZoom.toFixed(2)))
     setPan({
       x: Math.round((rect.width - targetW * nextZoom) / 2),
@@ -548,7 +550,18 @@ export function WhiteboardEditor({
       // Click empty stage clears selection.
       session.setSelection([])
     },
-    [activeColor, clientToBoard, commitInlineEdit, editingId, pan.x, pan.y, session, shapeKind, t, tool],
+    [
+      activeColor,
+      clientToBoard,
+      commitInlineEdit,
+      editingId,
+      pan.x,
+      pan.y,
+      session,
+      shapeKind,
+      t,
+      tool,
+    ],
   )
 
   const handleObjectPointerDown = useCallback(
@@ -892,11 +905,7 @@ export function WhiteboardEditor({
               <button type="button" className="wb-btn" onClick={handleDuplicateSelected}>
                 {t('toolDuplicate')}
               </button>
-              <button
-                type="button"
-                className="wb-btn"
-                onClick={() => session.deleteSelected()}
-              >
+              <button type="button" className="wb-btn" onClick={() => session.deleteSelected()}>
                 {t('toolDelete')}
               </button>
             </>
@@ -908,11 +917,7 @@ export function WhiteboardEditor({
       {importSummary && importSummary.skippedCount > 0 && (
         <div className="wb-banner" role="status">
           <span>{t('excalidrawBanner', { count: importSummary.skippedCount })}</span>
-          <button
-            type="button"
-            className="wb-btn"
-            onClick={() => session.dismissImportBanner()}
-          >
+          <button type="button" className="wb-btn" onClick={() => session.dismissImportBanner()}>
             {t('excalidrawBannerDismiss')}
           </button>
         </div>
@@ -943,7 +948,9 @@ export function WhiteboardEditor({
           onWheel={(e) => {
             if (e.ctrlKey || e.metaKey) {
               e.preventDefault()
-              setZoom((z) => Math.max(0.2, Math.min(4, Number((z * (e.deltaY < 0 ? 1.1 : 0.9)).toFixed(2)))))
+              setZoom((z) =>
+                Math.max(0.2, Math.min(4, Number((z * (e.deltaY < 0 ? 1.1 : 0.9)).toFixed(2)))),
+              )
             } else {
               setPan((p) => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }))
             }
@@ -961,29 +968,24 @@ export function WhiteboardEditor({
                   fill="#FFFFFF"
                   rx={4}
                 />
-                {activePage.background?.kind === 'image' && (() => {
-                  const href = session.getResourceDataUrl(activePage.background.resourceId)
-                  return href ? (
-                    <image
-                      href={href}
-                      x={0}
-                      y={0}
-                      width={activePage.width}
-                      height={activePage.height}
-                      preserveAspectRatio="xMidYMid meet"
-                      style={{ pointerEvents: 'none' }}
-                    />
-                  ) : null
-                })()}
+                {activePage.background?.kind === 'image' &&
+                  (() => {
+                    const href = session.getResourceDataUrl(activePage.background.resourceId)
+                    return href ? (
+                      <image
+                        href={href}
+                        x={0}
+                        y={0}
+                        width={activePage.width}
+                        height={activePage.height}
+                        preserveAspectRatio="xMidYMid meet"
+                        style={{ pointerEvents: 'none' }}
+                      />
+                    ) : null
+                  })()}
               </g>
             ) : (
-              <rect
-                x={-4000}
-                y={-4000}
-                width={8000}
-                height={8000}
-                fill="#FFFFFF"
-              />
+              <rect x={-4000} y={-4000} width={8000} height={8000} fill="#FFFFFF" />
             )}
 
             {/* Board objects */}
@@ -1112,7 +1114,9 @@ export function WhiteboardEditor({
           <button
             type="button"
             className="wb-btn"
-            onClick={() => session.addPage('freeform', t('pageDefaultName', { n: doc.pages.length + 1 }))}
+            onClick={() =>
+              session.addPage('freeform', t('pageDefaultName', { n: doc.pages.length + 1 }))
+            }
           >
             + {t('pageAdd')}
           </button>
@@ -1140,11 +1144,19 @@ export function WhiteboardEditor({
         </div>
 
         <div className="wb-status-group">
-          <button type="button" className="wb-btn" onClick={() => setZoom((z) => Math.max(0.2, Number((z - 0.15).toFixed(2))))}>
+          <button
+            type="button"
+            className="wb-btn"
+            onClick={() => setZoom((z) => Math.max(0.2, Number((z - 0.15).toFixed(2))))}
+          >
             −
           </button>
           <span>{Math.round(zoom * 100)}%</span>
-          <button type="button" className="wb-btn" onClick={() => setZoom((z) => Math.min(4, Number((z + 0.15).toFixed(2))))}>
+          <button
+            type="button"
+            className="wb-btn"
+            onClick={() => setZoom((z) => Math.min(4, Number((z + 0.15).toFixed(2))))}
+          >
             +
           </button>
           <button type="button" className="wb-btn" onClick={handleFitZoom}>
@@ -1312,7 +1324,12 @@ export function WhiteboardEditor({
               <img
                 alt={activePage.title || 'Whiteboard page'}
                 src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(presentSvg.svg)}`}
-                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', background: '#FFFFFF' }}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  objectFit: 'contain',
+                  background: '#FFFFFF',
+                }}
               />
             )}
           </div>
@@ -1333,7 +1350,8 @@ export function WhiteboardEditor({
               type="button"
               onClick={() => {
                 const idx = doc.pages.findIndex((p) => p.id === activePageId)
-                if (idx >= 0 && idx + 1 < doc.pages.length) session.setActivePageId(doc.pages[idx + 1]!.id)
+                if (idx >= 0 && idx + 1 < doc.pages.length)
+                  session.setActivePageId(doc.pages[idx + 1]!.id)
               }}
             >
               {t('presentNext')}
@@ -1374,8 +1392,20 @@ function renderObjectElement(
             stroke="#D1D5DB"
             strokeWidth={1}
           />
-          <foreignObject x={x + 10} y={y + 10} width={Math.max(10, width - 20)} height={Math.max(10, height - 20)}>
-            <div style={{ color: '#0F172A', fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          <foreignObject
+            x={x + 10}
+            y={y + 10}
+            width={Math.max(10, width - 20)}
+            height={Math.max(10, height - 20)}
+          >
+            <div
+              style={{
+                color: '#0F172A',
+                fontSize: 14,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
               {text}
             </div>
           </foreignObject>
@@ -1387,7 +1417,14 @@ function renderObjectElement(
       const text = richTextPlain(p.text)
       return (
         <foreignObject x={x} y={y} width={width} height={height}>
-          <div style={{ color: '#0F172A', fontSize: 16, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          <div
+            style={{
+              color: '#0F172A',
+              fontSize: 16,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          >
             {text}
           </div>
         </foreignObject>
@@ -1406,7 +1443,12 @@ function renderObjectElement(
             strokeWidth={p.strokeWidth ?? 2}
           />
           {text && (
-            <foreignObject x={8} y={8} width={Math.max(10, width - 16)} height={Math.max(10, height - 16)}>
+            <foreignObject
+              x={8}
+              y={8}
+              width={Math.max(10, width - 16)}
+              height={Math.max(10, height - 16)}
+            >
               <div
                 style={{
                   width: '100%',
@@ -1484,7 +1526,14 @@ function renderObjectElement(
       const p = obj.props as unknown as ImageProps
       const href = session.getResourceDataUrl(p.resourceId)
       return href ? (
-        <image href={href} x={x} y={y} width={width} height={height} preserveAspectRatio="xMidYMid meet" />
+        <image
+          href={href}
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          preserveAspectRatio="xMidYMid meet"
+        />
       ) : (
         <rect x={x} y={y} width={width} height={height} fill="#F1F5F9" stroke="#CBD5E1" />
       )
@@ -1497,7 +1546,15 @@ function renderObjectElement(
       const ch = height / rowIds.length
       return (
         <g>
-          <rect x={x} y={y} width={width} height={height} fill="#FFFFFF" stroke="#94A3B8" strokeWidth={1.5} />
+          <rect
+            x={x}
+            y={y}
+            width={width}
+            height={height}
+            fill="#FFFFFF"
+            stroke="#94A3B8"
+            strokeWidth={1.5}
+          />
           {rowIds.map((rid, r) =>
             colIds.map((cid, c) => {
               const cell = p.cells?.[`${rid}:${cid}`]
@@ -1512,12 +1569,7 @@ function renderObjectElement(
                     stroke="#CBD5E1"
                     strokeWidth={1}
                   />
-                  <text
-                    x={x + c * cw + 6}
-                    y={y + r * ch + ch / 2 + 4}
-                    fontSize={12}
-                    fill="#0F172A"
-                  >
+                  <text x={x + c * cw + 6} y={y + r * ch + ch / 2 + 4} fontSize={12} fill="#0F172A">
                     {richTextPlain(cell)}
                   </text>
                 </g>
@@ -1539,7 +1591,9 @@ function renderObjectElement(
     }
     case 'link': {
       const p = obj.props as unknown as LinkProps
-      const previewHref = p.previewResourceId ? session.getResourceDataUrl(p.previewResourceId) : null
+      const previewHref = p.previewResourceId
+        ? session.getResourceDataUrl(p.previewResourceId)
+        : null
       return (
         <g>
           <rect

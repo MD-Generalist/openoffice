@@ -202,7 +202,12 @@ export function registerWhiteboardExportIpc(
   ipcMain.handle(
     WHITEBOARD_CHANNELS.exportPdf,
     async (e, req: ExportPdfRequest): Promise<ExportResult> => {
-      if (!req || !Array.isArray(req.pages) || req.pages.length === 0 || !req.pages.every(isPrintPage)) {
+      if (
+        !req ||
+        !Array.isArray(req.pages) ||
+        req.pages.length === 0 ||
+        !req.pages.every(isPrintPage)
+      ) {
         return { ok: false, error: 'invalid PDF export pages' }
       }
       const outPath = await pickPdfPath(filePathOf, e.sender, req.suggestedName)
@@ -220,7 +225,12 @@ export function registerWhiteboardExportIpc(
   ipcMain.handle(
     WHITEBOARD_CHANNELS.print,
     async (_e, req: PrintWhiteboardRequest): Promise<PrintResult> => {
-      if (!req || !Array.isArray(req.pages) || req.pages.length === 0 || !req.pages.every(isPrintPage)) {
+      if (
+        !req ||
+        !Array.isArray(req.pages) ||
+        req.pages.length === 0 ||
+        !req.pages.every(isPrintPage)
+      ) {
         return { ok: false, error: 'invalid print pages' }
       }
       const html = buildPrintHtml(req.pages, req.title)
@@ -250,6 +260,10 @@ export function registerWhiteboardExportIpc(
     },
     createPrintWindow: (_event: PrintLayoutInvokeEvent) => createIsolatedPrintWindow(),
     pickSavePath: (event, editor) =>
-      pickPdfPath(filePathOf, event.sender as unknown as WebContents, printJobOf(editor)?.title ?? ''),
+      pickPdfPath(
+        filePathOf,
+        event.sender as unknown as WebContents,
+        printJobOf(editor)?.title ?? '',
+      ),
   })
 }

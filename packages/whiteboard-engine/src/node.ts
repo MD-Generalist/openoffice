@@ -3,7 +3,7 @@
  * Automatically loads and instantiates the committed WASM binary once synchronously.
  */
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   applyTemplate as applyTemplateRaw,
@@ -47,18 +47,31 @@ import type {
 export * from './types'
 export { WhiteboardArchiveHandle, WhiteboardOpenError }
 
-function computePkgWasmPath(): string {
+function computeModuleDir(): string {
   try {
     if (typeof import.meta?.url === 'string' && import.meta.url.startsWith('file:')) {
-      return fileURLToPath(new URL('../pkg/whiteboard_engine_bg.wasm', import.meta.url))
+      return dirname(fileURLToPath(import.meta.url))
     }
   } catch {
     // Non-file URL (e.g., jsdom or bundled CJS); fall through to runtime resolution.
   }
-  return ''
+  return typeof __dirname === 'string' ? __dirname : ''
 }
 
-const PKG_WASM_PATH = computePkgWasmPath()
+const MODULE_DIR = computeModuleDir()
+const PKG_WASM_PATH = MODULE_DIR ? join(MODULE_DIR, '../pkg/whiteboard_engine_bg.wasm') : ''
+
+function walkUpForWasm(startDir: string): string | null {
+  let cur = startDir
+  for (let i = 0; i < 8; i++) {
+    const candidate = join(cur, 'packages', 'whiteboard-engine', 'pkg', 'whiteboard_engine_bg.wasm')
+    if (existsSync(candidate)) return candidate
+    const parent = dirname(cur)
+    if (parent === cur) break
+    cur = parent
+  }
+  return null
+}
 
 function resolveWasmPath(): string {
   const envOverride = process.env.GENOFFICE_WHITEBOARD_WASM_PATH
@@ -69,16 +82,14 @@ function resolveWasmPath(): string {
     const packaged = join(resourcesPath, 'wasm', 'whiteboard_engine_bg.wasm')
     if (existsSync(packaged)) return packaged
   }
-  if (typeof __dirname === 'string') {
-    for (const rel of [
-      '../wasm/whiteboard_engine_bg.wasm',
-      '../pkg/whiteboard_engine_bg.wasm',
-      '../../packages/whiteboard-engine/pkg/whiteboard_engine_bg.wasm',
-    ]) {
-      const candidate = join(__dirname, rel)
-      if (existsSync(candidate)) return candidate
-    }
+  if (MODULE_DIR) {
+    const sibling = join(MODULE_DIR, '../wasm/whiteboard_engine_bg.wasm')
+    if (existsSync(sibling)) return sibling
+    const foundFromModule = walkUpForWasm(MODULE_DIR)
+    if (foundFromModule) return foundFromModule
   }
+  const foundFromCwd = walkUpForWasm(process.cwd())
+  if (foundFromCwd) return foundFromCwd
   return PKG_WASM_PATH
 }
 
@@ -116,10 +127,7 @@ export function checkWhiteboard(bytes: Uint8Array): CheckWhiteboardResult {
   return checkWhiteboardRaw(bytes)
 }
 
-export function checkExcalidraw(
-  bytes: Uint8Array,
-  filenameHint?: string,
-): CheckExcalidrawResult {
+export function checkExcalidraw(bytes: Uint8Array, filenameHint?: string): CheckExcalidrawResult {
   ensureWhiteboardEngineSync()
   return checkExcalidrawRaw(bytes, filenameHint)
 }
@@ -137,10 +145,7 @@ export function importExcalidraw(
   return importExcalidrawRaw(bytes, options)
 }
 
-export function extractMarkdown(
-  bytes: Uint8Array,
-  pageFilter?: string,
-): ExtractMarkdownResult {
+export function extractMarkdown(bytes: Uint8Array, pageFilter?: string): ExtractMarkdownResult {
   ensureWhiteboardEngineSync()
   return extractMarkdownRaw(bytes, pageFilter)
 }
@@ -182,11 +187,7 @@ export function applyTemplate(
   return applyTemplateRaw(doc, template, activePageId)
 }
 
-export function computePageBounds(
-  doc: BoardDocument,
-  pageId: string,
-  margin = 48,
-): Rect | null {
+export function computePageBounds(doc: BoardDocument, pageId: string, margin = 48): Rect | null {
   ensureWhiteboardEngineSync()
   return computePageBoundsRaw(doc, pageId, margin)
 }

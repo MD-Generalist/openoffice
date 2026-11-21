@@ -422,6 +422,8 @@ import {
   configureWhiteboardRuntime,
   excalidrawOpenRefusal,
   exportWhiteboardHeadless,
+  setWhiteboardFileSavedHook,
+  setWhiteboardProvisionalTitleHook,
   whiteboardApplyOps,
   whiteboardNotifyFileRenamed,
   whiteboardOpenRefusal,
@@ -5905,6 +5907,16 @@ function createShellWindow(): void {
   setDiagramProvisionalTitleHook((wc, title) => {
     manager.setTabTitleFor(wc.id, title)
     detachedSetTitleFor(wc.id, title)
+  })
+  setWhiteboardFileSavedHook((wc, path) => {
+    manager.setTabFileFor(wc.id, path)
+    detachedSetFileFor(wc.id, path)
+    recordRecentFile(path)
+    applyPendingDir(wc.id, path)
+  })
+  setWhiteboardProvisionalTitleHook((wcId, title) => {
+    manager.setTabTitleFor(wcId, title)
+    detachedSetTitleFor(wcId, title)
   })
   // A redacted copy becomes this tab's document; the source still exists.
   setPdfRedactionSavedHook((wc, path) => {

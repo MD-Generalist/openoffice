@@ -69,7 +69,8 @@ export function isWhiteboardEngineReady(): boolean {
 
 function parseOpenError(thrown: unknown): WhiteboardOpenError {
   if (thrown instanceof WhiteboardOpenError) return thrown
-  const text = typeof thrown === 'string' ? thrown : thrown instanceof Error ? thrown.message : String(thrown)
+  const text =
+    typeof thrown === 'string' ? thrown : thrown instanceof Error ? thrown.message : String(thrown)
   try {
     const parsed = JSON.parse(text) as Partial<OpenError>
     if (parsed && typeof parsed.code === 'string' && typeof parsed.message === 'string') {
@@ -174,18 +175,14 @@ export function openWhiteboardArchive(bytes: Uint8Array): WhiteboardArchiveHandl
 
 export function validateBoard(doc: BoardDocument): { ok: true } | { ok: false; error: OpenError } {
   return JSON.parse(wasm_validate_board(JSON.stringify(doc))) as
-    | { ok: true }
-    | { ok: false; error: OpenError }
+    { ok: true } | { ok: false; error: OpenError }
 }
 
 export function checkWhiteboard(bytes: Uint8Array): CheckWhiteboardResult {
   return JSON.parse(wasm_check_whiteboard(bytes)) as CheckWhiteboardResult
 }
 
-export function checkExcalidraw(
-  bytes: Uint8Array,
-  filenameHint?: string,
-): CheckExcalidrawResult {
+export function checkExcalidraw(bytes: Uint8Array, filenameHint?: string): CheckExcalidrawResult {
   return JSON.parse(wasm_check_excalidraw(bytes, filenameHint)) as CheckExcalidrawResult
 }
 
@@ -225,10 +222,7 @@ export function importExcalidraw(
   }
 }
 
-export function extractMarkdown(
-  bytes: Uint8Array,
-  pageFilter?: string,
-): ExtractMarkdownResult {
+export function extractMarkdown(bytes: Uint8Array, pageFilter?: string): ExtractMarkdownResult {
   return JSON.parse(wasm_extract_markdown(bytes, pageFilter)) as ExtractMarkdownResult
 }
 
@@ -245,11 +239,7 @@ export function readBoardTable(
   pageFilter?: string,
   selectedIds: readonly string[] = [],
 ): BoardTableView | null {
-  const json = wasm_read_board_table(
-    JSON.stringify(doc),
-    pageFilter,
-    JSON.stringify(selectedIds),
-  )
+  const json = wasm_read_board_table(JSON.stringify(doc), pageFilter, JSON.stringify(selectedIds))
   return json === undefined ? null : (JSON.parse(json) as BoardTableView)
 }
 
@@ -274,11 +264,7 @@ export function applyTemplate(
   ) as { ok: true; result: TemplateApplyResult } | { ok: false; error: EditError }
 }
 
-export function computePageBounds(
-  doc: BoardDocument,
-  pageId: string,
-  margin = 48,
-): Rect | null {
+export function computePageBounds(doc: BoardDocument, pageId: string, margin = 48): Rect | null {
   const json = wasm_compute_page_bounds(JSON.stringify(doc), pageId, margin)
   return json === undefined ? null : (JSON.parse(json) as Rect)
 }

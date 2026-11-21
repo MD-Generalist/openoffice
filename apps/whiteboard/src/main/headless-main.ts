@@ -4,10 +4,7 @@
  * recovery copies and with zero external network requests.
  */
 import { ipcMain, type BrowserWindow } from 'electron'
-import type {
-  HeadlessExportProduct,
-  HeadlessExportRequest,
-} from '@genoffice/electron-utils'
+import type { HeadlessExportProduct, HeadlessExportRequest } from '@genoffice/electron-utils'
 import { atomicWriteFile } from '@genoffice/electron-utils/atomic-write'
 import { whiteboardBaseName } from '../shared/formats'
 import {

@@ -95,7 +95,9 @@ function askRead(
       settle: (raw) => {
         const reply = raw as WhiteboardReadReply
         if ('text' in reply && typeof reply.text === 'string') {
-          finish(() => resolve({ text: reply.text, ...(reply.table ? { table: reply.table } : {}) }))
+          finish(() =>
+            resolve({ text: reply.text, ...(reply.table ? { table: reply.table } : {}) }),
+          )
         } else if ('error' in reply) {
           finish(() => reject(new Error(String(reply.error))))
         }
@@ -186,7 +188,10 @@ export function whiteboardReadBytes(contents: WebContents): Promise<Uint8Array> 
   return new Promise<Uint8Array>((resolve, reject) => {
     const queue = bytesWaiters.get(wcId) ?? []
     bytesWaiters.set(wcId, queue)
-    const timer = setTimeout(() => reject(new Error('timed out reading whiteboard bytes')), READ_TIMEOUT_MS)
+    const timer = setTimeout(
+      () => reject(new Error('timed out reading whiteboard bytes')),
+      READ_TIMEOUT_MS,
+    )
     queue.push((reply) => {
       clearTimeout(timer)
       if (reply.ok) resolve(reply.bytes)

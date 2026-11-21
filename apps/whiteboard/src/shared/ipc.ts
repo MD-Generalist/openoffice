@@ -100,14 +100,7 @@ export type SaveRequestMode = 'save' | 'save-as'
 export type ExportFormat = 'png' | 'svg' | 'pdf'
 
 export type WhiteboardMenuCommand =
-  | 'undo'
-  | 'redo'
-  | 'import-pdf'
-  | 'present'
-  | 'toggle-ai'
-  | 'zoom-in'
-  | 'zoom-out'
-  | 'zoom-fit'
+  'undo' | 'redo' | 'import-pdf' | 'present' | 'toggle-ai' | 'zoom-in' | 'zoom-out' | 'zoom-fit'
 
 export interface WhiteboardTabIdentity {
   filePath: string | null
@@ -153,8 +146,7 @@ export interface SaveTargetRequest {
 }
 
 export type SaveTargetResult =
-  | { ok: true; token: string; filePath: string }
-  | { ok: false; canceled?: boolean; error?: string }
+  { ok: true; token: string; filePath: string } | { ok: false; canceled?: boolean; error?: string }
 
 export interface SaveWhiteboardRequest {
   token?: string
@@ -218,12 +210,9 @@ export interface WhiteboardPrintJob {
 }
 
 export type ExportResult =
-  | { ok: true; paths: string[] }
-  | { ok: false; canceled?: boolean; error?: string }
+  { ok: true; paths: string[] } | { ok: false; canceled?: boolean; error?: string }
 
-export type PrintResult =
-  | { ok: true }
-  | { ok: false; canceled?: boolean; error?: string }
+export type PrintResult = { ok: true } | { ok: false; canceled?: boolean; error?: string }
 
 export interface RecoveryCopyRequest {
   bytes: Uint8Array
@@ -243,8 +232,7 @@ export interface WhiteboardReadQuery {
 }
 
 export type WhiteboardReadReply =
-  | { id: string; text: string; table?: BoardTableView }
-  | { id: string; error: string }
+  { id: string; text: string; table?: BoardTableView } | { id: string; error: string }
 
 export interface WhiteboardApplyQuery {
   id: string
@@ -253,9 +241,7 @@ export interface WhiteboardApplyQuery {
   defaultPageId?: string
 }
 
-export type WhiteboardApplyReply =
-  | { id: string; result: unknown }
-  | { id: string; error: string }
+export type WhiteboardApplyReply = { id: string; result: unknown } | { id: string; error: string }
 
 export type WhiteboardBytesReply = { ok: true; bytes: Uint8Array } | { ok: false; error: string }
 

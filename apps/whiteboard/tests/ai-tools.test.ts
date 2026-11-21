@@ -141,9 +141,7 @@ describe('Whiteboard AI tools & vision capability', () => {
   })
 
   it('detects vision-capable vs text-only models accurately', () => {
-    expect(
-      modelSupportsVision({ provider: 'claude-subscription' } as AiSettings),
-    ).toBe(true)
+    expect(modelSupportsVision({ provider: 'claude-subscription' } as AiSettings)).toBe(true)
     expect(
       modelSupportsVision({
         provider: 'custom',

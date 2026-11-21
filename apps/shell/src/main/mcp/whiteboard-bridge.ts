@@ -13,7 +13,11 @@ export interface WhiteboardBridgeDeps {
   readPage: (contents: WebContents, page?: string) => Promise<WhiteboardPageReadAnswer>
   applyOps: (
     contents: WebContents,
-    payload: { ops?: Record<string, unknown>[]; template?: Record<string, unknown>; defaultPageId?: string },
+    payload: {
+      ops?: Record<string, unknown>[]
+      template?: Record<string, unknown>
+      defaultPageId?: string
+    },
   ) => Promise<unknown>
 }
 

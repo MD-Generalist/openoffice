@@ -15,7 +15,11 @@ export interface WhiteboardControl {
   read: (tab: OpenDocumentTab, page?: string) => Promise<WhiteboardPageReadAnswer>
   apply: (
     tab: OpenDocumentTab,
-    payload: { ops?: Record<string, unknown>[]; template?: Record<string, unknown>; defaultPageId?: string },
+    payload: {
+      ops?: Record<string, unknown>[]
+      template?: Record<string, unknown>
+      defaultPageId?: string
+    },
   ) => Promise<unknown>
 }
 
@@ -102,7 +106,9 @@ export function createWhiteboardTools(deps: WhiteboardToolsDeps): McpToolDefinit
         ops: z
           .array(z.record(z.string(), z.unknown()))
           .optional()
-          .describe('Ordered list of whiteboard edit operations (add, update, delete, reorder, add_page, delete_page, rename_page, set_page_format, patch_table).'),
+          .describe(
+            'Ordered list of whiteboard edit operations (add, update, delete, reorder, add_page, delete_page, rename_page, set_page_format, patch_table).',
+          ),
         template: z
           .record(z.string(), z.unknown())
           .optional()
@@ -112,9 +118,7 @@ export function createWhiteboardTools(deps: WhiteboardToolsDeps): McpToolDefinit
       handler: async (args) => {
         const control = requireControl()
         const tab = await resolveWhiteboardTab(control, args.document as string | undefined)
-        const ops = Array.isArray(args.ops)
-          ? (args.ops as Record<string, unknown>[])
-          : undefined
+        const ops = Array.isArray(args.ops) ? (args.ops as Record<string, unknown>[]) : undefined
         const template =
           args.template && typeof args.template === 'object'
             ? (args.template as Record<string, unknown>)

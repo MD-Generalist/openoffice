@@ -41,7 +41,9 @@ function starPath(cx: number, cy: number, rOut: number, rIn: number): string {
   for (let i = 0; i < 10; i++) {
     const angle = -Math.PI / 2 + (i * Math.PI) / 5
     const r = i % 2 === 0 ? rOut : rIn
-    pts.push(`${i === 0 ? 'M' : 'L'}${(cx + Math.cos(angle) * r).toFixed(1)} ${(cy + Math.sin(angle) * r).toFixed(1)}`)
+    pts.push(
+      `${i === 0 ? 'M' : 'L'}${(cx + Math.cos(angle) * r).toFixed(1)} ${(cy + Math.sin(angle) * r).toFixed(1)}`,
+    )
   }
   return `${pts.join(' ')} Z`
 }
@@ -126,7 +128,15 @@ function renderStickerElements(stickerId: string, tint?: string): ReactElement {
   const accent = tint || YELLOW
   switch (stickerId) {
     case 'star':
-      return <path d={starPath(50, 52, 40, 18)} fill={accent} stroke={INK} strokeWidth={4} strokeLinejoin="round" />
+      return (
+        <path
+          d={starPath(50, 52, 40, 18)}
+          fill={accent}
+          stroke={INK}
+          strokeWidth={4}
+          strokeLinejoin="round"
+        />
+      )
     case 'heart':
       return (
         <path
@@ -141,7 +151,14 @@ function renderStickerElements(stickerId: string, tint?: string): ReactElement {
       return (
         <>
           <circle cx={50} cy={50} r={40} fill={tint || GREEN} stroke={INK} strokeWidth={4} />
-          <path d="M30 52 L44 66 L72 36" fill="none" stroke={INK} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M30 52 L44 66 L72 36"
+            fill="none"
+            stroke={INK}
+            strokeWidth={7}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </>
       )
     case 'thumbsup':
@@ -160,25 +177,76 @@ function renderStickerElements(stickerId: string, tint?: string): ReactElement {
     case 'bulb':
       return (
         <>
-          <path d="M36 66 C36 56 24 50 24 36 C24 22 36 12 50 12 C64 12 76 22 76 36 C76 50 64 56 64 66 Z" fill={accent} stroke={INK} strokeWidth={4} />
-          <rect x={38} y={68} width={24} height={8} rx={3} fill={PAPER} stroke={INK} strokeWidth={3.5} />
-          <rect x={42} y={78} width={16} height={8} rx={3} fill="#CBD5E1" stroke={INK} strokeWidth={3.5} />
+          <path
+            d="M36 66 C36 56 24 50 24 36 C24 22 36 12 50 12 C64 12 76 22 76 36 C76 50 64 56 64 66 Z"
+            fill={accent}
+            stroke={INK}
+            strokeWidth={4}
+          />
+          <rect
+            x={38}
+            y={68}
+            width={24}
+            height={8}
+            rx={3}
+            fill={PAPER}
+            stroke={INK}
+            strokeWidth={3.5}
+          />
+          <rect
+            x={42}
+            y={78}
+            width={16}
+            height={8}
+            rx={3}
+            fill="#CBD5E1"
+            stroke={INK}
+            strokeWidth={3.5}
+          />
         </>
       )
     case 'fire':
       return (
         <>
-          <path d="M50 12 C66 28 80 44 76 64 C73 78 62 88 50 88 C36 88 24 78 24 62 C24 46 36 38 38 26 C42 32 45 34 46 28 C48 22 48 16 50 12 Z" fill={tint || ORANGE} stroke={INK} strokeWidth={4} strokeLinejoin="round" />
-          <path d="M50 48 C58 56 62 64 58 74 C56 80 52 82 50 82 C44 82 40 76 42 68 C43 60 47 54 50 48 Z" fill={YELLOW} />
+          <path
+            d="M50 12 C66 28 80 44 76 64 C73 78 62 88 50 88 C36 88 24 78 24 62 C24 46 36 38 38 26 C42 32 45 34 46 28 C48 22 48 16 50 12 Z"
+            fill={tint || ORANGE}
+            stroke={INK}
+            strokeWidth={4}
+            strokeLinejoin="round"
+          />
+          <path
+            d="M50 48 C58 56 62 64 58 74 C56 80 52 82 50 82 C44 82 40 76 42 68 C43 60 47 54 50 48 Z"
+            fill={YELLOW}
+          />
         </>
       )
     case 'trophy':
       return (
         <>
-          <path d="M30 26 H14 C14 42 22 50 34 50 M70 26 H86 C86 42 78 50 66 50" fill="none" stroke={INK} strokeWidth={4} />
-          <path d="M28 16 H72 V36 C72 52 62 62 50 62 C38 62 28 52 28 36 Z" fill={accent} stroke={INK} strokeWidth={4} />
+          <path
+            d="M30 26 H14 C14 42 22 50 34 50 M70 26 H86 C86 42 78 50 66 50"
+            fill="none"
+            stroke={INK}
+            strokeWidth={4}
+          />
+          <path
+            d="M28 16 H72 V36 C72 52 62 62 50 62 C38 62 28 52 28 36 Z"
+            fill={accent}
+            stroke={INK}
+            strokeWidth={4}
+          />
           <rect x={44} y={62} width={12} height={12} fill={accent} stroke={INK} strokeWidth={4} />
-          <rect x={30} y={74} width={40} height={12} rx={3} fill={ORANGE} stroke={INK} strokeWidth={4} />
+          <rect
+            x={30}
+            y={74}
+            width={40}
+            height={12}
+            rx={3}
+            fill={ORANGE}
+            stroke={INK}
+            strokeWidth={4}
+          />
         </>
       )
     case 'medal':
@@ -193,16 +261,41 @@ function renderStickerElements(stickerId: string, tint?: string): ReactElement {
     case 'flag':
       return (
         <>
-          <path d="M28 18 H80 L70 34 L80 50 H28 Z" fill={tint || RED} stroke={INK} strokeWidth={4} strokeLinejoin="round" />
-          <rect x={20} y={10} width={8} height={80} rx={3} fill="#9A6A43" stroke={INK} strokeWidth={3.5} />
+          <path
+            d="M28 18 H80 L70 34 L80 50 H28 Z"
+            fill={tint || RED}
+            stroke={INK}
+            strokeWidth={4}
+            strokeLinejoin="round"
+          />
+          <rect
+            x={20}
+            y={10}
+            width={8}
+            height={80}
+            rx={3}
+            fill="#9A6A43"
+            stroke={INK}
+            strokeWidth={3.5}
+          />
         </>
       )
     case 'rocket':
       return (
         <>
           <path d="M40 76 L50 94 L60 76 Z" fill={ORANGE} stroke={INK} strokeWidth={3.5} />
-          <path d="M36 54 L20 70 V80 L38 72 Z M64 54 L80 70 V80 L62 72 Z" fill={RED} stroke={INK} strokeWidth={3.5} />
-          <path d="M50 6 C68 22 72 48 64 76 H36 C28 48 32 22 50 6 Z" fill={PAPER} stroke={INK} strokeWidth={4} />
+          <path
+            d="M36 54 L20 70 V80 L38 72 Z M64 54 L80 70 V80 L62 72 Z"
+            fill={RED}
+            stroke={INK}
+            strokeWidth={3.5}
+          />
+          <path
+            d="M50 6 C68 22 72 48 64 76 H36 C28 48 32 22 50 6 Z"
+            fill={PAPER}
+            stroke={INK}
+            strokeWidth={4}
+          />
           <circle cx={50} cy={38} r={9} fill={tint || BLUE} stroke={INK} strokeWidth={3.5} />
         </>
       )
@@ -214,11 +307,24 @@ function renderStickerElements(stickerId: string, tint?: string): ReactElement {
         </>
       )
     case 'arrow':
-      return <path d="M10 38 H54 V18 L90 50 L54 82 V62 H10 Z" fill={tint || GREEN} stroke={INK} strokeWidth={4} strokeLinejoin="round" />
+      return (
+        <path
+          d="M10 38 H54 V18 L90 50 L54 82 V62 H10 Z"
+          fill={tint || GREEN}
+          stroke={INK}
+          strokeWidth={4}
+          strokeLinejoin="round"
+        />
+      )
     case 'speech':
       return (
         <>
-          <path d="M14 24 Q14 12 26 12 H74 Q86 12 86 24 V56 Q86 68 74 68 H46 L26 86 L30 68 H26 Q14 68 14 56 Z" fill={tint || '#CFE3F7'} stroke={INK} strokeWidth={4} />
+          <path
+            d="M14 24 Q14 12 26 12 H74 Q86 12 86 24 V56 Q86 68 74 68 H46 L26 86 L30 68 H26 Q14 68 14 56 Z"
+            fill={tint || '#CFE3F7'}
+            stroke={INK}
+            strokeWidth={4}
+          />
           <circle cx={34} cy={40} r={5} fill={INK} />
           <circle cx={50} cy={40} r={5} fill={INK} />
           <circle cx={66} cy={40} r={5} fill={INK} />
@@ -228,7 +334,16 @@ function renderStickerElements(stickerId: string, tint?: string): ReactElement {
       return (
         <g transform="rotate(-45 50 50)">
           <rect x={22} y={38} width={48} height={24} fill={accent} stroke={INK} strokeWidth={4} />
-          <rect x={10} y={38} width={12} height={24} rx={3} fill="#F2A99F" stroke={INK} strokeWidth={4} />
+          <rect
+            x={10}
+            y={38}
+            width={12}
+            height={24}
+            rx={3}
+            fill="#F2A99F"
+            stroke={INK}
+            strokeWidth={4}
+          />
           <path d="M70 38 L92 50 L70 62 Z" fill="#FDE68A" stroke={INK} strokeWidth={4} />
           <path d="M85 46 L92 50 L85 54 Z" fill={INK} />
         </g>
@@ -236,16 +351,36 @@ function renderStickerElements(stickerId: string, tint?: string): ReactElement {
     case 'book':
       return (
         <>
-          <path d="M50 26 C40 18 24 16 8 20 V80 C24 76 40 78 50 86 Z" fill={PAPER} stroke={INK} strokeWidth={3.5} />
-          <path d="M50 26 C60 18 76 16 92 20 V80 C76 76 60 78 50 86 Z" fill={PAPER} stroke={INK} strokeWidth={3.5} />
-          <path d="M8 80 C24 76 40 78 50 86 C60 78 76 76 92 80 V88 H8 Z" fill={tint || BLUE} stroke={INK} strokeWidth={3.5} />
+          <path
+            d="M50 26 C40 18 24 16 8 20 V80 C24 76 40 78 50 86 Z"
+            fill={PAPER}
+            stroke={INK}
+            strokeWidth={3.5}
+          />
+          <path
+            d="M50 26 C60 18 76 16 92 20 V80 C76 76 60 78 50 86 Z"
+            fill={PAPER}
+            stroke={INK}
+            strokeWidth={3.5}
+          />
+          <path
+            d="M8 80 C24 76 40 78 50 86 C60 78 76 76 92 80 V88 H8 Z"
+            fill={tint || BLUE}
+            stroke={INK}
+            strokeWidth={3.5}
+          />
         </>
       )
     case 'clock':
       return (
         <>
           <circle cx={50} cy={50} r={40} fill={PAPER} stroke={INK} strokeWidth={5} />
-          <path d="M50 50 V28 M50 50 L66 60" stroke={tint || RED} strokeWidth={5} strokeLinecap="round" />
+          <path
+            d="M50 50 V28 M50 50 L66 60"
+            stroke={tint || RED}
+            strokeWidth={5}
+            strokeLinecap="round"
+          />
           <circle cx={50} cy={50} r={4} fill={INK} />
         </>
       )

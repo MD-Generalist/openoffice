@@ -42,15 +42,7 @@ export type PageBackground =
   | { kind: 'image'; resourceId: string; width: number; height: number }
 
 export type ObjectKind =
-  | 'sticky'
-  | 'text'
-  | 'shape'
-  | 'connector'
-  | 'stroke'
-  | 'image'
-  | 'table'
-  | 'sticker'
-  | 'link'
+  'sticky' | 'text' | 'shape' | 'connector' | 'stroke' | 'image' | 'table' | 'sticker' | 'link'
 
 export type ShapeKind =
   | 'rectangle'
@@ -95,8 +87,7 @@ export interface Point {
 }
 
 export type ConnectorEnd =
-  | { objectId: string; anchorX?: number; anchorY?: number }
-  | { x: number; y: number }
+  { objectId: string; anchorX?: number; anchorY?: number } | { x: number; y: number }
 
 export interface StickyProps {
   color: string
@@ -303,8 +294,7 @@ export type CheckWhiteboardResult =
   | { ok: false; error: OpenError }
 
 export type CheckExcalidrawResult =
-  | { ok: true; summary: ExcalidrawImportSummary }
-  | { ok: false; error: OpenError }
+  { ok: true; summary: ExcalidrawImportSummary } | { ok: false; error: OpenError }
 
 export type ExtractMarkdownResult =
   | { ok: true; markdown: string; title: string; pageCount: number }

@@ -86,7 +86,7 @@ export function createFilesSkill(getAttachments: () => AttachmentMeta[]): AgentS
           summary: t('aiSumReadAttachmentName', { name: att.name }),
         }
       }
-      const total = res.totalChars ?? (res.text?.length ?? 0)
+      const total = res.totalChars ?? res.text?.length ?? 0
       const end = offset + (res.text?.length ?? 0)
       const more = res.truncated ? ` (more follows: offset=${end})` : ' (end)'
       return {

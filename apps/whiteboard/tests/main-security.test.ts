@@ -8,7 +8,11 @@ import { pageFilePaths } from '../src/main/export-paths'
 import { parseLinkPreviewHtml } from '../src/main/link-preview'
 import { excalidrawOpenRefusal, whiteboardOpenRefusal } from '../src/main/open-check'
 import { buildPrintHtml, inertSvg, isPrintPage } from '../src/main/print-document'
-import { detectWhiteboardFormat, isExcalidrawFormat, whiteboardBaseName } from '../src/shared/formats'
+import {
+  detectWhiteboardFormat,
+  isExcalidrawFormat,
+  whiteboardBaseName,
+} from '../src/shared/formats'
 import { WHITEBOARD_CHANNELS } from '../src/shared/ipc'
 import { openableLink } from '../src/shared/links'
 
@@ -92,12 +96,19 @@ describe('whiteboard main security, open-check, links, export paths & print HTML
       join('/out', 'board-p2.png'),
     ])
 
-    const dirtySvg = '<svg onclick="alert(1)"><script>evil()</script><rect width="10" height="10"/></svg>'
+    const dirtySvg =
+      '<svg onclick="alert(1)"><script>evil()</script><rect width="10" height="10"/></svg>'
     const clean = inertSvg(dirtySvg)
     expect(clean).not.toContain('<script')
     expect(clean).not.toContain('onclick=')
 
-    const page = { svg: '<svg width="100" height="100"></svg>', width: 100, height: 100, pageWidth: 100, pageHeight: 100 }
+    const page = {
+      svg: '<svg width="100" height="100"></svg>',
+      width: 100,
+      height: 100,
+      pageWidth: 100,
+      pageHeight: 100,
+    }
     expect(isPrintPage(page)).toBe(true)
     const html = buildPrintHtml([page], 'Demo')
     expect(html).toContain('color-scheme: light')

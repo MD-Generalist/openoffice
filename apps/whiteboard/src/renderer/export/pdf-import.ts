@@ -71,7 +71,11 @@ export async function renderPdfPagesToPng(
 }
 
 /** Parses a page-range string like "1-3, 5, 8-10" into sorted unique 1-based page numbers. */
-export function parsePdfPageRange(input: string, maxPages: number, cap = MAX_PDF_IMPORT_PAGES): number[] {
+export function parsePdfPageRange(
+  input: string,
+  maxPages: number,
+  cap = MAX_PDF_IMPORT_PAGES,
+): number[] {
   const cleaned = input.trim()
   if (!cleaned) {
     return Array.from({ length: Math.min(maxPages, cap) }, (_, i) => i + 1)

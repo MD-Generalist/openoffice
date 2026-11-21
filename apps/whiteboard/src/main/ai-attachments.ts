@@ -138,7 +138,12 @@ export function registerWhiteboardAiIpc(): void {
 
   ipcMain.handle(
     WHITEBOARD_CHANNELS.aiReadAttachment,
-    async (_e, rawPath: unknown, rawOffset?: unknown, rawMaxChars?: unknown): Promise<AttachmentReadResult> => {
+    async (
+      _e,
+      rawPath: unknown,
+      rawOffset?: unknown,
+      rawMaxChars?: unknown,
+    ): Promise<AttachmentReadResult> => {
       if (typeof rawPath !== 'string' || !rawPath.trim()) {
         return { ok: false, error: 'missing attachment path' }
       }
