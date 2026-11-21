@@ -112,6 +112,8 @@
 - **공용 인쇄 코드를 고쳤더니 엑셀 형 검사만 실패한다.** 엑셀 편집기는 `exactOptionalPropertyTypes`·`noUncheckedIndexedAccess`로 컴파일하고, `@genoffice/ui`와 `print-arranged`를 거쳐 공용 인쇄 코드를 끌어온다. → 공용 인쇄 코드의 선택 속성은 `| undefined`를 받게 쓰고, 배열 읽기는 `at()`처럼 확인하는 도우미를 거친다. 공용 인쇄 코드를 고치면 `npm run typecheck -w @genoffice/sheets`를 함께 돌린다. Electron의 `WebContentsPrintOptions`에 넘기는 객체의 선택 속성에는 `| undefined`를 붙이지 않는다(그 형에 넣을 수 없게 된다).
 - **배치한 쪽 그림 인쇄 창이 빈 쪽을 낸다(다이어그램·마인드맵).** 쪽 그림은 임시 폴더의 파일이라 `file:` 주소로 연다. 다이어그램 세션은 앱 주소만, 마인드맵 내보내기 세션은 지금 여는 페이지만 허용한다. → 다이어그램은 이 창만 기본 세션의 샌드박스 창으로 띄우고(내용을 PDF로 만드는 창은 다이어그램 세션), 마인드맵은 인쇄하는 동안 그 임시 폴더 바로 안의 파일만 허용한다(`allowPageFolder`).
 - **기본값 인쇄를 바꾸면 편집기 시험이 실패한다.** 편집기마다 "쪽 배치에서 아무것도 고르지 않으면 지금 인쇄 함수가 같은 인수로 불린다"를 지키는 시험이 있다(`apps/*/tests/print-*layout*.test.ts`, `print-dialog*.test.ts`). 기본 인쇄를 일부러 바꿀 때만 그 시험을 고친다.
+- **고급 인쇄 배치 Rust WASM(`packages/print-layout/wasm`)에서 `fdeflate`를 비필터 회색조 비트맵에 바로 쓰면 PDF가 수십 배 커진다.** `fdeflate`는 PNG 행 필터(Up)가 만든 `0x00` 연속에 특화돼 있어, 필터 없는 흰 바탕(`0xFF` 연속)의 PDF `DeviceGray` 이미지 스트림이나 ASCII 내용 스트림을 거의 압축하지 못한다(50면 기준 1.5 MB → 51 MB). → PNG `IDAT`(Up 필터 적용)에만 `fdeflate`를 쓰고, PDF `FlateDecode` 스트림(`GrayPdfBuilder`, `arrange_pdf`의 다중 내용 스트림)은 `flate2`의 `zlib-rs` fast 레벨을 쓴다(결정 0158).
+- **`lopdf`로 `/Rotate`만 고쳐 저장하면 `/MediaBox`의 배정밀도 소수가 반올림된다.** `lopdf::Object::Real`이 `f32`라 `595.2755905511812`가 `595.2756`으로 줄어든다. → `rotateLandscapeFaces`는 원본 PDF의 수정 대상 페이지 사전 바이트에서 `/Rotate`만 패치해 증분 갱신(classic `xref` 또는 `/XRef` 스트림)으로 붙여 써서 나머지 객체와 `/MediaBox` 정밀도를 그대로 보존한다(결정 0158).
 - **부하가 큰 PC에서 vitest가 "Timeout waiting for worker to respond"를 낸다.** 그 파일은 시작하지 못한 것이라 통과도 실패도 아니다. → `--pool=threads --maxWorkers=1`(또는 `--pool=forks`)로 그 파일만 다시 돌린다. 2026-11-13~14에 여러 편집기 시험을 동시에 돌리다 수십 개 파일이 이렇게 빠졌다.
 
 ## ODT

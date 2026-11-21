@@ -132,6 +132,7 @@ jobs:
             "$dir/resources/native/xlsx-sidecar.exe" \
             "$dir/resources/native/ieum-parse-sidecar.exe" \
             "$dir/resources/wasm/hwp5_bg.wasm" \
+            "$dir/resources/wasm/print_layout_bg.wasm" \
             "$dir/resources/ocr/win-ocr.exe" \
             "$dir/resources/cli/genoffice.cjs" \
             "$dir/resources/cli/ieumoffice.cmd"; do

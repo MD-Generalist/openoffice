@@ -13,7 +13,7 @@
  * own LICENSE (Apache-2.0) ships beside it as LICENSE.txt; the NOTICE that
  * license requires to travel with the work opens the generated file.
  *
- * The four Rust sections need cargo, and the rhwp one a sparse checkout of the
+ * The five Rust sections need cargo, and the rhwp one a sparse checkout of the
  * rhwp tag (manifests only, cached under node_modules/.cache). Without them a
  * local build degrades to a pointer; with CI or IEUM_RELEASE set the gap is an
  * error, and electron-builder's beforePack rejects a notice that has it.
@@ -613,6 +613,15 @@ function hwp5WasmCrates() {
   ])
 }
 
+/** Rust crates compiled into print_layout_wasm_bg.wasm (resources/wasm/print_layout_bg.wasm) */
+function printLayoutWasmCrates() {
+  return linkedRustCrates(
+    join(ROOT, 'packages/print-layout/wasm/Cargo.toml'),
+    'print-layout-wasm',
+    ['--filter-platform', RHWP_TARGET],
+  )
+}
+
 /** the crate list and each distinct license text; the count line is what electron-builder checks */
 function crateSection(crates) {
   let text = `\n${crates.length} crates, all under permissive terms:\n\n`
@@ -717,6 +726,23 @@ if (hwp5Crates === null) {
   out += ' packages/hwp5-wasm/Cargo.lock for the full crate list.\n'
 } else {
   out += crateSection(hwp5Crates)
+}
+
+const printLayoutCrates = printLayoutWasmCrates()
+out += hr(
+  '6. Rust crates (print-layout-wasm advanced print layout engine, compiled into print_layout_bg.wasm)',
+)
+out += `
+print-layout-wasm (packages/print-layout/wasm) is built for ${RHWP_TARGET} and ships as
+resources/wasm/print_layout_bg.wasm for advanced print layout PDF imposition, grayscale
+PDF assembly, and PNG encoding.
+`
+if (printLayoutCrates === null) {
+  gap('cargo metadata failed for packages/print-layout/wasm (is cargo on PATH?)')
+  out += '\ncargo metadata unavailable at generation time; see'
+  out += ' packages/print-layout/wasm/Cargo.lock for the full crate list.\n'
+} else {
+  out += crateSection(printLayoutCrates)
 }
 
 const GOTHIC_KR_COPYRIGHT = [
@@ -836,7 +862,7 @@ const TEMPLATE_FONTS = [
   ['Archivo Black 1.006', 'ArchivoBlack-OFL.txt'],
 ]
 
-out += hr('6. Bundled fonts')
+out += hr('7. Bundled fonts')
 for (const [name, spdx, copyright] of FONTS) out += sub(`${name} — ${spdx}`) + copyright + '\n'
 for (const [name, file, copyright] of TEMPLATE_FONTS) {
   out += sub(`${name} (slide design templates, resources/template-fonts) — SIL OFL 1.1`)
@@ -847,7 +873,7 @@ out += sub('SIL Open Font License 1.1 — full text')
 out +=
   readFileSync(join(ROOT, 'apps/docs/src/renderer/fonts/LICENSE-OFL.txt'), 'utf8').trim() + '\n'
 
-out += hr('7. Unicode Character Database data')
+out += hr('8. Unicode Character Database data')
 out += `
 apps/pdf/src/shared/radicals.ts contains a generated mapping derived from
 Unicode Character Database 17.0.0, EquivalentUnifiedIdeograph.txt
@@ -858,7 +884,7 @@ https://www.unicode.org/Public/17.0.0/ucd/EquivalentUnifiedIdeograph.txt
 out += readFileSync(join(ROOT, 'LICENSE-UNICODE.txt'), 'utf8').trim() + '\n'
 
 // Hancom's condition for using its published HWP format document; the wording is fixed
-out += hr('8. Hangul (HWP) document format and trademarks')
+out += hr('9. Hangul (HWP) document format and trademarks')
 out += `
 The HWP/HWPX editor is built on rhwp (https://github.com/edwardkim/rhwp,
 MIT License, listed above as @rhwp/core and @rhwp/editor).
@@ -913,7 +939,7 @@ async function drawioComponentTerms(c, read) {
     case 'Apache-2.0':
       return 'Licensed under the Apache License, Version 2.0 (full text at the start of this section).'
     case 'OFL-1.1':
-      return 'Licensed under the SIL Open Font License 1.1 (full text in section 6).'
+      return 'Licensed under the SIL Open Font License 1.1 (full text in section 7).'
     case 'CC-BY-4.0':
       return (await read(c.licenseFile)).toString('utf8').trim()
     default:
@@ -991,7 +1017,7 @@ ${d.ranges.map((r) => `    ${r.name}: bytes ${r.offset}-${r.offset + r.length - 
   return text
 }
 
-out += hr('9. draw.io (diagram editor)')
+out += hr('10. draw.io (diagram editor)')
 let drawio = null
 try {
   drawio = await loadDrawio()
@@ -1017,7 +1043,7 @@ console.log(
   `written: ${relative(ROOT, dest)} (${(out.length / 1024).toFixed(0)} KB) — ` +
     `${resolved.length} npm packages, ${crates?.length ?? 0} xlsx-sidecar crates, ` +
     `${wasmCrates?.length ?? 0} rhwp crates, ${sidecarCrates?.length ?? 0} parse-sidecar crates, ` +
-    `${hwp5Crates?.length ?? 0} hwp5-wasm crates, draw.io ${drawio ? drawio.config.version : 'missing'}`,
+    `${hwp5Crates?.length ?? 0} hwp5-wasm crates, ${printLayoutCrates?.length ?? 0} print-layout-wasm crates, draw.io ${drawio ? drawio.config.version : 'missing'}`,
 )
 if (noText.length > 0) console.warn(`no license file published: ${noText.join(', ')}`)
 if (missing.size > 0) console.warn(`not installed, skipped: ${[...missing].join(', ')}`)
