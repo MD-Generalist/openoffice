@@ -82,6 +82,7 @@ cd apps/shell && npx vitest run tests/<파일>.test.ts   # 파일 하나만
 | `GENOFFICE_HWP5_WASM_PATH`                                      | `hwp5_bg.wasm` 파일의 경로를 직접 지정한다                                                                         | `apps/hwp` 메인, `packages/cli`                                                                                   |
 | `GENOFFICE_PRINT_LAYOUT_RUST`                                   | `0` 또는 `off`면 고급 인쇄 배치의 Rust WASM을 끄고 기존 JS(`pdf-lib`·`node:zlib`) 경로로 내린다                    | `packages/print-layout`                                                                                           |
 | `GENOFFICE_PRINT_LAYOUT_WASM_PATH`                              | `print_layout_bg.wasm` 파일의 경로를 직접 지정한다(시험·개발용)                                                    | `packages/print-layout`                                                                                           |
+| `GENOFFICE_WHITEBOARD_WASM_PATH`                                | `whiteboard_engine_bg.wasm` 파일의 경로를 직접 지정한다(시험·개발용)                                               | `packages/whiteboard-engine`                                                                                      |
 | `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`                      | 프록시                                                                                                             | 앱이 직접 보내는 요청, 명령어. 구독 프로그램에는 이 변수가 그대로 전달된다(프로그램이 따르는지는 확인하지 않았다) |
 
 이름에 `GENOFFICE_`가 남아 있는 것은 일부러다. 내부 이름은 원본과 같게 둔다.
@@ -262,6 +263,19 @@ npm run test -w @genoffice/print-layout             # freshness(소스·WASM SHA
 ```
 
 - `wasm/pkg/manifest.json`의 `sourceSha256`과 `wasmSha256`이 맞지 않으면 `packages/print-layout/tests/wasm-freshness.test.ts`가 실패한다. 소스를 고친 뒤 재빌드 없이 커밋하지 않는다.
+
+## 화이트보드 엔진 WASM(`whiteboard-engine`) 다시 빌드하기
+
+`.whiteboard` ZIP 입출력·안전 관문·편집 계획·선언형 템플릿 배치·Excalidraw 가져오기를 맡는 `packages/whiteboard-engine/rust`는 미리 빌드해 `packages/whiteboard-engine/pkg/`에 커밋해 둔다. 일반 앱 빌드(`npm run build:all`)와 CI는 `wasm-pack`을 돌리지 않는다. `packages/whiteboard-engine/rust/src/**/*.rs`, `Cargo.toml`, `Cargo.lock`을 고쳤을 때만 다시 빌드한다.
+
+```bash
+export PATH="$HOME/.cargo/bin:$PATH"
+cargo install wasm-pack --version 0.15.0 --locked   # 처음 한 번
+node tools/build-whiteboard-engine.mjs              # wasm-pack --target web --release → 경로 치환·누출 검사 → pkg/manifest.json 갱신
+npm run test -w @genoffice/whiteboard-engine        # freshness(소스·WASM SHA-256), 경로 누출, 엔진 기능 시험
+```
+
+- `pkg/manifest.json`의 `sourceSha256`과 `wasmSha256`이 맞지 않으면 `packages/whiteboard-engine/tests/freshness.test.ts`가 실패한다. 소스를 고친 뒤 재빌드 없이 커밋하지 않는다.
 
 ## draw.io 판 올리기
 

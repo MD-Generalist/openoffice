@@ -802,18 +802,19 @@ describe('the studio source the build fetched', () => {
     'src/core/local-fonts.ts',
     'src/engine/cursor.ts',
     'src/engine/input-handler.ts',
+    'src/engine/input-handler-hyperlink.ts',
     'src/engine/input-handler-keyboard.ts',
     'src/engine/input-handler-mouse.ts',
     'src/engine/input-handler-picture.ts',
     'src/engine/input-handler-text.ts',
     'src/engine/input-handler-table.ts',
-    'src/engine/input-handler-mouse.ts',
     'src/command/dispatcher.ts',
     'src/command/commands/edit.ts',
     'src/command/commands/format.ts',
     'src/command/commands/insert.ts',
     'src/command/commands/table.ts',
     'src/command/shortcut-map.ts',
+    'src/ui/hyperlink-dialog.ts',
     'src/ui/table-cell-props-dialog.ts',
     'src/ui/symbols-dialog.ts',
     'src/ui/toolbar.ts',
@@ -1464,4 +1465,65 @@ describe("Hangul's mouse rules for a selected object (help: 개체 크기 조절
       expect(mixed.width / mixed.height).toBeCloseTo(2)
     },
   )
+})
+
+describe('rhwp hyperlink open patches', () => {
+  const clickSource = [
+    '      web: uri => {',
+    '        const url = new URL(uri);',
+    "        if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false;",
+    "        const opened = window.open('about:blank', '_blank');",
+    "        if (!opened) { showToast({ message: '팝업이 차단되었습니다. 이 사이트의 팝업을 허용해 주세요.' }); return false; }",
+    '        opened.opener = null; opened.location.replace(url.href); return true;',
+    '      },',
+    '      mail: uri => { window.location.assign(uri); return true; },',
+  ].join('\n')
+
+  const dialogSource = [
+    '        const url = webHyperlinkUrl(this.uriInput.value);',
+    "        if (!url) throw new Error('http:// 또는 https://로 시작하는 웹 주소를 입력해 주세요.');",
+    "        const opened = window.open('about:blank', '_blank');",
+    "        if (!opened) throw new Error('팝업이 차단되었습니다. 이 사이트의 팝업을 허용해 주세요.');",
+    '        opened.opener = null;',
+    '        opened.location.replace(url);',
+    "        this.error.textContent = '';",
+  ].join('\n')
+
+  it('opens web and mailto hyperlinks directly through window.open without about:blank popup checks', () => {
+    const patched = applyPatch('studio-hyperlink-open', clickSource)
+    expect(patched).not.toContain('about:blank')
+    expect(patched).not.toContain('window.location.assign')
+    expect(patched).toContain("window.open(url.href, '_blank', 'noopener,noreferrer');")
+    expect(patched).toContain(
+      "mail: uri => { window.open(uri, '_blank', 'noopener,noreferrer'); return true; },",
+    )
+    expect(patched).toContain(
+      "if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false;",
+    )
+  })
+
+  it('opens hyperlink dialog previews directly through window.open without about:blank popup checks', () => {
+    const patched = applyPatch('studio-hyperlink-preview', dialogSource)
+    expect(patched).not.toContain('about:blank')
+    expect(patched).toContain("window.open(url, '_blank', 'noopener,noreferrer');")
+    expect(patched).toContain("this.error.textContent = '';")
+  })
+
+  it('keeps CRLF sources working, fails when the text is gone, and is in the studio build', () => {
+    const crlfClick = applyPatch('studio-hyperlink-open', clickSource.replaceAll('\n', '\r\n'))
+    expect(crlfClick).toContain("window.open(url.href, '_blank', 'noopener,noreferrer');\r\n")
+    expect(crlfClick).not.toMatch(/[^\r]\n/)
+    const crlfDialog = applyPatch('studio-hyperlink-preview', dialogSource.replaceAll('\n', '\r\n'))
+    expect(crlfDialog).toContain("window.open(url, '_blank', 'noopener,noreferrer');\r\n")
+    expect(crlfDialog).not.toMatch(/[^\r]\n/)
+
+    expect(() => applyPatch('studio-hyperlink-open', 'web: () => false')).toThrow(
+      /studio-hyperlink-open/,
+    )
+    expect(() => applyPatch('studio-hyperlink-preview', 'window.open()')).toThrow(
+      /studio-hyperlink-preview/,
+    )
+    expect(STUDIO_PATCHES).toContain('studio-hyperlink-open')
+    expect(STUDIO_PATCHES).toContain('studio-hyperlink-preview')
+  })
 })

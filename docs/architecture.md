@@ -2,7 +2,7 @@
 
 ## 한 프로그램으로 배포되는 여러 조각
 
-설치되는 것은 Electron 프로그램 하나다. 그 안에 껍데기 앱 하나와 편집기들(워드, 엑셀, 파워포인트, PDF, 마크다운, HTML, 마인드맵, 한글, 전자책, 다이어그램)이 들어 있고, 편집기들은 화면과 무관한 공용 패키지(문서 엔진, AI 연결부)를 가져다 쓴다.
+설치되는 것은 Electron 프로그램 하나다. 그 안에 껍데기 앱 하나와 편집기들(워드, 엑셀, 파워포인트, PDF, 마크다운, HTML, 마인드맵, 한글, 전자책, 다이어그램, 화이트보드)이 들어 있고, 편집기들은 화면과 무관한 공용 패키지(문서 엔진, AI 연결부)를 가져다 쓴다.
 
 ```
 apps/shell      껍데기 앱. 창, 탭, 홈 화면, 설정, 첫 실행 안내, 자동 업데이트, 파일 색인과 지식 자료 검색,
@@ -25,6 +25,8 @@ apps/epub       전자책(.epub) 편집기. 책은 뒷단에 보기마다 한 �
                 packages/epub-engine의 범위 바꾸기로 한다. 책 번역은 pdf-structure의 작업 엔진과 보관소를 쓴다
 apps/diagram    다이어그램(.drawio) 편집기. 빌드 때 받은 draw.io 본체를 탭 전용 세션의 틀에 띄우고 바깥 요청을 막는다.
                 파일 형식·읽기 표·연산은 packages/drawio-model이 맡는다(결정 0103)
+apps/whiteboard 화이트보드(.whiteboard) 편집기. React/SVG 캔버스, Excalidraw 가져오기, PDF 쪽 배경, 발표 모드, AI 패널.
+                문서 모델·ZIP 저장·편집 계획·선언형 템플릿·Excalidraw 변환은 packages/whiteboard-engine(Rust WASM)이 맡는다
 packages/ai-provider   제공자 목록, 제공자 선택 규칙, 구독 프로그램 실행부, 키 방식 제공자 연결
 packages/ai-search     검색·이미지 생성·미디어 분석 도구, 자동 호출 경로의 구독 요청 차례
 packages/agent-core    AI 실행 반복(모델 → 도구 → 모델), 화면↔뒷단 전송 통로, 가리기
@@ -42,6 +44,9 @@ packages/epub-engine   EPUB 엔진(열기와 거절, 블록 지도, 블록 글 �
                        단위·열쇠·지시문과 번역본·대역본). 이 프로젝트가 만든 것이고, 화면과 Node 양쪽에서 돈다
 packages/drawio-model  다이어그램 파일 모델(형식 판정·원본 꺼내기, 읽기 표, 연산 검사와 기본 변경, XML 쓰기). 이 프로젝트가
                        만든 것이고, 편집기 화면·셸·터미널 명령어·file-parse가 같은 코드를 쓴다
+packages/whiteboard-engine
+                       화이트보드 핵심 엔진(Rust WebAssembly, 미리 빌드해 `pkg/`에 둠). `.whiteboard` ZIP 안전 관문·
+                       미지 필드/항목 보존 저장·일괄 편집 계획·선언형 템플릿 배치·마크다운 개요 추출·Excalidraw 가져오기를 맡는다
 packages/hwp5-wasm     HWP 5 OLE2 복합 문서 컨테이너 읽기·다시 쓰기·변경 추적 스트림 제거(Rust WebAssembly, 미리 빌드해 `pkg/`에 둠).
                        한글 편집기 저장 보정과 터미널 명령어(`hwp apply`)가 JS `cfb` 대신 기본으로 쓴다(결정 0156)
 packages/file-parse/native/parse-sidecar

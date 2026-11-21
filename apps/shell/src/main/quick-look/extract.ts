@@ -158,6 +158,7 @@ function extractHwp5Thumbnail(bytes: Buffer): string | undefined {
 }
 
 const ZIP_THUMBNAIL_CANDIDATES = [
+  'thumbnail.png',
   'Preview/PrvImage.png',
   'Preview/PrvImage.bmp',
   'Preview/PrvImage.gif',
@@ -182,6 +183,7 @@ const ZIP_THUMBNAIL_EXTS: ReadonlySet<string> = new Set([
   'xlsm',
   'odt',
   'xmind',
+  'whiteboard',
 ])
 
 const ALWAYS_ZIP_EXTS: ReadonlySet<string> = new Set([
@@ -192,6 +194,7 @@ const ALWAYS_ZIP_EXTS: ReadonlySet<string> = new Set([
   'xlsm',
   'odt',
   'xmind',
+  'whiteboard',
 ])
 
 async function peekMagic4(filePath: string): Promise<Buffer> {
@@ -791,7 +794,8 @@ export async function extractQuickLook(
       family !== 'docx' &&
       family !== 'pptx' &&
       family !== 'xlsx' &&
-      family !== 'xmind'
+      family !== 'xmind' &&
+      family !== 'whiteboard'
     ) {
       return undefined
     }
@@ -853,7 +857,13 @@ export async function extractQuickLook(
   } else if (family === 'xmind') {
     const { mindmap, truncated } = parseMindmapFromText(rawText)
     result = { ...result, mindmap, truncated: truncated || plainTruncated }
-  } else if (family === 'docx' || family === 'hwp' || family === 'md' || family === 'pdf') {
+  } else if (
+    family === 'docx' ||
+    family === 'hwp' ||
+    family === 'md' ||
+    family === 'pdf' ||
+    family === 'whiteboard'
+  ) {
     const { docBlocks, truncated } = parseDocBlocksFromText(plainText)
     result = {
       ...result,

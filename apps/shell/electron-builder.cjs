@@ -72,6 +72,7 @@ function assertExtraResourceSources() {
     '../../node_modules/@rhwp/core/rhwp_bg.wasm',
     '../../packages/hwp5-wasm/pkg/hwp5_wasm_bg.wasm',
     '../../packages/print-layout/wasm/pkg/print_layout_wasm_bg.wasm',
+    '../../packages/whiteboard-engine/pkg/whiteboard_engine_bg.wasm',
     'resources/builtin-skills/builtin-skills.json',
   ]) {
     if (!existsSync(join(__dirname, rel))) {
@@ -231,6 +232,7 @@ function assertModuleTreesPresent() {
     '../hwp/out',
     '../epub/out',
     '../diagram/out/drawio/index.html',
+    '../whiteboard/out',
     '../../packages/cli/dist/genoffice.cjs',
     '../../packages/cli/dist/node_modules/jsdom',
   ]) {
@@ -310,9 +312,9 @@ const NOTICE_PATH = join(__dirname, 'build/THIRD-PARTY-NOTICES.txt')
 const PDFIUM_NOTICE_TERMS = ['@embedpdf/pdfium', 'Copyright 2014 PDFium Authors', 'Apache License']
 // tools/gen-third-party-notices.mjs writes this header after the repo NOTICE,
 // and one crate-count line per Rust component (xlsx-sidecar, rhwp_bg.wasm,
-// ieum-parse-sidecar, hwp5_bg.wasm, print_layout_bg.wasm)
+// ieum-parse-sidecar, hwp5_bg.wasm, print_layout_bg.wasm, whiteboard_engine_bg.wasm)
 const NOTICE_HEADER = `${PRODUCT_NAME} — Third-Party Software Notices`
-const RUST_COMPONENTS = 5
+const RUST_COMPONENTS = 6
 const CRATE_COUNT_LINE = /^[1-9]\d* crates, all under permissive terms:$/gm
 
 /**
@@ -380,6 +382,7 @@ const WIN_OPEN_WITH_ONLY_EXTS = new Set([
   'hwpx',
   'epub',
   'vsdx',
+  'excalidraw',
   'ods',
 ])
 // NSIS registers each association under a ProgId taken from its `name`
@@ -578,6 +581,25 @@ const FILE_ASSOCIATIONS = [
     icon: 'diagram',
     mimeType: 'application/vnd.ms-visio.drawing.main+xml',
   },
+  {
+    ext: 'whiteboard',
+    name: 'Whiteboard',
+    description: 'Whiteboard',
+    role: 'Editor',
+    icon: 'whiteboard',
+    mimeType: 'application/vnd.ieumoffice.whiteboard+zip',
+  },
+  {
+    // Open With only: Excalidraw scenes are imported as new whiteboards and
+    // never overwritten, so the app is only an alternate viewer/importer.
+    ext: 'excalidraw',
+    name: 'Excalidraw Drawing',
+    description: 'Excalidraw Drawing',
+    role: 'Viewer',
+    rank: 'Alternate',
+    icon: 'whiteboard',
+    mimeType: 'application/vnd.excalidraw+json',
+  },
 ]
 
 const config = {
@@ -658,6 +680,10 @@ const config = {
       to: 'modules/diagram',
       filter: ['**/*', '!drawio.stamp.json'],
     },
+    {
+      from: '../whiteboard/out',
+      to: 'modules/whiteboard',
+    },
     // PDF text editing engines: the bundled main resolves these under
     // Resources/wasm when node_modules is absent (apps/pdf/src/main/wasm-path.ts)
     {
@@ -690,6 +716,12 @@ const config = {
     {
       from: '../../packages/print-layout/wasm/pkg/print_layout_wasm_bg.wasm',
       to: 'wasm/print_layout_bg.wasm',
+    },
+    // Whiteboard WASM core engine (file checks, Excalidraw import, Markdown outline, CLI):
+    // packages/whiteboard-engine/pkg
+    {
+      from: '../../packages/whiteboard-engine/pkg/whiteboard_engine_bg.wasm',
+      to: 'wasm/whiteboard_engine_bg.wasm',
     },
     // platform system-OCR helpers for scanned-page recovery (each exists only
     // on its own build platform; electron-builder skips absent sources and the
@@ -786,6 +818,17 @@ const config = {
     // .drawio / .dio resolve to the type identifier draw.io exports, also on a
     // Mac without draw.io: "set as default" (src/main/default-app.ts) names it
     extendInfo: {
+      UTExportedTypeDeclarations: [
+        {
+          UTTypeIdentifier: 'io.github.pblsketch.ieumoffice.whiteboard',
+          UTTypeDescription: 'Whiteboard',
+          UTTypeConformsTo: ['public.zip-archive', 'public.data'],
+          UTTypeTagSpecification: {
+            'public.filename-extension': ['whiteboard'],
+            'public.mime-type': ['application/vnd.ieumoffice.whiteboard+zip'],
+          },
+        },
+      ],
       UTImportedTypeDeclarations: [
         {
           UTTypeIdentifier: 'com.jgraph.drawio',

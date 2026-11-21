@@ -18112,21 +18112,21 @@
   },
   {
     "date": "2026-11-21",
-    "totalDownloads": 77212,
+    "totalDownloads": 77656,
     "installs": {
-      "windows": 55366,
-      "macos": 18758,
-      "linux": 3088
+      "windows": 55664,
+      "macos": 18883,
+      "linux": 3109
     },
-    "updateChecks": 165444,
+    "updateChecks": 167593,
     "releaseCount": 14,
     "stars": 914,
-    "forks": 165,
+    "forks": 166,
     "releases": [
       {
         "tag": "v0.13.0",
         "publishedAt": "2026-11-17T09:56:45Z",
-        "downloads": 7381
+        "downloads": 7825
       },
       {
         "tag": "v0.12.12",
@@ -18198,57 +18198,57 @@
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-0.13.0-arm64-mac.zip",
-        "downloads": 1089
+        "downloads": 1122
       },
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-0.13.0-arm64.dmg",
-        "downloads": 682
+        "downloads": 758
       },
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-0.13.0-mac.zip",
-        "downloads": 98
+        "downloads": 103
       },
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-0.13.0-x64.dmg",
-        "downloads": 96
+        "downloads": 107
       },
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-0.13.0.AppImage",
-        "downloads": 147
+        "downloads": 161
       },
       {
         "release": "v0.13.0",
         "asset": "ieumoffice-0.13.0.x86_64.rpm",
-        "downloads": 25
+        "downloads": 26
       },
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-Setup-0.13.0.exe",
-        "downloads": 5195
+        "downloads": 5493
       },
       {
         "release": "v0.13.0",
         "asset": "ieumoffice_0.13.0_amd64.deb",
-        "downloads": 49
+        "downloads": 55
       },
       {
         "release": "v0.13.0",
         "asset": "latest-linux.yml",
-        "downloads": 318
+        "downloads": 346
       },
       {
         "release": "v0.13.0",
         "asset": "latest-mac.yml",
-        "downloads": 12369
+        "downloads": 13559
       },
       {
         "release": "v0.13.0",
         "asset": "latest.yml",
-        "downloads": 10028
+        "downloads": 10959
       },
       {
         "release": "v0.12.12",

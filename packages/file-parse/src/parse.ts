@@ -13,6 +13,7 @@ import { pptToText } from './ppt'
 import { pptxToText } from './pptx'
 import { xlsxToText } from './xlsx'
 import { xmindToText } from './xmind'
+import { whiteboardToText } from './whiteboard'
 import { readZipTextParts } from './zip-text-parts'
 import { decodeCsvBuffer } from '@genoffice/xlsx-gateway/gateway/csv-import'
 import { redactHtmlSource } from './html-redaction'
@@ -189,6 +190,7 @@ const ZIP_DOCUMENT_EXTS = new Set([
   'odt',
   'epub',
   'xmind',
+  'whiteboard',
   // a DOCX under a .doc name and an HWPX under a .hwp name are read by content
   'doc',
   'hwp',
@@ -350,7 +352,7 @@ export async function parseFileToText(
         error: `Content mismatch: .${ext} file has ${sniffed} magic bytes`,
       }
     }
-    if ((ext === 'xmind' || ext === 'epub') && sniffed !== 'zip') {
+    if ((ext === 'xmind' || ext === 'epub' || ext === 'whiteboard') && sniffed !== 'zip') {
       return {
         ok: false,
         kind: 'text',
@@ -405,6 +407,8 @@ export async function parseFileToText(
         return { ok: true, kind: 'text', text: await pdfToText(bytes) }
       case 'xmind':
         return { ok: true, kind: 'text', text: await xmindToText(bytes) }
+      case 'whiteboard':
+        return { ok: true, kind: 'text', text: whiteboardToText(bytes) }
       case 'epub':
         return { ok: true, kind: 'text', text: await epubToText(bytes) }
     }
