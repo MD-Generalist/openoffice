@@ -14,4 +14,5 @@ pub mod rich_text;
 pub mod stroke;
 pub mod table;
 pub mod template;
+pub mod wasm;
 pub mod zip_io;
