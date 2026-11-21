@@ -23,6 +23,7 @@
     "@genoffice/drawio-model": "*",
     "@genoffice/epub-engine": "*",
     "@genoffice/odt-engine": "*",
+    "@genoffice/whiteboard-engine": "*",
     "@genoffice/xlsx-gateway": "*",
     "@genoffice/xmind-engine": "*",
     "@rhwp/core": "file:../../vendor/rhwp-core",

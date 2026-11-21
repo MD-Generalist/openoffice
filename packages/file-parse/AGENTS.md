@@ -2,7 +2,7 @@
 
 ## 맡은 범위
 
-첨부 파일을 모델에 보낼 평문으로 바꾼다. `parseFileToText(경로)`가 확장자와 매직 바이트를 보고 PDF, docx, doc, odt, pptx, ppt, xlsx/xlsm, 마인드맵(`.xmind`), 한글(hwp, hwpx), EPUB 책(`.epub`), draw.io 다이어그램(`.drawio`·`.dio`·`.drawio.svg`·`.drawio.png`), 텍스트 계열 파일을 글자로 풀고, 이미지는 내용을 읽지 않고 `kind: 'image'`와 MIME만 돌려준다. Docs·Sheets·Slides·HTML·Mindmap·EPUB 메인 프로세스의 첨부 처리, 셸의 파일 색인·지식 베이스, 만들기 창의 자료 확인과 AI 없이 바꾸기가 쓴다. 앱 안에서 파일이 "다른 파일로" 읽히는 길은 모두 여기를 지난다.
+첨부 파일을 모델에 보낼 평문으로 바꾼다. `parseFileToText(경로)`가 확장자와 매직 바이트를 보고 PDF, docx, doc, odt, pptx, ppt, xlsx/xlsm, 마인드맵(`.xmind`), 한글(hwp, hwpx), EPUB 책(`.epub`), draw.io 다이어그램(`.drawio`·`.dio`·`.drawio.svg`·`.drawio.png`), 화이트보드(`.whiteboard`), 텍스트 계열 파일을 글자로 풀고, 이미지는 내용을 읽지 않고 `kind: 'image'`와 MIME만 돌려준다. Docs·Sheets·Slides·HTML·Mindmap·EPUB·Whiteboard 메인 프로세스의 첨부 처리, 셸의 파일 색인·지식 베이스, 만들기 창의 자료 확인과 AI 없이 바꾸기가 쓴다. 앱 안에서 파일이 "다른 파일로" 읽히는 길은 모두 여기를 지난다.
 
 다른 파일로 읽힐 때의 가리기도 맡는다. 자기 편집기가 AI에게 가리는 자리를 여기서도 똑같이 `{{이름}}`으로 바꿔 내준다.
 

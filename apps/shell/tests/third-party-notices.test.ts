@@ -155,6 +155,9 @@ describe('third-party license aggregation', () => {
     expect(text).toContain(
       '6. Rust crates (print-layout-wasm advanced print layout engine, compiled into print_layout_bg.wasm)',
     )
+    expect(text).toContain(
+      '7. Rust crates (whiteboard-engine, compiled into whiteboard_engine_bg.wasm)',
+    )
   })
 })
 
@@ -201,6 +204,7 @@ const VALID_NOTICE = [
   '40 crates, all under permissive terms:',
   '25 crates, all under permissive terms:',
   '56 crates, all under permissive terms:',
+  '32 crates, all under permissive terms:',
   '',
 ].join('\n')
 
@@ -296,7 +300,7 @@ describe('packaging gate on the third-party notice', () => {
       'crate list unavailable at generation time',
     )
     const { pack, generatorRuns } = packWithNotice(partial, partial)
-    await expect(pack()).rejects.toThrow(/4 of 5 Rust crate sections are listed/)
+    await expect(pack()).rejects.toThrow(/5 of 6 Rust crate sections are listed/)
     expect(generatorRuns).toHaveLength(1)
   })
 
@@ -322,6 +326,9 @@ describe('packaging gate on the third-party notice', () => {
     expect(common.get('wasm/hwp5_bg.wasm')).toBe('../../packages/hwp5-wasm/pkg/hwp5_wasm_bg.wasm')
     expect(common.get('wasm/print_layout_bg.wasm')).toBe(
       '../../packages/print-layout/wasm/pkg/print_layout_wasm_bg.wasm',
+    )
+    expect(common.get('wasm/whiteboard_engine_bg.wasm')).toBe(
+      '../../packages/whiteboard-engine/pkg/whiteboard_engine_bg.wasm',
     )
     expect(config.win.extraResources.some((e) => e.to === 'native/ieum-parse-sidecar.exe')).toBe(
       true,

@@ -296,6 +296,9 @@ const homeApi: HomeApi = {
   async newDiagram(opts) {
     await ipcRenderer.invoke(HOME_CHANNELS.newDiagram, opts)
   },
+  async newWhiteboard(opts) {
+    await ipcRenderer.invoke(HOME_CHANNELS.newWhiteboard, opts)
+  },
   async newHwp(opts) {
     await ipcRenderer.invoke(HOME_CHANNELS.newHwp, opts)
   },
