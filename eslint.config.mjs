@@ -26,6 +26,8 @@ export default tseslint.config(
       'packages/hwp5-wasm/pkg/**',
       // prebuilt print-layout WASM core (tools/build-print-layout-wasm.mjs): wasm-bindgen glue
       'packages/print-layout/wasm/pkg/**',
+      // prebuilt whiteboard WASM engine (tools/build-whiteboard-engine.mjs): wasm-bindgen glue
+      'packages/whiteboard-engine/pkg/**',
       // Browser-side extractor fragments are function-body slices (top-level
       // return), not modules; they are injected as raw text.
       'packages/html2docx/src/browser/**',

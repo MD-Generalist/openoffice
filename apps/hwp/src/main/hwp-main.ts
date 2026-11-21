@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { BrowserWindow, WebContentsView, app, dialog, ipcMain, shell } from 'electron'
 import type { WebContents } from 'electron'
 import {
@@ -69,6 +69,7 @@ import type {
   BeginSaveResult,
   CommitSaveResult,
   HwpFormat,
+  LoadGeneratedHwpxResult,
   MeasuredTab,
   MemoPathStep,
   MemoSnapshot,
@@ -670,6 +671,57 @@ function registerHwpIpc(): void {
   })
 
   ipcMain.handle(HWP_CHANNELS.trackingDropped, (e) => trackingDroppedByWc.has(e.sender.id))
+
+  ipcMain.handle(
+    HWP_CHANNELS.loadGeneratedHwpx,
+    async (e, rawPath: unknown, intoCurrentBlank: unknown): Promise<LoadGeneratedHwpxResult> => {
+      if (typeof rawPath !== 'string' || !rawPath.trim()) {
+        return { ok: false, error: 'hwp: file path is required' }
+      }
+      const resolved = resolve(rawPath.trim())
+      const format = hwpFormatOfPath(resolved)
+      if (!format) {
+        return { ok: false, error: 'hwp: only .hwp and .hwpx files can be opened here' }
+      }
+      let info
+      try {
+        info = await stat(resolved)
+      } catch {
+        return { ok: false, error: `hwp: file not found at "${resolved}"` }
+      }
+      if (!info.isFile() || info.size <= 0) {
+        return { ok: false, error: 'hwp: generated file is missing or empty' }
+      }
+      if (info.size > MAX_HWP_SAVE_BYTES) {
+        return { ok: false, error: 'hwp: file is too large to open' }
+      }
+      let bytes: Uint8Array
+      try {
+        bytes = await readFile(resolved)
+      } catch {
+        return { ok: false, error: 'hwp: could not read the generated file' }
+      }
+      if (!bytesMatchFormat(bytes, format)) {
+        return { ok: false, error: `hwp: file is not a valid .${format} document` }
+      }
+      const wcId = e.sender.id
+      const name = basename(resolved)
+      if (intoCurrentBlank === true && !savePathByWc.has(wcId) && !dirtyByWc.has(wcId)) {
+        // Keep the tab untitled so the first Save prompts Save As instead of writing to temp
+        untitledCopyByWc.set(wcId, { name, format })
+        dirtyByWc.add(wcId)
+        trackedByWc.delete(wcId)
+        trackingDroppedByWc.delete(wcId)
+        tailsByWc.delete(wcId)
+        fieldKindsByWc.delete(wcId)
+        return { ok: true, mode: 'current', name, format, bytes }
+      }
+      if (runtime.openGeneratedPath?.(resolved)) {
+        return { ok: true, mode: 'new-tab', name, format }
+      }
+      return { ok: false, error: 'hwp: could not open the generated file in a new tab' }
+    },
+  )
 
   /** one print or PDF at a time per view */
   const printing = new Set<number>()

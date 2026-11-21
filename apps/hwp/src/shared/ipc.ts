@@ -66,6 +66,8 @@ export const HWP_CHANNELS = {
   aiRunStop: 'hwp:ai-run-stop',
   /** invoke(path, request?) → `AttachmentImportResult`: an attached Markdown file as a new Hangul tab */
   filesImportDocument: 'hwp:files-import-document',
+  /** invoke(path, intoCurrentBlank) → `LoadGeneratedHwpxResult`: load an externally generated .hwpx/.hwp (e.g. from kordoc) into the blank tab or a new tab */
+  loadGeneratedHwpx: 'hwp:load-generated-hwpx',
   /** invoke({prompt, aspectRatio, model?}) → `{url?, error?, errorCode?}`: one AI picture */
   aiGenerateImage: 'hwp:ai-generate-image',
   /** invoke(url) �� `{base64, mime} | null`: a web image or a generated-store file */
@@ -321,6 +323,15 @@ export type AttachmentDocumentResult = { ok: true; base64: string } | { ok: fals
 export type AttachmentImportResult =
   { ok: true; title: string; handed: boolean } | { ok: false; error: string }
 
+/**
+ * An externally generated HWP/HWPX file (e.g. written by kordoc MCP) opened
+ * either directly into the currently blank untitled tab or in a new Hangul tab.
+ */
+export type LoadGeneratedHwpxResult =
+  | { ok: true; mode: 'current'; name: string; format: HwpFormat; bytes: Uint8Array }
+  | { ok: true; mode: 'new-tab'; name: string; format: HwpFormat }
+  | { ok: false; error: string }
+
 /** What the configured picture reader says about one picture of the document. */
 export interface MediaAnalysisResult {
   text?: string
@@ -488,6 +499,11 @@ export interface HwpApi {
    * tab of its own; with `request` the person's words go along for that tab's AI panel
    */
   importAttachmentAsDocument(path: string, request?: string): Promise<AttachmentImportResult>
+  /**
+   * Load an externally generated .hwpx/.hwp file (for example created by kordoc
+   * MCP) directly into this blank tab or open it in a new Hangul tab.
+   */
+  loadGeneratedHwpx?(path: string, intoCurrentBlank: boolean): Promise<LoadGeneratedHwpxResult>
   /**
    * note that the app stopped an AI run by its own rule: the rule, fault counts and
    * tool names only (an AgentRunStop), for the crash record on this PC

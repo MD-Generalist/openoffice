@@ -235,6 +235,7 @@ export function AiPanel({
   prefill,
   onPrefillTaken,
   marksOnPage,
+  loadGeneratedHwpx,
 }: {
   /** the document operations of the open editor */
   bridge: AgentBridge
@@ -260,6 +261,12 @@ export function AiPanel({
    * takes them off, and the card's button to clear them goes with them
    */
   marksOnPage?: boolean
+  /** load an externally generated .hwpx/.hwp (e.g. from kordoc MCP) into this blank tab or a new tab */
+  loadGeneratedHwpx?: (
+    path: string,
+  ) => Promise<
+    { ok: true; mode: 'current' | 'new-tab'; title: string } | { ok: false; error: string }
+  >
 }): ReactElement {
   const { lang, t } = useI18n()
   const [chat, setChat] = useState<ChatEntry[]>([])
@@ -764,6 +771,8 @@ export function AiPanel({
 
   /** the person's words of the run that is going: import_attachment may hand them to a new tab */
   const runRequestRef = useRef('')
+  const loadGeneratedHwpxRef = useRef(loadGeneratedHwpx)
+  loadGeneratedHwpxRef.current = loadGeneratedHwpx
   const skillRef = useRef<ReturnType<typeof createHwpSkill> | null>(null)
   if (!skillRef.current)
     skillRef.current = createHwpSkill({
@@ -794,6 +803,16 @@ export function AiPanel({
         }
         const request = handOver ? runRequestRef.current.trim() : ''
         return window.hwpApi.importAttachmentAsDocument(attachment.path, request || undefined)
+      },
+      loadGeneratedHwpx: (path) => {
+        const fn = loadGeneratedHwpxRef.current
+        if (!fn) {
+          return Promise.resolve({
+            ok: false as const,
+            error: 'Opening generated HWP files is not available here.',
+          })
+        }
+        return fn(path)
       },
       // the model names an attachment; only files the panel shows can be found
       attachmentPath: (name) =>
