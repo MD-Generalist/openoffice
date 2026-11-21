@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { isFileOpen, setOpenFilesSource } from '@genoffice/electron-utils/unsaved-files'
-import { MCP_TOOLS_CHANNELS, mcpToolCallRequestOf } from '@genoffice/electron-utils/mcp-tools-channels'
+import {
+  MCP_TOOLS_CHANNELS,
+  mcpToolCallRequestOf,
+} from '@genoffice/electron-utils/mcp-tools-channels'
 import { matchPresetOfServer } from '../src/main/mcp-client/presets'
 import { createMcpHub, type McpHub } from '../src/main/mcp-client/hub'
 import { createMcpServersStore } from '../src/main/mcp-client/store'
@@ -14,7 +17,9 @@ const fakeCodec: McpSecretCodec = {
   canSeal: () => true,
   seal: (p) => `sealed:v1:${Buffer.from(p, 'utf8').toString('base64')}`,
   open: (s) =>
-    s.startsWith('sealed:v1:') ? Buffer.from(s.slice('sealed:v1:'.length), 'base64').toString('utf8') : null,
+    s.startsWith('sealed:v1:')
+      ? Buffer.from(s.slice('sealed:v1:'.length), 'base64').toString('utf8')
+      : null,
 }
 
 let tempDir: string
@@ -45,12 +50,17 @@ function makeHub() {
     store,
     remote: (server) => ({
       listTools: async () => ({
-        tools: [{ name: 'notion-search', description: 'Search pages', inputSchema: { type: 'object' } }],
+        tools: [
+          { name: 'notion-search', description: 'Search pages', inputSchema: { type: 'object' } },
+        ],
         instructions: null,
       }),
       callTool: async (tool, input) => {
         remoteCalls.push({ tool, input })
-        return { content: [{ type: 'text', text: JSON.stringify({ results: [] }) }], isError: false }
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ results: [] }) }],
+          isError: false,
+        }
       },
       signIn: async () => ({ ok: true }),
       revoke: async () => {
@@ -93,7 +103,10 @@ function makeHub() {
       userData: join(tempDir, 'FakeUserData'),
       isFileOpen: () => false,
       hasUnsavedChanges: () => false,
-      parseFileToText: async (p) => ({ ok: true, text: await import('node:fs/promises').then((m) => m.readFile(p, 'utf8')) }),
+      parseFileToText: async (p) => ({
+        ok: true,
+        text: await import('node:fs/promises').then((m) => m.readFile(p, 'utf8')),
+      }),
       trashItem: async () => {},
     },
   })

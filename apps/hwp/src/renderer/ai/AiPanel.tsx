@@ -264,7 +264,9 @@ export function AiPanel({
   /** load an externally generated .hwpx/.hwp (e.g. from kordoc MCP) into this blank tab or a new tab */
   loadGeneratedHwpx?: (
     path: string,
-  ) => Promise<{ ok: true; mode: 'current' | 'new-tab'; title: string } | { ok: false; error: string }>
+  ) => Promise<
+    { ok: true; mode: 'current' | 'new-tab'; title: string } | { ok: false; error: string }
+  >
 }): ReactElement {
   const { lang, t } = useI18n()
   const [chat, setChat] = useState<ChatEntry[]>([])

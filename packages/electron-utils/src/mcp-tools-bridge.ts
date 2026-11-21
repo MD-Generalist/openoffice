@@ -62,7 +62,6 @@ export function mcpToolsBridge(): McpToolsBridge {
     retry: (server) => ipcRenderer.invoke(C.retry, String(server)).catch(() => ({ ok: false })),
     openSettings: (server) =>
       ipcRenderer.invoke(C.openSettings, String(server)).catch(() => ({ ok: false })),
-    openIntegrations: () =>
-      ipcRenderer.invoke(C.openIntegrations).catch(() => ({ ok: false })),
+    openIntegrations: () => ipcRenderer.invoke(C.openIntegrations).catch(() => ({ ok: false })),
   }
 }

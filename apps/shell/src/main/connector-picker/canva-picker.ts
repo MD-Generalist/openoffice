@@ -26,15 +26,18 @@ export interface CanvaToolSet {
  * server catalog.
  */
 export function findCanvaTools(tools: readonly NotionToolDescriptor[]): CanvaToolSet | null {
-  const byExact = (name: string) =>
-    tools.find((t) => t.name.toLowerCase() === name) ?? null
+  const byExact = (name: string) => tools.find((t) => t.name.toLowerCase() === name) ?? null
   const searchTool =
     byExact('search-designs') ??
-    tools.find((t) => t.name.toLowerCase().includes('search') && t.name.toLowerCase().includes('design')) ??
+    tools.find(
+      (t) => t.name.toLowerCase().includes('search') && t.name.toLowerCase().includes('design'),
+    ) ??
     null
   const readTool =
     byExact('read-design') ??
-    tools.find((t) => t.name.toLowerCase().includes('read') && t.name.toLowerCase().includes('design')) ??
+    tools.find(
+      (t) => t.name.toLowerCase().includes('read') && t.name.toLowerCase().includes('design'),
+    ) ??
     null
   if (!searchTool || !readTool) return null
   const exportFormatsTool =
@@ -43,7 +46,9 @@ export function findCanvaTools(tools: readonly NotionToolDescriptor[]): CanvaToo
     null
   const exportTool =
     byExact('export-design') ??
-    tools.find((t) => t.name.toLowerCase().includes('export') && t.name.toLowerCase().includes('design')) ??
+    tools.find(
+      (t) => t.name.toLowerCase().includes('export') && t.name.toLowerCase().includes('design'),
+    ) ??
     null
   return { searchTool, readTool, exportFormatsTool, exportTool }
 }
@@ -169,12 +174,30 @@ function collectTextNodes(node: unknown, out: string[], depth = 0): void {
   if (typeof node !== 'object') return
   const rec = node as Record<string, unknown>
   // Common Canva text-bearing fields
-  for (const key of ['text', 'plain_text', 'content', 'label', 'heading', 'body', 'notes', 'note']) {
+  for (const key of [
+    'text',
+    'plain_text',
+    'content',
+    'label',
+    'heading',
+    'body',
+    'notes',
+    'note',
+  ]) {
     if (typeof rec[key] === 'string' && rec[key].trim()) {
       out.push(rec[key].trim())
     }
   }
-  for (const key of ['elements', 'children', 'items', 'blocks', 'paragraphs', 'rows', 'cells', 'richtexts']) {
+  for (const key of [
+    'elements',
+    'children',
+    'items',
+    'blocks',
+    'paragraphs',
+    'rows',
+    'cells',
+    'richtexts',
+  ]) {
     if (rec[key] !== undefined) collectTextNodes(rec[key], out, depth + 1)
   }
 }
@@ -279,7 +302,10 @@ export function formatCanvaDesignMarkdown(rawOutput: string, fallbackTitle: stri
     lines.push('', '```json', JSON.stringify(rec, null, 2).slice(0, 20_000), '```')
   }
 
-  return `${lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()}\n`
+  return `${lines
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()}\n`
 }
 
 function safeFileName(title: string, id: string, ext: string, index: number): string {
@@ -487,8 +513,7 @@ export interface ExportCanvaDesignParams {
 }
 
 export type ExportCanvaDesignResult =
-  | { ok: true; path: string; format: 'pptx' | 'pdf' }
-  | { ok: false; error: string }
+  { ok: true; path: string; format: 'pptx' | 'pdf' } | { ok: false; error: string }
 
 /**
  * Export one Canva design as PPTX (preferred for presentations) or PDF, download
@@ -557,7 +582,10 @@ export async function exportCanvaDesignToTemp(
   }
 
   await mkdir(params.attachDir, { recursive: true })
-  const filePath = join(params.attachDir, safeFileName(params.item.title, params.item.id, format, 0))
+  const filePath = join(
+    params.attachDir,
+    safeFileName(params.item.title, params.item.id, format, 0),
+  )
   await atomicWriteFile(filePath, bytes)
   return { ok: true, path: filePath, format }
 }

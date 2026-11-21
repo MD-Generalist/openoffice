@@ -1090,17 +1090,16 @@ export default function App() {
   const loadGeneratedHwpx = useCallback(
     async (
       path: string,
-    ): Promise<{ ok: true; mode: 'current' | 'new-tab'; title: string } | { ok: false; error: string }> => {
+    ): Promise<
+      { ok: true; mode: 'current' | 'new-tab'; title: string } | { ok: false; error: string }
+    > => {
       const loader = window.hwpApi.loadGeneratedHwpx
       if (!loader) return { ok: false, error: 'Opening generated HWP files is not available here.' }
       const editor = editorRef.current
       let isBlank = false
       if (editor && !filePath && !openedFileRef.current) {
         try {
-          const [ctx, text] = await Promise.all([
-            editor.commands.context(),
-            agentBridge.readText(),
-          ])
+          const [ctx, text] = await Promise.all([editor.commands.context(), agentBridge.readText()])
           isBlank = ctx.isDirty !== true && text.trim() === ''
         } catch {
           isBlank = false

@@ -76,8 +76,16 @@ describe('Obsidian note picker backend', () => {
 describe('Notion page picker backend', () => {
   it('finds official search and fetch tools and filters out databases from search results', () => {
     const tools = findNotionTools([
-      { name: 'notion-search', description: 'Search Notion', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } },
-      { name: 'notion-fetch', description: 'Fetch Notion page', inputSchema: { type: 'object', properties: { id: { type: 'string' } } } },
+      {
+        name: 'notion-search',
+        description: 'Search Notion',
+        inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+      },
+      {
+        name: 'notion-fetch',
+        description: 'Fetch Notion page',
+        inputSchema: { type: 'object', properties: { id: { type: 'string' } } },
+      },
     ])
     expect(tools?.searchTool.name).toBe('notion-search')
     expect(tools?.fetchTool.name).toBe('notion-fetch')
@@ -87,8 +95,18 @@ describe('Notion page picker backend', () => {
         results: [
           { id: 'p1', type: 'page', title: 'Roadmap 2026', timestamp: '2026-11-20T10:00:00Z' },
           { id: 'db1', type: 'database', title: 'Tasks DB', timestamp: '2026-11-20T10:00:00Z' },
-          { id: 'ds1', object: 'data_source', title: 'CRM Data', timestamp: '2026-11-20T10:00:00Z' },
-          { id: 'p2', object: 'page', title: 'Meeting Notes', last_edited_time: '2026-11-19T08:00:00Z' },
+          {
+            id: 'ds1',
+            object: 'data_source',
+            title: 'CRM Data',
+            timestamp: '2026-11-20T10:00:00Z',
+          },
+          {
+            id: 'p2',
+            object: 'page',
+            title: 'Meeting Notes',
+            last_edited_time: '2026-11-19T08:00:00Z',
+          },
         ],
       }),
     )
@@ -110,13 +128,17 @@ describe('Notion page picker backend', () => {
 
     const callForUserPicker = vi.fn(async () => ({
       ok: true as const,
-      output: '# Roadmap 2026\n\nGoals for Q4.\n<image src="https://img.example/a.png" />\n<file url="https://f.example/b.pdf" />',
+      output:
+        '# Roadmap 2026\n\nGoals for Q4.\n<image src="https://img.example/a.png" />\n<file url="https://f.example/b.pdf" />',
       isError: false,
     }))
     const res = await fetchNotionPagesToTemp({
       serverId: 'notion-1',
       selectedItems: [{ id: 'page-123', title: 'Roadmap / 2026', subtitle: '2026-11-20' }],
-      fetchTool: { name: 'notion-fetch', inputSchema: { type: 'object', properties: { id: { type: 'string' } } } },
+      fetchTool: {
+        name: 'notion-fetch',
+        inputSchema: { type: 'object', properties: { id: { type: 'string' } } },
+      },
       callForUserPicker,
       attachDir,
     })
@@ -210,7 +232,10 @@ describe('Canva design picker backend', () => {
       readTool: tools.readTool,
       callForUserPicker: async () => ({
         ok: true,
-        output: JSON.stringify({ design_metadata: { title: '수업 자료' }, design_content: [{ text: '본문' }] }),
+        output: JSON.stringify({
+          design_metadata: { title: '수업 자료' },
+          design_content: [{ text: '본문' }],
+        }),
         isError: false,
       }),
       attachDir: canvaDir,
@@ -230,7 +255,11 @@ describe('Canva design picker backend', () => {
       tools,
       callForUserPicker: async (_sid, toolName) => {
         if (toolName === 'get-export-formats') {
-          return { ok: true, output: JSON.stringify({ formats: ['pdf', 'pptx', 'png'] }), isError: false }
+          return {
+            ok: true,
+            output: JSON.stringify({ formats: ['pdf', 'pptx', 'png'] }),
+            isError: false,
+          }
         }
         return {
           ok: true,

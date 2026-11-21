@@ -47,7 +47,9 @@ export interface HwpAiDockProps {
   /** load an externally generated .hwpx/.hwp (e.g. from kordoc MCP) into this blank tab or a new tab */
   loadGeneratedHwpx?: (
     path: string,
-  ) => Promise<{ ok: true; mode: 'current' | 'new-tab'; title: string } | { ok: false; error: string }>
+  ) => Promise<
+    { ok: true; mode: 'current' | 'new-tab'; title: string } | { ok: false; error: string }
+  >
 }
 
 /** The panel at the right end, or its rail while collapsed; the panel stays mounted either way. */

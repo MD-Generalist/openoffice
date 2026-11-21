@@ -5,5 +5,6 @@ export const th = {
   permMcpTool: 'ใช้เครื่องมือ “{tool}” ของเซิร์ฟเวอร์ {server}',
   permAllowToolSession: 'อนุญาตเครื่องมือนี้เสมอในเซสชันนี้',
   mcpKeepInsideWarning: 'ในหน้าต่างนี้ เนื้อหาที่ได้รับจาก {server} อาจถูกส่งออกไปภายนอกได้',
-  mcpExternalVaultWarning: "เซสชันนี้สามารถอ่านและแก้ไขโน้ตนอกโฟลเดอร์โปรเจกต์ผ่านคลัง Obsidian ที่เชื่อมต่อได้: {vaults}",
+  mcpExternalVaultWarning:
+    'เซสชันนี้สามารถอ่านและแก้ไขโน้ตนอกโฟลเดอร์โปรเจกต์ผ่านคลัง Obsidian ที่เชื่อมต่อได้: {vaults}',
 } satisfies Record<keyof typeof zh, string>

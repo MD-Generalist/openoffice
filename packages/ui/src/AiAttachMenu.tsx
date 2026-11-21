@@ -76,7 +76,8 @@ function connectorAttachBridge(): ConnectorAttachBridge | null {
 export function connectorPickedOf(raw: unknown, lang: Lang): DriveAttachPicked {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   if (r.ok !== true) {
-    if (r.reason === 'busy') return { paths: [], notes: [connectorAttachText(lang, 'connectorBusy')] }
+    if (r.reason === 'busy')
+      return { paths: [], notes: [connectorAttachText(lang, 'connectorBusy')] }
     if (r.reason === 'not-connected') {
       return { paths: [], notes: [connectorAttachText(lang, 'connectorNotConnected')] }
     }

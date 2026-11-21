@@ -73,7 +73,9 @@ export function McpServersCard() {
   if (!api) return null
 
   const servers = view?.servers ?? []
-  const customServers = servers.filter((server) => server.presetId == null && server.kind !== 'vault')
+  const customServers = servers.filter(
+    (server) => server.presetId == null && server.kind !== 'vault',
+  )
   const names = servers.map((server) => server.name)
 
   return (

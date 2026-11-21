@@ -156,7 +156,9 @@ export interface HwpSkillDeps {
    */
   loadGeneratedHwpx?: (
     path: string,
-  ) => Promise<{ ok: true; mode: 'current' | 'new-tab'; title: string } | { ok: false; error: string }>
+  ) => Promise<
+    { ok: true; mode: 'current' | 'new-tab'; title: string } | { ok: false; error: string }
+  >
 }
 
 export interface HwpSkill {

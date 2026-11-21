@@ -288,7 +288,10 @@ export function unwrapNotionFetchMarkdown(rawOutput: string, fallbackTitle?: str
   }
 
   // Collapse runs of 3+ blank lines and normalize CRLF
-  text = text.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+  text = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 
   if (!text) return title ? `# ${title}\n` : ''
   if (title && !/^#\s+/.test(text)) {

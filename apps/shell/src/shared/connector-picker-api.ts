@@ -47,8 +47,7 @@ export interface ConnectorPickerItem {
 }
 
 export type ConnectorPickerListResult =
-  | { ok: true; items: ConnectorPickerItem[] }
-  | { ok: false; error: string }
+  { ok: true; items: ConnectorPickerItem[] } | { ok: false; error: string }
 
 export type ConnectorPickerChooseResult = { ok: true } | { ok: false; error: string }
 

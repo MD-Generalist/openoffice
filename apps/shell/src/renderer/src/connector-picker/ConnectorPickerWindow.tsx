@@ -12,7 +12,8 @@ import {
 
 export const CONNECTOR_PICK_MAX = 20
 
-const ISO_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/
+const ISO_TIMESTAMP_RE =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/
 
 /** Format ISO-8601 UTC timestamps into a clean local date/time in the active UI language */
 export function formatPickerSubtitle(
@@ -261,7 +262,10 @@ export function ConnectorPickerWindow({
                       <span className="cp-sub">
                         {subText}
                         {item.tags && item.tags.length > 0
-                          ? ` · ${item.tags.slice(0, 4).map((tag) => `#${tag}`).join(' ')}`
+                          ? ` · ${item.tags
+                              .slice(0, 4)
+                              .map((tag) => `#${tag}`)
+                              .join(' ')}`
                           : ''}
                       </span>
                     </span>

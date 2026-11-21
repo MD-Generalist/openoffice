@@ -774,10 +774,7 @@ export function createUserMcpSkill(
       return refuse(call, `The person turned off the MCP server "${server.name}" in this chat.`)
     }
     if (!hasActiveVault(server, state.vaultsOffInChat())) {
-      return refuse(
-        call,
-        `All vaults of "${server.name}" are turned off in this chat.`,
-      )
+      return refuse(call, `All vaults of "${server.name}" are turned off in this chat.`)
     }
     if (tool.permission === 'off') {
       return refuse(call, `The person turned off the tool ${call.name}.`)
@@ -812,9 +809,7 @@ export function createUserMcpSkill(
       if (signal?.aborted) return refuse(call, MCP_CALL_STOPPED)
     }
     const disabledVaults = server.vaults
-      ? server.vaults
-          .filter((v) => v.enabled && state.vaultsOffInChat().has(v.id))
-          .map((v) => v.id)
+      ? server.vaults.filter((v) => v.enabled && state.vaultsOffInChat().has(v.id)).map((v) => v.id)
       : []
     return run(call, server.name, tool.name, signal, disabledVaults)
   }

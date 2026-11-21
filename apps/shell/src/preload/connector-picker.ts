@@ -20,8 +20,7 @@ const api: ConnectorPickerApi = {
     const init = (await ipcRenderer.invoke(
       CONNECTOR_PICKER_CHANNELS.getInit,
     )) as ConnectorPickerInit | null
-    const kind =
-      init?.kind === 'notion' || init?.kind === 'canva' ? init.kind : 'obsidian'
+    const kind = init?.kind === 'notion' || init?.kind === 'canva' ? init.kind : 'obsidian'
     return {
       kind,
       lang: init?.lang ?? 'en',
@@ -37,7 +36,10 @@ const api: ConnectorPickerApi = {
   list: (query) =>
     ipcRenderer.invoke(CONNECTOR_PICKER_CHANNELS.list, query) as Promise<ConnectorPickerListResult>,
   choose: (ids) =>
-    ipcRenderer.invoke(CONNECTOR_PICKER_CHANNELS.choose, ids) as Promise<ConnectorPickerChooseResult>,
+    ipcRenderer.invoke(
+      CONNECTOR_PICKER_CHANNELS.choose,
+      ids,
+    ) as Promise<ConnectorPickerChooseResult>,
   openInTab: (id) =>
     ipcRenderer.invoke(
       CONNECTOR_PICKER_CHANNELS.openInTab,

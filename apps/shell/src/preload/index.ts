@@ -811,7 +811,8 @@ const mcpServersApi: McpServersApi = {
   pickVaultFolder: () => ipcRenderer.invoke(MCP_SERVERS_CHANNELS.pickVaultFolder),
   addVault: (input) => ipcRenderer.invoke(MCP_SERVERS_CHANNELS.addVault, input),
   removeVault: (vaultId) => ipcRenderer.invoke(MCP_SERVERS_CHANNELS.removeVault, vaultId),
-  renameVault: (vaultId, name) => ipcRenderer.invoke(MCP_SERVERS_CHANNELS.renameVault, vaultId, name),
+  renameVault: (vaultId, name) =>
+    ipcRenderer.invoke(MCP_SERVERS_CHANNELS.renameVault, vaultId, name),
   setVaultEnabled: (vaultId, enabled) =>
     ipcRenderer.invoke(MCP_SERVERS_CHANNELS.setVaultEnabled, vaultId, enabled === true),
 }

@@ -18,11 +18,7 @@ export interface ConnectorAttachSources {
 }
 
 export type ConnectorAttachFailReason =
-  | 'cancelled'
-  | 'busy'
-  | 'unavailable'
-  | 'not-connected'
-  | 'failed'
+  'cancelled' | 'busy' | 'unavailable' | 'not-connected' | 'failed'
 
 export type ConnectorAttachWireResult =
   | {

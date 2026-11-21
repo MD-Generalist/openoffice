@@ -132,31 +132,45 @@ describe('McpServerButton', () => {
       { name: 'notion', status: 'connected' },
     ])
     state = createMcpWindowState(fake.bridge)
-    act(() => root.render(createElement(McpServerButton, { lang: 'ko', state, driveState, showDrive: true })))
+    act(() =>
+      root.render(
+        createElement(McpServerButton, { lang: 'ko', state, driveState, showDrive: true }),
+      ),
+    )
     await flush()
     // 1 (Drive) + 2 (Personal, Work) + 1 (notion) = 4
     expect(trigger()!.querySelector('.ai-mcp-badge')?.textContent).toBe('4')
 
     open()
     expect(pop()!.querySelector('[data-connector="google-drive"]')).not.toBeNull()
-    expect(pop()!.querySelector('[data-vault-id="v1"]')?.textContent).toContain('Obsidian · Personal')
+    expect(pop()!.querySelector('[data-vault-id="v1"]')?.textContent).toContain(
+      'Obsidian · Personal',
+    )
     expect(pop()!.querySelector('[data-vault-id="v2"]')?.textContent).toContain('Obsidian · Work')
     expect(pop()!.querySelector('[data-vault-id="v3"]')).toBeNull()
 
     // Toggle off v1 -> badge drops to 3
-    const v1Box = pop()!.querySelector<HTMLInputElement>('[data-vault-id="v1"] input[type="checkbox"]')!
+    const v1Box = pop()!.querySelector<HTMLInputElement>(
+      '[data-vault-id="v1"] input[type="checkbox"]',
+    )!
     act(() => v1Box.click())
     expect(state!.vaultsOffInChat().has('v1')).toBe(true)
     expect(trigger()!.querySelector('.ai-mcp-badge')?.textContent).toBe('3')
 
     // Toggle off Drive -> badge drops to 2
-    const driveBox = pop()!.querySelector<HTMLInputElement>('[data-connector="google-drive"] input[type="checkbox"]')!
+    const driveBox = pop()!.querySelector<HTMLInputElement>(
+      '[data-connector="google-drive"] input[type="checkbox"]',
+    )!
     act(() => driveBox.click())
     expect(driveState.offInChat()).toBe(true)
     expect(trigger()!.querySelector('.ai-mcp-badge')?.textContent).toBe('2')
 
     // showDrive=false hides Drive row (Home AI mode)
-    act(() => root.render(createElement(McpServerButton, { lang: 'ko', state, driveState, showDrive: false })))
+    act(() =>
+      root.render(
+        createElement(McpServerButton, { lang: 'ko', state, driveState, showDrive: false }),
+      ),
+    )
     await flush()
     expect(pop()!.querySelector('[data-connector="google-drive"]')).toBeNull()
     driveState.dispose()

@@ -653,7 +653,12 @@ export function configureAgentWindow(next: AgentWindowDeps): void {
       ? async (session, ask) => {
           const hub = userMcp()
           if (!hub)
-            return { relays: [], keepResultsInside: [], externalVaults: [], stop: async () => undefined }
+            return {
+              relays: [],
+              keepResultsInside: [],
+              externalVaults: [],
+              stop: async () => undefined,
+            }
           return startAgentMcpRelays({
             hub,
             ask,

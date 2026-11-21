@@ -146,7 +146,8 @@ export const OBSIDIAN_LISTED_TOOLS: readonly ListedTool[] = [
         },
         heading: {
           type: 'string',
-          description: 'Optional heading text to insert under (before the next heading of same or higher level).',
+          description:
+            'Optional heading text to insert under (before the next heading of same or higher level).',
         },
         vault: {
           type: 'string',

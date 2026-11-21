@@ -150,7 +150,10 @@ export function connectPresetInputOf(
   raw: unknown,
 ): { presetId: McpPresetId; lawOc?: string } | undefined {
   if (!isRecord(raw)) return undefined
-  if (typeof raw.presetId !== 'string' || !(MCP_PRESET_IDS as readonly string[]).includes(raw.presetId)) {
+  if (
+    typeof raw.presetId !== 'string' ||
+    !(MCP_PRESET_IDS as readonly string[]).includes(raw.presetId)
+  ) {
     return undefined
   }
   if (raw.lawOc !== undefined && shortText(raw.lawOc, TEXT_MAX) === undefined) return undefined

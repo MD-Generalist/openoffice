@@ -18,9 +18,11 @@ export const connectorsUiStrings = defineStrings({
     registerAndReview: '添加并检查启动命令',
     thirdPartyNote: '此服务由外部提供方运营，与 GenOffice 无隶属关系。',
     notionDesc: '搜索并读取 Notion 页面，或在 AI 面板中直接附加页面。',
-    notionNotice: '当 AI 调用 Notion 工具时，查询词和选定的文本会发送到 Notion，返回的内容会提供给当前 AI 对话。',
+    notionNotice:
+      '当 AI 调用 Notion 工具时，查询词和选定的文本会发送到 Notion，返回的内容会提供给当前 AI 对话。',
     canvaDesc: '导入或在新标签页中打开我的 Canva 设计，或根据当前文档生成 Canva 设计。',
-    canvaNotice: '当 AI 调用 Canva 工具时，查询词和选定的文本会发送到 Canva，返回的内容会提供给当前 AI 对话。',
+    canvaNotice:
+      '当 AI 调用 Canva 工具时，查询词和选定的文本会发送到 Canva，返回的内容会提供给当前 AI 对话。',
     obsidianName: 'Obsidian 仓库',
     obsidianDesc: '直接读写本地 .md 笔记，无需运行 Obsidian 应用，也不会在仓库中创建额外文件。',
     obsidianAddVault: '添加仓库文件夹',
@@ -34,8 +36,7 @@ export const connectorsUiStrings = defineStrings({
     obsidianRemoveVault: '移除',
     obsidianRemoveVaultConfirm: '从已连接仓库列表中移除“{name}”吗？硬盘上的笔记文件不会被删除。',
     koreanLawDesc: '使用国家法令信息中心公开 API 搜索韩国法规与判例。',
-    koreanLawNotice:
-      '此服务通过本机上的第三方开源包运行。添加后需先检查并允许运行命令。',
+    koreanLawNotice: '此服务通过本机上的第三方开源包运行。添加后需先检查并允许运行命令。',
     koreanLawKeyLabel: '国家法令信息中心 OC 邮箱前缀 (LAW_OC)',
     koreanLawKeyHint: '填写注册邮箱中 @ 之前的部分。',
     koreanLawGuideLink: '前往国家法令信息中心申请 LAW_OC',
@@ -57,7 +58,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Search and read Notion pages, or attach pages directly in the AI panel.',
     notionNotice:
       'When the AI uses Notion tools, queries and selected text are sent to Notion, and returned content enters the AI chat.',
-    canvaDesc: 'Import or open your Canva designs in tabs, or create new Canva designs from your document.',
+    canvaDesc:
+      'Import or open your Canva designs in tabs, or create new Canva designs from your document.',
     canvaNotice:
       'When the AI uses Canva tools, queries and selected text are sent to Canva, and returned content enters the AI chat.',
     obsidianName: 'Obsidian Vault',
@@ -75,7 +77,8 @@ export const connectorsUiStrings = defineStrings({
     obsidianRemoveVault: 'Remove',
     obsidianRemoveVaultConfirm:
       'Remove “{name}” from connected vaults? Your note files on disk will not be deleted.',
-    koreanLawDesc: 'Search Korean statutes and case law via the National Law Information Center API.',
+    koreanLawDesc:
+      'Search Korean statutes and case law via the National Law Information Center API.',
     koreanLawNotice:
       'Runs a third-party open-source package on this PC. After adding it, review and allow the exact command before it runs.',
     koreanLawKeyLabel: 'National Law Information Center OC ID (LAW_OC)',
@@ -99,7 +102,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Notion 페이지를 검색·열람하고 AI 창에서 바로 첨부합니다.',
     notionNotice:
       'AI가 Notion 도구를 부르면 검색어와 선택한 내용이 Notion으로 전송되며, 받아 온 내용이 AI 대화에 들어갑니다.',
-    canvaDesc: '내 Canva 디자인을 첨부하거나 탭으로 열고, 작성 중인 문서로 Canva 디자인을 만듭니다.',
+    canvaDesc:
+      '내 Canva 디자인을 첨부하거나 탭으로 열고, 작성 중인 문서로 Canva 디자인을 만듭니다.',
     canvaNotice:
       'AI가 Canva 도구를 부르면 검색어와 선택한 내용이 Canva로 전송되며, 받아 온 내용이 AI 대화에 들어갑니다.',
     obsidianName: 'Obsidian 볼트',
@@ -141,7 +145,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Notion ページを検索・閲覧し、AI パネルに直接添付します。',
     notionNotice:
       'AI が Notion ツールを使うと、検索語や選択したテキストが Notion に送信され、結果が AI 会話に渡されます。',
-    canvaDesc: '自分の Canva デザインを添付・タブで開くほか、作成中の文書から Canva デザインを作成します。',
+    canvaDesc:
+      '自分の Canva デザインを添付・タブで開くほか、作成中の文書から Canva デザインを作成します。',
     canvaNotice:
       'AI が Canva ツールを使うと、検索語や選択したテキストが Canva に送信され、結果が AI 会話に渡されます。',
     obsidianName: 'Obsidian 保管庫',
@@ -183,7 +188,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Rechercher et lire des pages Notion, ou les joindre dans le panneau IA.',
     notionNotice:
       'Lorsque l’IA utilise les outils Notion, les requêtes et textes sélectionnés sont envoyés à Notion et les réponses reviennent dans le chat.',
-    canvaDesc: 'Importez ou ouvrez vos designs Canva dans un onglet, ou créez-en à partir de votre document.',
+    canvaDesc:
+      'Importez ou ouvrez vos designs Canva dans un onglet, ou créez-en à partir de votre document.',
     canvaNotice:
       'Lorsque l’IA utilise les outils Canva, les requêtes et textes sélectionnés sont envoyés à Canva et les réponses reviennent dans le chat.',
     obsidianName: 'Coffre Obsidian',
@@ -216,16 +222,19 @@ export const connectorsUiStrings = defineStrings({
     customTitle: 'Weitere MCP-Server',
     connect: 'Verbinden',
     disconnect: 'Trennen',
-    disconnectConfirm: '{name} trennen und alle gespeicherten Zugangsdaten und Einstellungen löschen?',
+    disconnectConfirm:
+      '{name} trennen und alle gespeicherten Zugangsdaten und Einstellungen löschen?',
     showTools: 'Werkzeuge & Einstellungen',
     hideTools: 'Ausblenden',
     continueSignIn: 'Im Browser anmelden',
     registerAndReview: 'Hinzufügen und Befehl prüfen',
-    thirdPartyNote: 'Wird von einem unabhängigen Drittanbieter betrieben, nicht mit GenOffice verbunden.',
+    thirdPartyNote:
+      'Wird von einem unabhängigen Drittanbieter betrieben, nicht mit GenOffice verbunden.',
     notionDesc: 'Notion-Seiten durchsuchen, lesen oder direkt im KI-Panel anhängen.',
     notionNotice:
       'Wenn die KI Notion-Werkzeuge nutzt, werden Suchbegriffe und gewählter Text an Notion gesendet und Antworten in den Chat übernommen.',
-    canvaDesc: 'Eigene Canva-Designs importieren oder in Tabs öffnen und neue Designs aus Ihrem Dokument erstellen.',
+    canvaDesc:
+      'Eigene Canva-Designs importieren oder in Tabs öffnen und neue Designs aus Ihrem Dokument erstellen.',
     canvaNotice:
       'Wenn die KI Canva-Werkzeuge nutzt, werden Suchbegriffe und gewählter Text an Canva gesendet und Antworten in den Chat übernommen.',
     obsidianName: 'Obsidian-Vault',
@@ -267,7 +276,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Busca y lee páginas de Notion, o adjúntalas directamente en el panel de IA.',
     notionNotice:
       'Cuando la IA usa herramientas de Notion, las consultas y el texto seleccionado se envían a Notion y el resultado vuelve al chat.',
-    canvaDesc: 'Importa o abre tus diseños de Canva en pestañas, o crea nuevos diseños desde tu documento.',
+    canvaDesc:
+      'Importa o abre tus diseños de Canva en pestañas, o crea nuevos diseños desde tu documento.',
     canvaNotice:
       'Cuando la IA usa herramientas de Canva, las consultas y el texto seleccionado se envían a Canva y el resultado vuelve al chat.',
     obsidianName: 'Bóveda de Obsidian',
@@ -300,7 +310,8 @@ export const connectorsUiStrings = defineStrings({
     customTitle: 'เซิร์ฟเวอร์ MCP อื่น ๆ',
     connect: 'เชื่อมต่อ',
     disconnect: 'ยกเลิกการเชื่อมต่อ',
-    disconnectConfirm: 'ยกเลิกการเชื่อมต่อ {name} และลบข้อมูลรับรองกับการตั้งค่าที่บันทึกไว้ทั้งหมดหรือไม่?',
+    disconnectConfirm:
+      'ยกเลิกการเชื่อมต่อ {name} และลบข้อมูลรับรองกับการตั้งค่าที่บันทึกไว้ทั้งหมดหรือไม่?',
     showTools: 'เครื่องมือและการตั้งค่า',
     hideTools: 'ซ่อน',
     continueSignIn: 'ลงชื่อเข้าใช้ด้วยเบราว์เซอร์',
@@ -346,11 +357,13 @@ export const connectorsUiStrings = defineStrings({
     hideTools: 'Sembunyikan',
     continueSignIn: 'Masuk lewat browser',
     registerAndReview: 'Tambahkan dan tinjau perintah',
-    thirdPartyNote: 'Dioperasikan oleh pihak ketiga independen dan tidak berafiliasi dengan GenOffice.',
+    thirdPartyNote:
+      'Dioperasikan oleh pihak ketiga independen dan tidak berafiliasi dengan GenOffice.',
     notionDesc: 'Cari dan baca halaman Notion, atau lampirkan langsung di panel AI.',
     notionNotice:
       'Saat AI memakai alat Notion, kueri dan teks pilihan dikirim ke Notion dan hasilnya masuk ke obrolan AI.',
-    canvaDesc: 'Impor atau buka desain Canva Anda di tab, atau buat desain Canva baru dari dokumen Anda.',
+    canvaDesc:
+      'Impor atau buka desain Canva Anda di tab, atau buat desain Canva baru dari dokumen Anda.',
     canvaNotice:
       'Saat AI memakai alat Canva, kueri dan teks pilihan dikirim ke Canva dan hasilnya masuk ke obrolan AI.',
     obsidianName: 'Brankas Obsidian',
@@ -392,7 +405,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Поиск и чтение страниц Notion, а также прямое прикрепление в панели ИИ.',
     notionNotice:
       'Когда ИИ вызывает инструменты Notion, запросы и выбранный текст отправляются в Notion, а ответ поступает в чат ИИ.',
-    canvaDesc: 'Импортируйте или открывайте свои дизайны Canva во вкладках и создавайте новые из документа.',
+    canvaDesc:
+      'Импортируйте или открывайте свои дизайны Canva во вкладках и создавайте новые из документа.',
     canvaNotice:
       'Когда ИИ вызывает инструменты Canva, запросы и выбранный текст отправляются в Canva, а ответ поступает в чат ИИ.',
     obsidianName: 'Хранилище Obsidian',
@@ -475,7 +489,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Pesquise e leia páginas do Notion ou anexe-as diretamente no painel de IA.',
     notionNotice:
       'Quando a IA usa ferramentas do Notion, consultas e textos selecionados são enviados ao Notion e as respostas entram no chat.',
-    canvaDesc: 'Importe ou abra seus designs do Canva em abas, ou crie novos designs a partir do documento.',
+    canvaDesc:
+      'Importe ou abra seus designs do Canva em abas, ou crie novos designs a partir do documento.',
     canvaNotice:
       'Quando a IA usa ferramentas do Canva, consultas e textos selecionados são enviados ao Canva e as respostas entram no chat.',
     obsidianName: 'Cofre Obsidian',
@@ -508,7 +523,8 @@ export const connectorsUiStrings = defineStrings({
     customTitle: 'Altri server MCP',
     connect: 'Connetti',
     disconnect: 'Disconnetti',
-    disconnectConfirm: 'Disconnettere {name} e rimuovere tutte le credenziali e impostazioni salvate?',
+    disconnectConfirm:
+      'Disconnettere {name} e rimuovere tutte le credenziali e impostazioni salvate?',
     showTools: 'Strumenti e impostazioni',
     hideTools: 'Nascondi',
     continueSignIn: 'Accedi dal browser',
@@ -517,7 +533,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Cerca e leggi pagine Notion o allegale direttamente nel pannello IA.',
     notionNotice:
       'Quando l’IA usa gli strumenti Notion, le query e il testo selezionato vengono inviati a Notion e i risultati tornano nella chat.',
-    canvaDesc: 'Importa o apri i tuoi progetti Canva in schede, oppure crea nuovi progetti dal tuo documento.',
+    canvaDesc:
+      'Importa o apri i tuoi progetti Canva in schede, oppure crea nuovi progetti dal tuo documento.',
     canvaNotice:
       'Quando l’IA usa gli strumenti Canva, le query e il testo selezionato vengono inviati a Canva e i risultati tornano nella chat.',
     obsidianName: 'Vault Obsidian',
@@ -550,7 +567,8 @@ export const connectorsUiStrings = defineStrings({
     customTitle: 'Inne serwery MCP',
     connect: 'Połącz',
     disconnect: 'Rozłącz',
-    disconnectConfirm: 'Rozłączyć {name} i usunąć wszystkie zapisane dane logowania oraz ustawienia?',
+    disconnectConfirm:
+      'Rozłączyć {name} i usunąć wszystkie zapisane dane logowania oraz ustawienia?',
     showTools: 'Narzędzia i ustawienia',
     hideTools: 'Ukryj',
     continueSignIn: 'Zaloguj w przeglądarce',
@@ -559,7 +577,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Wyszukuj i czytaj strony Notion lub dołączaj je bezpośrednio w panelu AI.',
     notionNotice:
       'Gdy AI używa narzędzi Notion, zapytania i wybrany tekst są wysyłane do Notion, a wyniki trafiają do czatu AI.',
-    canvaDesc: 'Importuj lub otwieraj swoje projekty Canva w kartach albo twórz nowe z bieżącego dokumentu.',
+    canvaDesc:
+      'Importuj lub otwieraj swoje projekty Canva w kartach albo twórz nowe z bieżącego dokumentu.',
     canvaNotice:
       'Gdy AI używa narzędzi Canva, zapytania i wybrany tekst są wysyłane do Canva, a wyniki trafiają do czatu AI.',
     obsidianName: 'Skarbiec Obsidian',
@@ -583,7 +602,8 @@ export const connectorsUiStrings = defineStrings({
     koreanLawKeyLabel: 'Identyfikator OC (LAW_OC)',
     koreanLawKeyHint: 'Wpisz część przed @ zarejestrowanego adresu e-mail.',
     koreanLawGuideLink: 'Uzyskaj LAW_OC na open.law.go.kr',
-    kordocDesc: 'Czytaj, edytuj i konwertuj lokalne pliki HWP / HWPX bezpośrednio na tym komputerze.',
+    kordocDesc:
+      'Czytaj, edytuj i konwertuj lokalne pliki HWP / HWPX bezpośrednio na tym komputerze.',
     kordocNotice:
       'Zewnętrzny pakiet czyta i zapisuje pliki bezpośrednio na dysku. Maskowanie w edytorze nie obejmuje plików czytanych bezpośrednio przez kordoc.',
   },
@@ -601,7 +621,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Vyhledávejte a čtěte stránky Notion nebo je připojujte přímo v panelu AI.',
     notionNotice:
       'Když AI používá nástroje Notion, dotazy a vybraný text se odesílají do Notion a výsledky se vrací do chatu.',
-    canvaDesc: 'Importujte nebo otevírejte své návrhy Canva na kartách, případně vytvářejte nové z dokumentu.',
+    canvaDesc:
+      'Importujte nebo otevírejte své návrhy Canva na kartách, případně vytvářejte nové z dokumentu.',
     canvaNotice:
       'Když AI používá nástroje Canva, dotazy a vybraný text se odesílají do Canva a výsledky se vrací do chatu.',
     obsidianName: 'Trezor Obsidian',
@@ -612,8 +633,7 @@ export const connectorsUiStrings = defineStrings({
     obsidianMissingDirConfirm:
       'Složka „{name}“ neobsahuje složku .obsidian. Připojit ji i tak jako běžnou složku Markdown?',
     obsidianConnectAnyway: 'Přesto připojit',
-    obsidianForbidden:
-      'Systémové složky, domovskou složku ani složku dat aplikace nelze přidat.',
+    obsidianForbidden: 'Systémové složky, domovskou složku ani složku dat aplikace nelze přidat.',
     obsidianDuplicate: 'Tato složka je již přidána jako trezor.',
     obsidianRename: 'Přejmenovat',
     obsidianRemoveVault: 'Odebrat',
@@ -634,7 +654,8 @@ export const connectorsUiStrings = defineStrings({
     customTitle: 'Andere MCP-servers',
     connect: 'Verbinden',
     disconnect: 'Verbinding verbreken',
-    disconnectConfirm: '{name} loskoppelen en alle opgeslagen inloggegevens en instellingen verwijderen?',
+    disconnectConfirm:
+      '{name} loskoppelen en alle opgeslagen inloggegevens en instellingen verwijderen?',
     showTools: 'Hulpmiddelen & instellingen',
     hideTools: 'Verbergen',
     continueSignIn: 'Inloggen via browser',
@@ -643,7 +664,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Zoek en lees Notion-pagina’s of voeg ze direct bij in het AI-paneel.',
     notionNotice:
       'Wanneer de AI Notion-hulpmiddelen gebruikt, worden zoekopdrachten en geselecteerde tekst naar Notion gestuurd.',
-    canvaDesc: 'Importeer of open je eigen Canva-ontwerpen in tabbladen, of maak nieuwe vanuit je document.',
+    canvaDesc:
+      'Importeer of open je eigen Canva-ontwerpen in tabbladen, of maak nieuwe vanuit je document.',
     canvaNotice:
       'Wanneer de AI Canva-hulpmiddelen gebruikt, worden zoekopdrachten en geselecteerde tekst naar Canva gestuurd.',
     obsidianName: 'Obsidian-kluis',
@@ -654,8 +676,7 @@ export const connectorsUiStrings = defineStrings({
     obsidianMissingDirConfirm:
       'De map “{name}” bevat geen .obsidian-map. Toch verbinden als gewone Markdown-map?',
     obsidianConnectAnyway: 'Toch verbinden',
-    obsidianForbidden:
-      'Systeem-, gebruikers- en app-datamappen kunnen niet worden toegevoegd.',
+    obsidianForbidden: 'Systeem-, gebruikers- en app-datamappen kunnen niet worden toegevoegd.',
     obsidianDuplicate: 'Deze map is al als kluis toegevoegd.',
     obsidianRename: 'Hernoemen',
     obsidianRemoveVault: 'Verwijderen',
@@ -685,7 +706,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Cari dan baca halaman Notion, atau lampirkan terus dalam panel AI.',
     notionNotice:
       'Apabila AI menggunakan alat Notion, pertanyaan dan teks pilihan dihantar ke Notion dan hasilnya masuk ke sembang AI.',
-    canvaDesc: 'Import atau buka reka bentuk Canva anda dalam tab, atau cipta reka bentuk baharu daripada dokumen.',
+    canvaDesc:
+      'Import atau buka reka bentuk Canva anda dalam tab, atau cipta reka bentuk baharu daripada dokumen.',
     canvaNotice:
       'Apabila AI menggunakan alat Canva, pertanyaan dan teks pilihan dihantar ke Canva dan hasilnya masuk ke sembang AI.',
     obsidianName: 'Peti Obsidian',
@@ -758,7 +780,8 @@ export const connectorsUiStrings = defineStrings({
     customTitle: 'अन्य MCP सर्वर',
     connect: 'कनेक्ट करें',
     disconnect: 'डिस्कनेक्ट करें',
-    disconnectConfirm: 'क्या {name} को डिस्कनेक्ट करें और इसके सभी सहेजे गए क्रेडेंशियल व सेटिंग्स हटाएँ?',
+    disconnectConfirm:
+      'क्या {name} को डिस्कनेक्ट करें और इसके सभी सहेजे गए क्रेडेंशियल व सेटिंग्स हटाएँ?',
     showTools: 'टूल और सेटिंग्स',
     hideTools: 'छिपाएँ',
     continueSignIn: 'ब्राउज़र से साइन इन करें',
@@ -767,7 +790,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Notion पेज खोजें और पढ़ें, या AI पैनल में सीधे संलग्न करें।',
     notionNotice:
       'जब AI Notion टूल का उपयोग करता है, तो प्रश्न और चुना गया पाठ Notion को भेजा जाता है और परिणाम चैट में आते हैं।',
-    canvaDesc: 'अपने Canva डिज़ाइन आयात करें या टैब में खोलें, या अपने दस्तावेज़ से नए डिज़ाइन बनाएँ।',
+    canvaDesc:
+      'अपने Canva डिज़ाइन आयात करें या टैब में खोलें, या अपने दस्तावेज़ से नए डिज़ाइन बनाएँ।',
     canvaNotice:
       'जब AI Canva टूल का उपयोग करता है, तो प्रश्न और चुना गया पाठ Canva को भेजा जाता है और परिणाम चैट में आते हैं।',
     obsidianName: 'Obsidian वॉल्ट',
@@ -778,7 +802,8 @@ export const connectorsUiStrings = defineStrings({
     obsidianMissingDirConfirm:
       'फ़ोल्डर “{name}” में .obsidian फ़ोल्डर नहीं है। क्या फिर भी इसे सामान्य Markdown फ़ोल्डर के रूप में कनेक्ट करें?',
     obsidianConnectAnyway: 'फिर भी कनेक्ट करें',
-    obsidianForbidden: 'सिस्टम, होम या ऐप डेटा फ़ोल्डर जोड़े नहीं जा सकते। कृपया नोट्स फ़ोल्डर चुनें।',
+    obsidianForbidden:
+      'सिस्टम, होम या ऐप डेटा फ़ोल्डर जोड़े नहीं जा सकते। कृपया नोट्स फ़ोल्डर चुनें।',
     obsidianDuplicate: 'यह फ़ोल्डर पहले से वॉल्ट के रूप में जुड़ा हुआ है।',
     obsidianRename: 'नाम बदलें',
     obsidianRemoveVault: 'हटाएँ',
@@ -812,8 +837,7 @@ export const connectorsUiStrings = defineStrings({
     canvaNotice:
       '當 AI 呼叫 Canva 工具時，查詢字詞與選取文字會傳送到 Canva，傳回的內容會進入 AI 對話。',
     obsidianName: 'Obsidian 倉庫',
-    obsidianDesc:
-      '直接讀寫本機 .md 筆記，無需開啟 Obsidian，也不會在倉庫中建立任何管理檔案。',
+    obsidianDesc: '直接讀寫本機 .md 筆記，無需開啟 Obsidian，也不會在倉庫中建立任何管理檔案。',
     obsidianAddVault: '新增倉庫資料夾',
     obsidianVaultCount: '已連線 {n} 個倉庫',
     obsidianMissingDirConfirm:
@@ -823,11 +847,9 @@ export const connectorsUiStrings = defineStrings({
     obsidianDuplicate: '此資料夾已加入為倉庫。',
     obsidianRename: '重新命名',
     obsidianRemoveVault: '移除',
-    obsidianRemoveVaultConfirm:
-      '從已連線倉庫中移除「{name}」嗎？磁碟上的筆記檔案不會被刪除。',
+    obsidianRemoveVaultConfirm: '從已連線倉庫中移除「{name}」嗎？磁碟上的筆記檔案不會被刪除。',
     koreanLawDesc: '透過韓國國家法令資訊中心公開 API 搜尋法規與判例。',
-    koreanLawNotice:
-      '此服務會在本機執行第三方開源套件。加入後請先檢視並允許執行指令。',
+    koreanLawNotice: '此服務會在本機執行第三方開源套件。加入後請先檢視並允許執行指令。',
     koreanLawKeyLabel: '國家法令資訊中心 OC ID (LAW_OC)',
     koreanLawKeyHint: '請輸入註冊電子郵件中 @ 之前的部分。',
     koreanLawGuideLink: '前往 open.law.go.kr 申請 LAW_OC',
@@ -840,7 +862,8 @@ export const connectorsUiStrings = defineStrings({
     customTitle: 'Máy chủ MCP khác',
     connect: 'Kết nối',
     disconnect: 'Ngắt kết nối',
-    disconnectConfirm: 'Ngắt kết nối {name} và xóa toàn bộ thông tin đăng nhập cùng cài đặt đã lưu?',
+    disconnectConfirm:
+      'Ngắt kết nối {name} và xóa toàn bộ thông tin đăng nhập cùng cài đặt đã lưu?',
     showTools: 'Công cụ & cài đặt',
     hideTools: 'Ẩn',
     continueSignIn: 'Đăng nhập bằng trình duyệt',
@@ -849,7 +872,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Tìm kiếm và đọc trang Notion, hoặc đính kèm trực tiếp trong bảng AI.',
     notionNotice:
       'Khi AI dùng công cụ Notion, truy vấn và văn bản được chọn sẽ gửi tới Notion và kết quả sẽ vào cuộc trò chuyện AI.',
-    canvaDesc: 'Nhập hoặc mở thiết kế Canva của bạn trong tab, hoặc tạo thiết kế mới từ tài liệu hiện tại.',
+    canvaDesc:
+      'Nhập hoặc mở thiết kế Canva của bạn trong tab, hoặc tạo thiết kế mới từ tài liệu hiện tại.',
     canvaNotice:
       'Khi AI dùng công cụ Canva, truy vấn và văn bản được chọn sẽ gửi tới Canva và kết quả sẽ vào cuộc trò chuyện AI.',
     obsidianName: 'Kho Obsidian',
@@ -881,7 +905,8 @@ export const connectorsUiStrings = defineStrings({
     customTitle: 'Diğer MCP sunucuları',
     connect: 'Bağlan',
     disconnect: 'Bağlantıyı kes',
-    disconnectConfirm: '{name} bağlantısı kesilsin ve kayıtlı tüm kimlik bilgileriyle ayarları silinsin mi?',
+    disconnectConfirm:
+      '{name} bağlantısı kesilsin ve kayıtlı tüm kimlik bilgileriyle ayarları silinsin mi?',
     showTools: 'Araçlar ve ayarlar',
     hideTools: 'Gizle',
     continueSignIn: 'Tarayıcıyla giriş yap',
@@ -890,7 +915,8 @@ export const connectorsUiStrings = defineStrings({
     notionDesc: 'Notion sayfalarını arayın, okuyun veya doğrudan AI paneline ekleyin.',
     notionNotice:
       'AI, Notion araçlarını kullandığında sorgular ve seçilen metin Notion’a gönderilir ve sonuçlar sohbete gelir.',
-    canvaDesc: 'Canva tasarımlarınızı içe aktarın veya sekmede açın, ya da belgenizden yeni tasarımlar oluşturun.',
+    canvaDesc:
+      'Canva tasarımlarınızı içe aktarın veya sekmede açın, ya da belgenizden yeni tasarımlar oluşturun.',
     canvaNotice:
       'AI, Canva araçlarını kullandığında sorgular ve seçilen metin Canva’ya gönderilir ve sonuçlar sohbete gelir.',
     obsidianName: 'Obsidian Kasası',
@@ -913,7 +939,8 @@ export const connectorsUiStrings = defineStrings({
     koreanLawKeyLabel: 'OC Kimliği (LAW_OC)',
     koreanLawKeyHint: 'Kayıtlı e-posta adresinizin @ işaretinden önceki kısmını girin.',
     koreanLawGuideLink: 'open.law.go.kr üzerinden LAW_OC alın',
-    kordocDesc: 'Bu bilgisayardaki HWP / HWPX dosyalarını doğrudan okuyun, düzenleyin ve dönüştürün.',
+    kordocDesc:
+      'Bu bilgisayardaki HWP / HWPX dosyalarını doğrudan okuyun, düzenleyin ve dönüştürün.',
     kordocNotice:
       'Üçüncü taraf paket dosyaları doğrudan diskte okur ve yazar. Düzenleyici gizleme (redaksiyon) kordoc tarafından doğrudan okunan dosyalara uygulanmaz.',
   },

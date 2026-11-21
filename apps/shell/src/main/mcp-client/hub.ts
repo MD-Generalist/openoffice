@@ -190,7 +190,13 @@ export interface McpHub {
   listToolsForUserPicker(
     serverId: string,
     signal?: AbortSignal,
-  ): Promise<{ ok: true; tools: { name: string; description?: string; inputSchema?: Record<string, unknown> }[] } | { ok: false; error: string }>
+  ): Promise<
+    | {
+        ok: true
+        tools: { name: string; description?: string; inputSchema?: Record<string, unknown> }[]
+      }
+    | { ok: false; error: string }
+  >
   callForUserPicker(
     serverId: string,
     tool: string,
@@ -1467,9 +1473,7 @@ export function createMcpHub(deps: McpHubDeps): McpHub {
     const platform = deps.obsidian.platform ?? process.platform
 
     const existingServer = findVaultServer()
-    if (
-      existingServer?.vaults.some((v) => samePath(v.path, validated.path, platform))
-    ) {
+    if (existingServer?.vaults.some((v) => samePath(v.path, validated.path, platform))) {
       return invalid('duplicate-vault')
     }
     const existingNames = (existingServer?.vaults ?? []).map((v) => v.name)
@@ -1585,7 +1589,10 @@ export function createMcpHub(deps: McpHubDeps): McpHub {
     serverId: string,
     signal?: AbortSignal,
   ): Promise<
-    | { ok: true; tools: { name: string; description?: string; inputSchema?: Record<string, unknown> }[] }
+    | {
+        ok: true
+        tools: { name: string; description?: string; inputSchema?: Record<string, unknown> }[]
+      }
     | { ok: false; error: string }
   > {
     const server = store.server(serverId)

@@ -22,20 +22,24 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
     attachFromNotion: 'Attach Notion pages',
     attachFromCanva: 'Import from Canva',
     connectorBusy: 'Another picker window is already open. Finish or close it first.',
-    connectorNotConnected: 'This service is not connected yet. Connect it in Settings › Integrations.',
+    connectorNotConnected:
+      'This service is not connected yet. Connect it in Settings › Integrations.',
     connectorFailed: 'Could not read the selected items. Please try again.',
     connectorSkipped: 'Skipped {n} item(s) that could not be attached.',
-    connectorOmittedNonText: 'Omitted {n} non-text item(s) (such as images or files) from Notion pages.',
+    connectorOmittedNonText:
+      'Omitted {n} non-text item(s) (such as images or files) from Notion pages.',
   },
   ja: {
     attachFromObsidian: 'Obsidian 保管庫からノートを添付',
     attachFromNotion: 'Notion ページを添付',
     attachFromCanva: 'Canva からデザインを取り込む',
     connectorBusy: '別の選択ウィンドウが開いています。先に完了するか閉じてください。',
-    connectorNotConnected: 'このサービスはまだ接続されていません。「設定 › 連携」で接続してください。',
+    connectorNotConnected:
+      'このサービスはまだ接続されていません。「設定 › 連携」で接続してください。',
     connectorFailed: '選択した項目を読み込めませんでした。もう一度お試しください。',
     connectorSkipped: '添付できない {n} 件の項目をスキップしました。',
-    connectorOmittedNonText: 'Notion ページの画像やファイルなど非テキスト項目 {n} 件を省略しました。',
+    connectorOmittedNonText:
+      'Notion ページの画像やファイルなど非テキスト項目 {n} 件を省略しました。',
   },
   ko: {
     attachFromObsidian: 'Obsidian 볼트에서 노트 첨부',
@@ -51,31 +55,39 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
     attachFromObsidian: 'Joindre des notes du coffre Obsidian',
     attachFromNotion: 'Joindre des pages Notion',
     attachFromCanva: 'Importer depuis Canva',
-    connectorBusy: 'Une autre fenêtre de sélection est déjà ouverte. Terminez-la ou fermez-la d’abord.',
-    connectorNotConnected: 'Ce service n’est pas encore connecté. Connectez-le dans Réglages › Intégrations.',
+    connectorBusy:
+      'Une autre fenêtre de sélection est déjà ouverte. Terminez-la ou fermez-la d’abord.',
+    connectorNotConnected:
+      'Ce service n’est pas encore connecté. Connectez-le dans Réglages › Intégrations.',
     connectorFailed: 'Impossible de lire les éléments sélectionnés. Veuillez réessayer.',
     connectorSkipped: '{n} élément(s) non joignable(s) ignoré(s).',
-    connectorOmittedNonText: '{n} élément(s) non textuel(s) (images ou fichiers) omis des pages Notion.',
+    connectorOmittedNonText:
+      '{n} élément(s) non textuel(s) (images ou fichiers) omis des pages Notion.',
   },
   de: {
     attachFromObsidian: 'Notizen aus Obsidian-Vault anhängen',
     attachFromNotion: 'Notion-Seiten anhängen',
     attachFromCanva: 'Aus Canva importieren',
-    connectorBusy: 'Ein anderes Auswahlfenster ist bereits geöffnet. Bitte schließen Sie es zuerst.',
-    connectorNotConnected: 'Dieser Dienst ist noch nicht verbunden. Verbinden Sie ihn unter Einstellungen › Integrationen.',
+    connectorBusy:
+      'Ein anderes Auswahlfenster ist bereits geöffnet. Bitte schließen Sie es zuerst.',
+    connectorNotConnected:
+      'Dieser Dienst ist noch nicht verbunden. Verbinden Sie ihn unter Einstellungen › Integrationen.',
     connectorFailed: 'Ausgewählte Elemente konnten nicht gelesen werden. Bitte erneut versuchen.',
     connectorSkipped: '{n} nicht anhängbare(s) Element(e) übersprungen.',
-    connectorOmittedNonText: '{n} Nicht-Text-Element(e) (z. B. Bilder oder Dateien) aus Notion-Seiten ausgelassen.',
+    connectorOmittedNonText:
+      '{n} Nicht-Text-Element(e) (z. B. Bilder oder Dateien) aus Notion-Seiten ausgelassen.',
   },
   es: {
     attachFromObsidian: 'Adjuntar notas del almacén de Obsidian',
     attachFromNotion: 'Adjuntar páginas de Notion',
     attachFromCanva: 'Importar desde Canva',
     connectorBusy: 'Ya hay otra ventana de selección abierta. Ciérrala o termínala primero.',
-    connectorNotConnected: 'Este servicio aún no está conectado. Conéctalo en Ajustes › Integraciones.',
+    connectorNotConnected:
+      'Este servicio aún no está conectado. Conéctalo en Ajustes › Integraciones.',
     connectorFailed: 'No se pudieron leer los elementos seleccionados. Inténtalo de nuevo.',
     connectorSkipped: 'Se omitieron {n} elemento(s) que no se pudieron adjuntar.',
-    connectorOmittedNonText: 'Se omitieron {n} elemento(s) no textuales (imágenes o archivos) de las páginas de Notion.',
+    connectorOmittedNonText:
+      'Se omitieron {n} elemento(s) no textuales (imágenes o archivos) de las páginas de Notion.',
   },
   th: {
     attachFromObsidian: 'แนบโน้ตจากคลัง Obsidian',
@@ -85,7 +97,8 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
     connectorNotConnected: 'ยังไม่ได้เชื่อมต่อบริการนี้ กรุณาเชื่อมต่อใน การตั้งค่า › การเชื่อมต่อ',
     connectorFailed: 'ไม่สามารถอ่านรายการที่เลือกได้ กรุณาลองอีกครั้ง',
     connectorSkipped: 'ข้าม {n} รายการที่ไม่สามารถแนบได้',
-    connectorOmittedNonText: 'ละเว้นรายการที่ไม่ใช่ข้อความ {n} รายการ (เช่น รูปภาพหรือไฟล์) จากหน้า Notion',
+    connectorOmittedNonText:
+      'ละเว้นรายการที่ไม่ใช่ข้อความ {n} รายการ (เช่น รูปภาพหรือไฟล์) จากหน้า Notion',
   },
   id: {
     attachFromObsidian: 'Lampirkan catatan dari brankas Obsidian',
@@ -95,17 +108,20 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
     connectorNotConnected: 'Layanan ini belum terhubung. Hubungkan di Pengaturan › Integrasi.',
     connectorFailed: 'Tidak dapat membaca item yang dipilih. Silakan coba lagi.',
     connectorSkipped: 'Melewati {n} item yang tidak dapat dilampirkan.',
-    connectorOmittedNonText: 'Menghilangkan {n} item non-teks (seperti gambar atau file) dari halaman Notion.',
+    connectorOmittedNonText:
+      'Menghilangkan {n} item non-teks (seperti gambar atau file) dari halaman Notion.',
   },
   ru: {
     attachFromObsidian: 'Прикрепить заметки из хранилища Obsidian',
     attachFromNotion: 'Прикрепить страницы Notion',
     attachFromCanva: 'Импортировать из Canva',
     connectorBusy: 'Другое окно выбора уже открыто. Сначала завершите или закройте его.',
-    connectorNotConnected: 'Этот сервис ещё не подключён. Подключите его в «Настройки › Интеграции».',
+    connectorNotConnected:
+      'Этот сервис ещё не подключён. Подключите его в «Настройки › Интеграции».',
     connectorFailed: 'Не удалось прочитать выбранные элементы. Повторите попытку.',
     connectorSkipped: 'Пропущено элементов, которые нельзя прикрепить: {n}.',
-    connectorOmittedNonText: 'Исключено нетекстовых элементов (изображений или файлов) со страниц Notion: {n}.',
+    connectorOmittedNonText:
+      'Исключено нетекстовых элементов (изображений или файлов) со страниц Notion: {n}.',
   },
   ar: {
     attachFromObsidian: 'إرفاق ملاحظات من خزنة Obsidian',
@@ -115,37 +131,44 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
     connectorNotConnected: 'هذه الخدمة غير متصلة بعد. قم بتوصيلها من الإعدادات › التكاملات.',
     connectorFailed: 'تعذرت قراءة العناصر المحددة. يرجى المحاولة مرة أخرى.',
     connectorSkipped: 'تم تخطي {n} عنصر(عناصر) تعذر إرفاقها.',
-    connectorOmittedNonText: 'تم استبعاد {n} عنصر(عناصر) غير نصية (مثل الصور أو الملفات) من صفحات Notion.',
+    connectorOmittedNonText:
+      'تم استبعاد {n} عنصر(عناصر) غير نصية (مثل الصور أو الملفات) من صفحات Notion.',
   },
   pt: {
     attachFromObsidian: 'Anexar notas do cofre Obsidian',
     attachFromNotion: 'Anexar páginas do Notion',
     attachFromCanva: 'Importar do Canva',
     connectorBusy: 'Outra janela de seleção já está aberta. Conclua ou feche-a primeiro.',
-    connectorNotConnected: 'Este serviço ainda não está conectado. Conecte-o em Configurações › Integrações.',
+    connectorNotConnected:
+      'Este serviço ainda não está conectado. Conecte-o em Configurações › Integrações.',
     connectorFailed: 'Não foi possível ler os itens selecionados. Tente novamente.',
     connectorSkipped: '{n} item(ns) que não puderam ser anexados foram ignorados.',
-    connectorOmittedNonText: '{n} item(ns) não textuais (imagens ou arquivos) foram omitidos das páginas do Notion.',
+    connectorOmittedNonText:
+      '{n} item(ns) não textuais (imagens ou arquivos) foram omitidos das páginas do Notion.',
   },
   it: {
     attachFromObsidian: 'Allega note dal vault Obsidian',
     attachFromNotion: 'Allega pagine Notion',
     attachFromCanva: 'Importa da Canva',
     connectorBusy: 'Un’altra finestra di selezione è già aperta. Completala o chiudila prima.',
-    connectorNotConnected: 'Questo servizio non è ancora connesso. Connettilo in Impostazioni › Integrazioni.',
+    connectorNotConnected:
+      'Questo servizio non è ancora connesso. Connettilo in Impostazioni › Integrazioni.',
     connectorFailed: 'Impossibile leggere gli elementi selezionati. Riprova.',
     connectorSkipped: 'Ignorati {n} elementi non allegabili.',
-    connectorOmittedNonText: 'Omessi {n} elementi non testuali (immagini o file) dalle pagine Notion.',
+    connectorOmittedNonText:
+      'Omessi {n} elementi non testuali (immagini o file) dalle pagine Notion.',
   },
   pl: {
     attachFromObsidian: 'Dołącz notatki ze skarbca Obsidian',
     attachFromNotion: 'Dołącz strony Notion',
     attachFromCanva: 'Importuj z Canva',
     connectorBusy: 'Inne okno wyboru jest już otwarte. Najpierw je zamknij lub zakończ.',
-    connectorNotConnected: 'Ta usługa nie jest jeszcze połączona. Połącz ją w Ustawienia › Integracje.',
+    connectorNotConnected:
+      'Ta usługa nie jest jeszcze połączona. Połącz ją w Ustawienia › Integracje.',
     connectorFailed: 'Nie udało się odczytać wybranych elementów. Spróbuj ponownie.',
     connectorSkipped: 'Pominięto {n} element(y), których nie można dołączyć.',
-    connectorOmittedNonText: 'Pominięto {n} element(y) nietekstowe (obrazy lub pliki) ze stron Notion.',
+    connectorOmittedNonText:
+      'Pominięto {n} element(y) nietekstowe (obrazy lub pliki) ze stron Notion.',
   },
   cs: {
     attachFromObsidian: 'Připojit poznámky z trezoru Obsidian',
@@ -155,27 +178,32 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
     connectorNotConnected: 'Tato služba ještě není připojena. Připojte ji v Nastavení › Integrace.',
     connectorFailed: 'Vybrané položky se nepodařilo přečíst. Zkuste to znovu.',
     connectorSkipped: 'Přeskočeno {n} položek, které nelze připojit.',
-    connectorOmittedNonText: 'Ze stránek Notion bylo vynecháno {n} netextových položek (obrázky nebo soubory).',
+    connectorOmittedNonText:
+      'Ze stránek Notion bylo vynecháno {n} netextových položek (obrázky nebo soubory).',
   },
   nl: {
     attachFromObsidian: 'Notities uit Obsidian-kluis bijvoegen',
     attachFromNotion: 'Notion-pagina’s bijvoegen',
     attachFromCanva: 'Importeren uit Canva',
     connectorBusy: 'Er is al een ander selectievenster geopend. Sluit of voltooi dat eerst.',
-    connectorNotConnected: 'Deze service is nog niet verbonden. Verbind deze via Instellingen › Integraties.',
+    connectorNotConnected:
+      'Deze service is nog niet verbonden. Verbind deze via Instellingen › Integraties.',
     connectorFailed: 'Kan de geselecteerde items niet lezen. Probeer het opnieuw.',
     connectorSkipped: '{n} item(s) overgeslagen die niet konden worden bijgevoegd.',
-    connectorOmittedNonText: '{n} niet-tekstitem(s) (zoals afbeeldingen of bestanden) uit Notion-pagina’s weggelaten.',
+    connectorOmittedNonText:
+      '{n} niet-tekstitem(s) (zoals afbeeldingen of bestanden) uit Notion-pagina’s weggelaten.',
   },
   ms: {
     attachFromObsidian: 'Lampirkan nota daripada peti Obsidian',
     attachFromNotion: 'Lampirkan halaman Notion',
     attachFromCanva: 'Import daripada Canva',
     connectorBusy: 'Tetingkap pemilih lain sudah dibuka. Selesaikan atau tutupnya dahulu.',
-    connectorNotConnected: 'Perkhidmatan ini belum disambungkan. Sambungkannya di Tetapan › Integrasi.',
+    connectorNotConnected:
+      'Perkhidmatan ini belum disambungkan. Sambungkannya di Tetapan › Integrasi.',
     connectorFailed: 'Tidak dapat membaca item yang dipilih. Sila cuba lagi.',
     connectorSkipped: 'Melangkau {n} item yang tidak dapat dilampirkan.',
-    connectorOmittedNonText: 'Mengecualikan {n} item bukan teks (seperti imej atau fail) daripada halaman Notion.',
+    connectorOmittedNonText:
+      'Mengecualikan {n} item bukan teks (seperti imej atau fail) daripada halaman Notion.',
   },
   he: {
     attachFromObsidian: 'צירוף הערות מכספת Obsidian',
@@ -215,17 +243,20 @@ export const CONNECTOR_ATTACH_STRINGS = defineStrings({
     connectorNotConnected: 'Dịch vụ này chưa được kết nối. Hãy kết nối trong Cài đặt › Tích hợp.',
     connectorFailed: 'Không thể đọc các mục đã chọn. Vui lòng thử lại.',
     connectorSkipped: 'Đã bỏ qua {n} mục không thể đính kèm.',
-    connectorOmittedNonText: 'Đã lược bỏ {n} mục không phải văn bản (như hình ảnh hoặc tệp) từ trang Notion.',
+    connectorOmittedNonText:
+      'Đã lược bỏ {n} mục không phải văn bản (như hình ảnh hoặc tệp) từ trang Notion.',
   },
   tr: {
     attachFromObsidian: 'Obsidian kasasından not ekle',
     attachFromNotion: 'Notion sayfaları ekle',
     attachFromCanva: 'Canva’dan içe aktar',
     connectorBusy: 'Başka bir seçim penceresi zaten açık. Önce onu tamamlayın veya kapatın.',
-    connectorNotConnected: 'Bu hizmet henüz bağlı değil. Ayarlar › Entegrasyonlar bölümünden bağlayın.',
+    connectorNotConnected:
+      'Bu hizmet henüz bağlı değil. Ayarlar › Entegrasyonlar bölümünden bağlayın.',
     connectorFailed: 'Seçilen öğeler okunamadı. Lütfen tekrar deneyin.',
     connectorSkipped: 'Eklenemeyen {n} öğe atlandı.',
-    connectorOmittedNonText: 'Notion sayfalarından {n} metin dışı öğe (resim veya dosya gibi) hariç tutuldu.',
+    connectorOmittedNonText:
+      'Notion sayfalarından {n} metin dışı öğe (resim veya dosya gibi) hariç tutuldu.',
   },
 })
 

@@ -1,5 +1,14 @@
 import { join } from 'node:path'
-import { app, dialog, ipcMain, net, safeStorage, shell, webContents, type BrowserWindow } from 'electron'
+import {
+  app,
+  dialog,
+  ipcMain,
+  net,
+  safeStorage,
+  shell,
+  webContents,
+  type BrowserWindow,
+} from 'electron'
 import { PRODUCT_NAME, type Lang } from '@genoffice/i18n'
 import { safeExternalUrl } from '@genoffice/electron-utils'
 import { fileHasUnsavedChanges, isFileOpen } from '@genoffice/electron-utils/unsaved-files'
@@ -104,9 +113,10 @@ export function startMcpHub(deps: McpHubAppDeps): McpHub {
     },
     pickVaultFolder: async () => {
       const parent = deps.shellWindow()
-      const result = parent && !parent.isDestroyed()
-        ? await dialog.showOpenDialog(parent, { properties: ['openDirectory'] })
-        : await dialog.showOpenDialog({ properties: ['openDirectory'] })
+      const result =
+        parent && !parent.isDestroyed()
+          ? await dialog.showOpenDialog(parent, { properties: ['openDirectory'] })
+          : await dialog.showOpenDialog({ properties: ['openDirectory'] })
       return result.canceled || result.filePaths.length === 0 ? null : (result.filePaths[0] ?? null)
     },
     obsidian: {

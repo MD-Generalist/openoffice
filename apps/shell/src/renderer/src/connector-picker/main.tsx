@@ -4,10 +4,7 @@ import { htmlDir, htmlLang } from '@genoffice/i18n'
 import '@genoffice/ui/tokens.css'
 import './connector-picker.css'
 import { ConnectorPickerWindow } from './ConnectorPickerWindow'
-import type {
-  ConnectorPickerApi,
-  ConnectorPickerTheme,
-} from '../../../shared/connector-picker-api'
+import type { ConnectorPickerApi, ConnectorPickerTheme } from '../../../shared/connector-picker-api'
 
 declare global {
   interface Window {
