@@ -97,10 +97,14 @@ describe('whiteboard main security, open-check, links, export paths & print HTML
     ])
 
     const dirtySvg =
-      '<svg onclick="alert(1)"><script>evil()</script><rect width="10" height="10"/></svg>'
+      '<svg onclick="alert(1)"><style>body{background:url(https://evil.example/a)}</style><foreignObject><img src="https://evil.example/x"/></foreignObject><script>evil()</script><image href="https://evil.example/p.png"/><image href="data:image/png;base64,AA==" /><rect width="10" height="10"/></svg>'
     const clean = inertSvg(dirtySvg)
     expect(clean).not.toContain('<script')
+    expect(clean).not.toContain('<style')
+    expect(clean).not.toContain('<foreignObject')
     expect(clean).not.toContain('onclick=')
+    expect(clean).not.toContain('https://evil.example')
+    expect(clean).toContain('data:image/png;base64,AA==')
 
     const page = {
       svg: '<svg width="100" height="100"></svg>',

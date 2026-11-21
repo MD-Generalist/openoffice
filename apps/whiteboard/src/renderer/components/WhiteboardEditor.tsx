@@ -63,6 +63,8 @@ function defaultTextRuns(text: string, color = '#0F172A', fontSize = 16) {
   }
 }
 
+export type WhiteboardEditorMenuAction = 'import-pdf' | 'zoom-in' | 'zoom-out' | 'zoom-fit'
+
 export interface WhiteboardEditorProps {
   session: WhiteboardSession
   saveStatus: 'idle' | 'saving' | 'saved' | 'failed'
@@ -76,6 +78,7 @@ export interface WhiteboardEditorProps {
   presenting: boolean
   onSetPresenting(v: boolean): void
   onToast(message: string): void
+  menuCommand?: { seq: number; cmd: WhiteboardEditorMenuAction } | null
 }
 
 export function WhiteboardEditor({
@@ -91,6 +94,7 @@ export function WhiteboardEditor({
   presenting,
   onSetPresenting,
   onToast,
+  menuCommand,
 }: WhiteboardEditorProps): ReactElement {
   const { t } = useI18n()
   const [, setTick] = useState(0)
@@ -347,6 +351,21 @@ export function WhiteboardEditor({
     if (!picked.ok || !picked.bytes) return
     await openPdfBytesForImport(picked.bytes, picked.name ?? 'PDF')
   }, [openPdfBytesForImport])
+
+  const lastMenuSeqRef = useRef(0)
+  useEffect(() => {
+    if (!menuCommand || menuCommand.seq === lastMenuSeqRef.current) return
+    lastMenuSeqRef.current = menuCommand.seq
+    if (menuCommand.cmd === 'import-pdf') {
+      void handlePickPdf()
+    } else if (menuCommand.cmd === 'zoom-in') {
+      setZoom((z) => Math.min(3, Number((z + 0.15).toFixed(2))))
+    } else if (menuCommand.cmd === 'zoom-out') {
+      setZoom((z) => Math.max(0.2, Number((z - 0.15).toFixed(2))))
+    } else if (menuCommand.cmd === 'zoom-fit') {
+      handleFitZoom()
+    }
+  }, [handleFitZoom, handlePickPdf, menuCommand])
 
   const handleConfirmPdfImport = useCallback(async () => {
     if (!pdfPending || pdfBusy) return
@@ -666,6 +685,11 @@ export function WhiteboardEditor({
       const minY = Math.min(...ys)
       const maxX = Math.max(...xs)
       const maxY = Math.max(...ys)
+      const relPoints: Array<[number, number, number]> = pts.map(([px, py, pr]) => [
+        px - minX,
+        py - minY,
+        pr,
+      ])
       const isHi = tool === 'highlighter'
       session.addObject({
         kind: 'stroke',
@@ -677,7 +701,7 @@ export function WhiteboardEditor({
         color: isHi ? '#FEF08A' : penColor,
         strokeWidth: isHi ? 18 : 4,
         opacity: isHi ? 0.45 : 1,
-        points: pts,
+        points: relPoints,
       })
       setLiveStroke(null)
       return
@@ -1516,6 +1540,7 @@ function renderObjectElement(
       const d = computeStrokeOutline(p.points ?? [], p.width ?? 4, p.tool ?? 'pen')
       return (
         <path
+          transform={`translate(${x}, ${y})`}
           d={d}
           fill={p.color || '#0F172A'}
           fillOpacity={p.opacity ?? (p.tool === 'highlighter' ? 0.45 : 1)}

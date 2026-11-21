@@ -148,7 +148,7 @@ test.describe('Whiteboard AI panel', () => {
       const board = await waitWhiteboardPage(app, before)
 
       await expect(board.locator('.copilot')).toHaveCount(0)
-      await expect(board.locator('.wbai-rail')).toHaveCount(0)
+      await expect(board.locator('.ai-rail')).toHaveCount(0)
     } finally {
       await closeAndSaveVideo(launched, 'whiteboard-ai-off')
       rmSync(dir, { recursive: true, force: true })
@@ -175,14 +175,16 @@ test.describe('Whiteboard AI panel', () => {
       await scriptWhiteboardAi(app)
 
       // Open AI dock if collapsed
-      if ((await board.locator('.wbai-rail').count()) > 0) {
-        await board.locator('.wbai-rail').click()
+      if ((await board.locator('.ai-rail').count()) > 0) {
+        await board.locator('.ai-rail').click()
       }
-      await expect(board.locator('.wbai-textarea')).toBeVisible()
+      const textarea = board.locator('.ai-input-box textarea')
+      const sendBtn = board.locator('.ai-send-btn')
+      await expect(textarea).toBeVisible()
 
       // Send good edit batch
-      await board.locator('.wbai-textarea').fill('GOOD-WB-TURN: add two connected stickies')
-      await board.locator('.wbai-icon-btn.primary').click()
+      await textarea.fill('GOOD-WB-TURN: add two connected stickies')
+      await sendBtn.click()
 
       await expect(board.locator('[data-object-id="ai-1"]')).toHaveCount(1, { timeout: 20_000 })
       await expect(board.locator('[data-object-id="ai-2"]')).toHaveCount(1)
@@ -201,8 +203,8 @@ test.describe('Whiteboard AI panel', () => {
 
       // Send bad edit batch (all-or-nothing: ai-3 must not be added)
       const countBeforeBad = reqs.length
-      await board.locator('.wbai-textarea').fill('BAD-WB-TURN: invalid delete batch')
-      await board.locator('.wbai-icon-btn.primary').click()
+      await textarea.fill('BAD-WB-TURN: invalid delete batch')
+      await sendBtn.click()
       await expect
         .poll(async () =>
           app.evaluate(

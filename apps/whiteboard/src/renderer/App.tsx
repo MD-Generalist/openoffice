@@ -17,7 +17,7 @@ import type {
   WhiteboardHandoff,
 } from '../shared/ipc'
 import { WhiteboardAiDock, useWhiteboardAiOpen } from './ai/AiDock'
-import { WhiteboardEditor } from './components/WhiteboardEditor'
+import { WhiteboardEditor, type WhiteboardEditorMenuAction } from './components/WhiteboardEditor'
 import { WhiteboardSession } from './document/session'
 import { renderPageToSvg, renderSvgToPngBytes } from './export/render-svg'
 import { useI18n } from './i18n/locale'
@@ -39,6 +39,10 @@ export default function App(): ReactElement {
   const [exportModalFormat, setExportModalFormat] = useState<ExportFormat | null>(null)
   const [presenting, setPresenting] = useState(false)
   const [handoff, setHandoff] = useState<WhiteboardHandoff | null>(null)
+  const [menuCommand, setMenuCommand] = useState<{
+    seq: number
+    cmd: WhiteboardEditorMenuAction
+  } | null>(null)
 
   const [autoSave, setAutoSave] = useAutoSavePref('whiteboardapp.autoSave', {
     getAutoSaveDefault: () => window.whiteboardApi.core.getAutoSaveDefault(),
@@ -301,6 +305,14 @@ export default function App(): ReactElement {
         else if (cmd === 'redo') sessionRef.current?.redo()
         else if (cmd === 'present') setPresenting((v) => !v)
         else if (cmd === 'toggle-ai') setAiOpen(!aiOpen)
+        else if (
+          cmd === 'import-pdf' ||
+          cmd === 'zoom-in' ||
+          cmd === 'zoom-out' ||
+          cmd === 'zoom-fit'
+        ) {
+          setMenuCommand((prev) => ({ seq: (prev?.seq ?? 0) + 1, cmd }))
+        }
       }),
       window.whiteboardApi.recovery.onRecoveryCopyNow(() => {
         void writeRecoveryNow().finally(() => {
@@ -398,6 +410,7 @@ export default function App(): ReactElement {
         presenting={presenting}
         onSetPresenting={setPresenting}
         onToast={showToast}
+        menuCommand={menuCommand}
       />
       {showAi && (
         <WhiteboardAiDock

@@ -466,10 +466,10 @@ Nothing in this list is uploaded by the app.
 - **Recovery copies of documents you have not saved**, so that unsaved work
   survives a crash, a power cut or the PC shutting down. While a document has
   unsaved changes, every editor (Word, Excel, PowerPoint, PDF, Markdown,
-  HTML, mind map, HWP and diagram) keeps one latest copy of it in a folder of
+  HTML, mind map, HWP, diagram and whiteboard) keeps one latest copy of it in a folder of
   the data folder named after the editor (`docs-autosave`, `sheets-autosave`,
   `slides-autosave`, `pdf-autosave`, `markdown-autosave`, `html-autosave`,
-  `mindmap-autosave`, `hwp-autosave`, `diagram-autosave`). A copy holds what saving the document
+  `mindmap-autosave`, `hwp-autosave`, `diagram-autosave`, `whiteboard-autosave`). A copy holds what saving the document
   at that moment would have written, so it is your document content, kept as
   a plain file. Next to it is a small note with the document's file path, its
   tab title and when the copy was made. Documents you have never saved get

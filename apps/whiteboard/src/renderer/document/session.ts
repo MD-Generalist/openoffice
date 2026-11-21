@@ -55,6 +55,7 @@ export class WhiteboardSession implements WhiteboardAiHost {
   private undoStack: UndoEntry[] = []
   private redoStack: UndoEntry[] = []
   private revision = 0
+  private nextRevision = 0
   private savedRevision = 0
   private filePath: string | null = null
   private importSourcePath: string | null = null
@@ -224,7 +225,8 @@ export class WhiteboardSession implements WhiteboardAiHost {
     this.selectedIds = this.selectedIds.filter((id) =>
       this.doc.objects.some((o) => o.id === id && o.pageId === this.activePageId),
     )
-    this.revision += 1
+    this.nextRevision += 1
+    this.revision = this.nextRevision
     this.undoStack.push({
       snapshot: prevSnapshot,
       activePageId: prevPageId,
@@ -248,12 +250,13 @@ export class WhiteboardSession implements WhiteboardAiHost {
     this.doc = this.archive.getDocument()
     this.activePageId = entry.activePageId
     this.selectedIds = []
-    this.revision += 1
+    this.revision = entry.revisionBefore
     this.redoStack.push({
       snapshot: currentSnapshot,
       activePageId: currentPageId,
       revisionBefore: entry.revisionBefore,
-      revisionAfter: this.revision,
+      revisionAfter: entry.revisionAfter,
+      isAiStep: entry.isAiStep,
     })
     this.emit()
     return true
@@ -268,12 +271,13 @@ export class WhiteboardSession implements WhiteboardAiHost {
     this.doc = this.archive.getDocument()
     this.activePageId = entry.activePageId
     this.selectedIds = []
-    this.revision += 1
+    this.revision = entry.revisionAfter
     this.undoStack.push({
       snapshot: currentSnapshot,
       activePageId: currentPageId,
       revisionBefore: entry.revisionBefore,
-      revisionAfter: this.revision,
+      revisionAfter: entry.revisionAfter,
+      isAiStep: entry.isAiStep,
     })
     this.emit()
     return true

@@ -24,12 +24,19 @@ export function isPrintPage(value: unknown): value is PrintPage {
   )
 }
 
-/** Strips any script tags or inline event handlers from SVG before loading into a print window. */
+/** Strips active tags, event handlers, and external URLs from SVG before loading into a print window. */
 export function inertSvg(svg: string): string {
   return svg
     .replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
     .replace(/<script\b[^>]*\/>/gi, '')
-    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*')/gi, '')
+    .replace(/<style\b[\s\S]*?<\/style\s*>/gi, '')
+    .replace(/<foreignObject\b[\s\S]*?<\/foreignObject\s*>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(
+      /\s(?:xlink:)?href\s*=\s*("(?:\s*(?:https?:|\/\/|javascript:)[^"]*)"|'(?:\s*(?:https?:|\/\/|javascript:)[^']*)')/gi,
+      '',
+    )
+    .replace(/url\(\s*['"]?\s*(?:https?:|\/\/)[^)]*\)/gi, 'none')
 }
 
 function escapeHtml(text: string): string {

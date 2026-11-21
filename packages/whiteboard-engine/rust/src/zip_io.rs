@@ -195,10 +195,42 @@ impl WhiteboardArchive {
                     format!("resource '{res_id}' file '{}' missing from archive", meta.path),
                 )
             })?;
+            let header = read_image_header(&data).ok_or_else(|| {
+                OpenError::new(
+                    OpenErrorCode::InvalidSchema,
+                    format!(
+                        "resource '{res_id}' file '{}' is not a valid PNG, JPEG, GIF, or WebP raster image",
+                        meta.path
+                    ),
+                )
+            })?;
+            if header.mime != meta.mime {
+                return Err(OpenError::new(
+                    OpenErrorCode::InvalidSchema,
+                    format!(
+                        "resource '{res_id}' MIME mismatch: declared {:?}, actual {:?}",
+                        meta.mime, header.mime
+                    ),
+                ));
+            }
             resources.insert(res_id.clone(), data);
         }
 
         let thumbnail = raw_entries.remove(THUMBNAIL_ENTRY);
+        if let Some(ref thumb_bytes) = thumbnail {
+            let header = read_image_header(thumb_bytes).ok_or_else(|| {
+                OpenError::new(
+                    OpenErrorCode::InvalidSchema,
+                    "thumbnail.png is not a valid raster image",
+                )
+            })?;
+            if header.mime != ImageMime::Png {
+                return Err(OpenError::new(
+                    OpenErrorCode::InvalidSchema,
+                    "thumbnail.png must be a PNG image",
+                ));
+            }
+        }
         let initial_canonical_json = canonical_json(&doc);
 
         Ok(Self {
@@ -437,5 +469,38 @@ mod tests {
         let reopened = WhiteboardArchive::open(&saved).unwrap();
         assert_eq!(reopened.resources.get("img1").unwrap(), &sample_png());
         assert_eq!(reopened.thumbnail.as_ref().unwrap(), &sample_png());
+    }
+
+    #[test]
+    fn rejects_non_image_or_mismatched_resource_and_thumbnail_bytes_on_open() {
+        let mut board = create_new_board("b1".into(), "p1".into(), "BadImg".into());
+        board.resources.insert(
+            "r1".into(),
+            ResourceMeta {
+                path: "resources/r1.png".into(),
+                mime: ImageMime::Png,
+                width: 10,
+                height: 10,
+                byte_length: 19,
+            },
+        );
+        let forged = make_raw_zip(&[
+            (BOARD_JSON_ENTRY, serde_json::to_string(&board).unwrap().as_bytes()),
+            ("resources/r1.png", b"<svg>not a png</svg>"),
+        ]);
+        assert_eq!(
+            WhiteboardArchive::open(&forged).unwrap_err().code,
+            OpenErrorCode::InvalidSchema
+        );
+
+        let clean_board = create_new_board("b1".into(), "p1".into(), "BadThumb".into());
+        let bad_thumb = make_raw_zip(&[
+            (BOARD_JSON_ENTRY, serde_json::to_string(&clean_board).unwrap().as_bytes()),
+            (THUMBNAIL_ENTRY, b"not-a-png-at-all"),
+        ]);
+        assert_eq!(
+            WhiteboardArchive::open(&bad_thumb).unwrap_err().code,
+            OpenErrorCode::InvalidSchema
+        );
     }
 }

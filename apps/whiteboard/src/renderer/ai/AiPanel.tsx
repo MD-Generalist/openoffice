@@ -1,22 +1,28 @@
 /**
  * Whiteboard AI panel wired to `@genoffice/ui` shared send-gate, model picker,
- * changes card, and `AgentLoop`. Automatically attaches a theme-invariant light
- * PNG snapshot of the current page alongside `<whiteboard_page>` text when the
- * active model supports vision, and falls back silently to text-only otherwise.
+ * composer (`/` skills, `@` doc mentions), Drive & MCP tools (`composeWithDrive`,
+ * `McpPermissionCard`, `McpServerButton`), `AiAttachMenu`, `AiChangesCard`, and
+ * `AgentLoop`. Automatically attaches a theme-invariant light PNG snapshot of
+ * the current page alongside `<whiteboard_page>` text when the active model
+ * supports vision, and falls back silently to text-only otherwise.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import {
   AgentLoop,
-  composeSkills,
+  composeWithDrive,
+  windowMcpUsableServers,
   type AgentImage,
   type IpcStreamError,
 } from '@genoffice/agent-core'
 import type { AiSettings, AiSubscriptionUsage } from '@genoffice/ai-provider/browser'
 import {
+  AiAttachMenu,
   AiBlockedNotice,
   AiChangesCard,
   type AiChangesState,
+  AiComposer,
+  type AiComposerDocs,
   AiConnectPrompt,
   AiEmptyHints,
   AiFirstConnectionNotice,
@@ -28,14 +34,28 @@ import {
   AiSubscriptionUsageLine,
   AiWorkSteps,
   type AiWorkStep,
+  type DocMentionAddResult,
+  type DriveAttachPicked,
   IconArrowUp,
   IconStop,
   Markdown,
+  McpPermissionCard,
+  McpServerButton,
+  NO_SKILL_USE,
+  SentSkillChips,
+  type SkillChipRef,
+  type SkillUse,
+  SkillUsedNotes,
+  docMentionActions,
+  panelUserSkills,
   useAiSendGate,
+  useComposerSkills,
+  useMcpWindow,
+  useSkillProposals,
   useSubscriptionUsageUpdates,
 } from '@genoffice/ui'
 import type { WhiteboardAiHost } from '../../shared/ai-host'
-import type { AttachmentMeta, WhiteboardHandoff } from '../../shared/ipc'
+import type { AttachmentAddResult, AttachmentMeta, WhiteboardHandoff } from '../../shared/ipc'
 import { useI18n } from '../i18n/locale'
 import { blockedRunFor, mergeSubscriptionUsage, type BlockedRun } from './connection'
 import { createFilesSkill } from './files-skill'
@@ -60,6 +80,8 @@ interface UiMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
+  skills?: SkillChipRef[]
+  skillProposals?: string[]
   steps?: TrackedWorkStep[]
   error?: string
   changes?: TurnChanges
@@ -87,6 +109,16 @@ const MODEL_BRIDGE: AiModelPickerBridge = {
   openModelSettings: () => window.whiteboardApi.ai.openModelSettings(),
 }
 
+function toDocAddResult(
+  res: AttachmentAddResult | null,
+): DocMentionAddResult<AttachmentMeta> | null {
+  if (!res) return null
+  return {
+    accepted: res.added,
+    rejected: res.rejected.map((r) => `${r.name}: ${r.reason}`),
+  }
+}
+
 export function AiPanel({
   host,
   handoff,
@@ -95,10 +127,23 @@ export function AiPanel({
 }: WhiteboardAiPanelProps): ReactElement {
   const { lang, t } = useI18n()
   const sub = useSubscriptionConnection()
+  const mcpWindow = useMcpWindow()
+  const skills = useComposerSkills({
+    lang,
+    editor: 'whiteboard',
+    usableMcpServers: mcpWindow.state?.usableServers(),
+  })
+  const skillsRef = useRef(skills)
+  skillsRef.current = skills
+  const skillCards = useSkillProposals({ lang })
+  const skillCardsRef = useRef(skillCards)
+  skillCardsRef.current = skillCards
+
   const [settings, setSettings] = useState<AiSettings | null>(null)
   const [messages, setMessages] = useState<UiMessage[]>([])
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
+  const [attachNotice, setAttachNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [blockedRun, setBlockedRun] = useState<BlockedRun | null>(null)
   const [inputTruncated, setInputTruncated] = useState(false)
@@ -106,19 +151,111 @@ export function AiPanel({
   const [activeHighlights, setActiveHighlights] = useState<string[]>([])
   const [undoNotice, setUndoNotice] = useState<string | null>(null)
 
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const settingsRef = useRef<AiSettings | null>(null)
   settingsRef.current = settings
   const attachmentsRef = useRef<AttachmentMeta[]>([])
   attachmentsRef.current = attachments
+  const sentAttachmentsRef = useRef<AttachmentMeta[]>([])
   const contextRef = useRef('')
   const lastStreamErrorRef = useRef<IpcStreamError | null>(null)
   const loopRef = useRef<AgentLoop | null>(null)
   const activeAsstIdRef = useRef<string | null>(null)
   const turnBatchesRef = useRef(0)
   const turnChangedIdsRef = useRef<string[]>([])
-  const lastSentRef = useRef<{ text: string; attachments: AttachmentMeta[] } | null>(null)
+  const lastSentRef = useRef<{
+    text: string
+    attachments: AttachmentMeta[]
+    skillUse: SkillUse
+  } | null>(null)
   const langRef = useRef(lang)
   langRef.current = lang
+
+  const availableAttachments = useCallback((): AttachmentMeta[] => {
+    const seen = new Set<string>()
+    return [...sentAttachmentsRef.current, ...attachmentsRef.current].filter((a) => {
+      if (seen.has(a.path)) return false
+      seen.add(a.path)
+      return true
+    })
+  }, [])
+
+  const showAttachNotice = useCallback((lines: string[]) => {
+    if (lines.length === 0) return
+    setAttachNotice(lines.join('; '))
+    window.setTimeout(() => setAttachNotice(null), 5000)
+  }, [])
+
+  const mergeAttachments = useCallback(
+    (result: DocMentionAddResult<AttachmentMeta> | null) => {
+      if (!result) return
+      if (result.accepted.length > 0) {
+        const seen = new Set(attachmentsRef.current.map((a) => a.path))
+        const next = [
+          ...attachmentsRef.current,
+          ...result.accepted.filter((a) => !seen.has(a.path)),
+        ]
+        attachmentsRef.current = next
+        setAttachments(next)
+      }
+      showAttachNotice(result.rejected)
+    },
+    [showAttachNotice],
+  )
+
+  const attachFromPicker = useCallback(
+    async ({ paths, notes }: DriveAttachPicked) => {
+      const added =
+        paths.length > 0
+          ? toDocAddResult(await window.whiteboardApi.ai.addAttachmentPaths(paths))
+          : null
+      mergeAttachments({
+        accepted: added?.accepted ?? [],
+        rejected: [...(added?.rejected ?? []), ...notes],
+      })
+    },
+    [mergeAttachments],
+  )
+
+  const docMention: AiComposerDocs = useMemo(
+    () => ({
+      lang,
+      ...docMentionActions<AttachmentMeta>({
+        lang,
+        add: async (paths) =>
+          toDocAddResult(await window.whiteboardApi.ai.addAttachmentPaths(paths)),
+        merge: mergeAttachments,
+      }),
+      attachments,
+    }),
+    [attachments, lang, mergeAttachments],
+  )
+
+  const handlePasteFiles = useCallback(
+    async (files: File[]) => {
+      const localPaths: string[] = []
+      const pasted: AttachmentMeta[] = []
+      for (const f of files) {
+        const p = window.whiteboardApi.ai.resolveFilePath(f)
+        if (p) {
+          localPaths.push(p)
+        } else if (f.type.startsWith('image/')) {
+          const bytes = new Uint8Array(await f.arrayBuffer())
+          const saved = await window.whiteboardApi.ai.savePastedImage(bytes, f.type)
+          if (saved) pasted.push(saved)
+        }
+      }
+      if (pasted.length > 0) {
+        mergeAttachments({ accepted: pasted, rejected: [] })
+      }
+      if (localPaths.length > 0) {
+        mergeAttachments(
+          toDocAddResult(await window.whiteboardApi.ai.addAttachmentPaths(localPaths)),
+        )
+      }
+    },
+    [mergeAttachments],
+  )
 
   const refreshSettings = useCallback(() => {
     void window.whiteboardApi.ai
@@ -164,7 +301,7 @@ export function AiPanel({
   }, [host])
 
   const runTurn = useCallback(
-    async (text: string, sendAttachments: AttachmentMeta[]) => {
+    async (text: string, sendAttachments: AttachmentMeta[], skillUse: SkillUse = NO_SKILL_USE) => {
       const currentSettings = settingsRef.current
       if (!currentSettings) return
       setBusy(true)
@@ -174,14 +311,27 @@ export function AiPanel({
       lastStreamErrorRef.current = null
       turnBatchesRef.current = 0
       turnChangedIdsRef.current = []
-      lastSentRef.current = { text, attachments: sendAttachments }
+      lastSentRef.current = { text, attachments: sendAttachments, skillUse }
+      if (sendAttachments.length > 0) {
+        const seen = new Set(sentAttachmentsRef.current.map((a) => a.path))
+        sentAttachmentsRef.current = [
+          ...sentAttachmentsRef.current,
+          ...sendAttachments.filter((a) => !seen.has(a.path)),
+        ]
+      }
+      skillsRef.current.consume(skillUse)
 
       const userId = `u-${Date.now()}`
       const asstId = `a-${Date.now()}`
       activeAsstIdRef.current = asstId
       setMessages((prev) => [
         ...prev,
-        { id: userId, role: 'user', text },
+        {
+          id: userId,
+          role: 'user',
+          text,
+          ...(skillUse.chips.length > 0 ? { skills: skillUse.chips } : {}),
+        },
         { id: asstId, role: 'assistant', text: '', steps: [] },
       ])
 
@@ -222,11 +372,35 @@ export function AiPanel({
             turnChangedIdsRef.current.push(...ids)
           },
         })
-        const composed = composeSkills('whiteboard-suite', '', [
-          wbSkill,
-          createFilesSkill(() => attachmentsRef.current),
-          createSearchSkill(),
-        ])
+        const composed = composeWithDrive(
+          'whiteboard+search',
+          '',
+          () => loopRef.current?.messages ?? [],
+          [
+            wbSkill,
+            createSearchSkill(),
+            createFilesSkill(availableAttachments),
+            ...panelUserSkills({
+              editor: 'whiteboard',
+              lang: () => langRef.current,
+              messages: () => loopRef.current?.messages ?? [],
+              mcpServerUsable: (name) => windowMcpUsableServers().has(name),
+              onProposal: (proposal) => {
+                skillCardsRef.current.add(proposal)
+                const targetId = activeAsstIdRef.current
+                if (targetId) {
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === targetId
+                        ? { ...m, skillProposals: [...(m.skillProposals ?? []), proposal.key] }
+                        : m,
+                    ),
+                  )
+                }
+              },
+            }),
+          ],
+        )
         loopRef.current = new AgentLoop({
           transport,
           skill: composed,
@@ -297,12 +471,16 @@ export function AiPanel({
         })
       }
 
-      loopRef.current.run(text, images.length > 0 ? images : undefined)
+      loopRef.current.run(text + skillUse.text, images.length > 0 ? images : undefined)
     },
-    [finalizeRun, host],
+    [availableAttachments, finalizeRun, host],
   )
 
-  const gate = useAiSendGate<{ text: string; attachments: AttachmentMeta[] }>({
+  const gate = useAiSendGate<{
+    text: string
+    attachments: AttachmentMeta[]
+    skillUse: SkillUse
+  }>({
     settings,
     statuses: sub.statuses,
     store: {
@@ -310,23 +488,33 @@ export function AiPanel({
       setSettings: MODEL_BRIDGE.setSettings,
     },
     start: (req) => {
-      void runTurn(req.text, req.attachments)
+      void runTurn(req.text, req.attachments, req.skillUse)
     },
     onNotConnected: () => sub.refresh(),
     onSettingsSaved: (next) => setSettings(next),
   })
 
   const sendMessage = useCallback(
-    (overrideText?: string, overrideAttachments?: AttachmentMeta[]) => {
+    (
+      overrideText?: string,
+      overrideAttachments?: AttachmentMeta[],
+      skillUse: SkillUse = NO_SKILL_USE,
+    ) => {
       const text = (overrideText ?? input).trim()
       const atts = overrideAttachments ?? attachments
       if (!text || busy) return
-      if (!gate.admit({ text, attachments: atts })) return
+      if (!gate.admit({ text, attachments: atts, skillUse })) return
       setInput('')
-      void runTurn(text, atts)
+      void runTurn(text, atts, skillUse)
     },
     [input, attachments, busy, gate, runTurn],
   )
+
+  const sendDraft = useCallback(() => {
+    const text = input.trim()
+    if (!text || busy) return
+    skillsRef.current.withSkills(text, (skillUse) => sendMessage(text, undefined, skillUse))
+  }, [busy, input, sendMessage])
 
   const consumedHandoffId = useRef<string | null>(null)
   useEffect(() => {
@@ -358,6 +546,7 @@ export function AiPanel({
     setBlockedRun(null)
     setInputTruncated(false)
     setUndoNotice(null)
+    sentAttachmentsRef.current = []
     host.setHighlights([])
     setActiveHighlights([])
     gate.reset()
@@ -391,11 +580,9 @@ export function AiPanel({
   }, [host])
 
   const handleAddAttachments = useCallback(async () => {
-    const res = await window.whiteboardApi.ai.addAttachments()
-    if (res.added.length > 0) {
-      setAttachments((prev) => [...prev, ...res.added])
-    }
-  }, [])
+    const res = toDocAddResult(await window.whiteboardApi.ai.addAttachments())
+    mergeAttachments(res)
+  }, [mergeAttachments])
 
   const headerActions = useMemo(
     () => (
@@ -460,7 +647,7 @@ export function AiPanel({
             onContinueWith={(provider) => {
               const last = lastSentRef.current
               gate.continueWith(provider, () => {
-                if (last) void runTurn(last.text, last.attachments)
+                if (last) void runTurn(last.text, last.attachments, last.skillUse)
               })
             }}
           />
@@ -478,23 +665,31 @@ export function AiPanel({
                   key={labelKey}
                   type="button"
                   className="wbai-starter"
-                  onClick={() => setInput(t(promptKey))}
+                  onClick={() => {
+                    setInput(t(promptKey))
+                    inputRef.current?.focus()
+                  }}
                 >
                   {t(labelKey)}
                 </button>
               ))}
             </div>
-            <AiEmptyHints lang={lang} />
+            <AiEmptyHints lang={lang} showSkill={Boolean(skills.composer)} showDocMention />
           </div>
         ) : (
           messages.map((m) => (
             <div key={m.id} className={`wbai-msg wbai-msg-${m.role}`}>
               {m.role === 'user' ? (
-                <div>{m.text}</div>
+                <>
+                  <SentSkillChips lang={lang} chips={m.skills} isAvailable={skills.isAvailable} />
+                  <div>{m.text}</div>
+                </>
               ) : (
                 <>
                   {m.steps && m.steps.length > 0 && <AiWorkSteps lang={lang} steps={m.steps} />}
                   {m.text && <Markdown text={m.text} />}
+                  <SkillUsedNotes tools={m.steps} />
+                  {m.skillProposals?.map((key) => skillCards.render(key))}
                   {m.error && <div className="wbai-error">{m.error}</div>}
                   {m.changes && (
                     <AiChangesCard
@@ -511,11 +706,12 @@ export function AiPanel({
             </div>
           ))
         )}
+        <McpPermissionCard lang={lang} />
       </div>
 
       {usage.length > 0 && <AiSubscriptionUsageLine lang={lang} usage={usage} />}
 
-      <div className="wbai-composer-wrap">
+      <div className="ai-composer wbai-composer-wrap">
         {attachments.length > 0 && (
           <div className="wbai-chips">
             {attachments.map((att) => (
@@ -532,58 +728,48 @@ export function AiPanel({
             ))}
           </div>
         )}
-        <div className="wbai-composer-row">
-          <textarea
-            className="wbai-textarea"
-            value={input}
-            placeholder={t('aiComposerPlaceholder')}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault()
-                sendMessage()
-              }
-            }}
-          />
-        </div>
-        <div className="wbai-composer-actions">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button
-              type="button"
-              className="wbai-icon-btn"
-              title={t('aiAttachTitle')}
-              onClick={() => void handleAddAttachments()}
-            >
-              +
-            </button>
+        {attachNotice && <div className="ai-attach-notice">{attachNotice}</div>}
+        <AiComposer
+          value={input}
+          busy={busy}
+          placeholder={t('aiComposerPlaceholder')}
+          hintIdle={t('aiHintIdle')}
+          hintBusy={t('aiHintBusy')}
+          sendLabel={t('aiSend')}
+          stopLabel={t('aiStop')}
+          iconOnly
+          lang={lang}
+          showSkillButton
+          sendIconEnabled={<IconArrowUp size={15} />}
+          sendIconDisabled={<IconArrowUp size={15} />}
+          stopIcon={<IconStop size={12} />}
+          textareaRef={inputRef}
+          onChange={setInput}
+          onSend={sendDraft}
+          onStop={() => loopRef.current?.cancel()}
+          skills={skills.composer}
+          docs={docMention}
+          onPasteFiles={(files) => void handlePasteFiles(files)}
+          footerStart={
+            <>
+              <AiAttachMenu
+                lang={lang}
+                onPickPc={() => void handleAddAttachments()}
+                onPickedDocs={attachFromPicker}
+                onPickedDrive={attachFromPicker}
+              />
+              <McpServerButton lang={lang} />
+            </>
+          }
+          footerEnd={
             <AiModelPicker
               bridge={MODEL_BRIDGE}
               lang={lang}
               subscriptionStatuses={sub.statuses}
               onRefreshSubscriptions={() => sub.refresh()}
             />
-          </div>
-          {busy ? (
-            <button
-              type="button"
-              className="wbai-icon-btn"
-              title={t('aiStop')}
-              onClick={() => loopRef.current?.cancel()}
-            >
-              <IconStop size={14} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="wbai-icon-btn primary"
-              title={t('aiSend')}
-              disabled={!input.trim()}
-              onClick={() => sendMessage()}
-            >
-              <IconArrowUp size={14} />
-            </button>
-          )}
-        </div>
+          }
+        />
       </div>
     </aside>
   )

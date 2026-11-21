@@ -949,6 +949,41 @@ pub fn apply_template(
                 .or_else(|| working.pages.first())
                 .map(|p| p.id.clone())
                 .ok_or_else(|| EditError::new(EditErrorCode::PageNotFound, "no target page"))?;
+            let is_empty = !working.objects.iter().any(|o| o.page_id == pid);
+            if is_empty {
+                let defaults = tpl.page_defaults.as_ref();
+                let p = working.pages.iter_mut().find(|p| p.id == pid).unwrap();
+                if let Some(ref title) = tpage.title {
+                    p.title = title.clone();
+                }
+                if let Some(fmt_spec) = tpage.format.or_else(|| defaults.and_then(|d| d.format)) {
+                    let fmt = PageFormat::from(fmt_spec);
+                    let (def_w, def_h) = fmt.default_size();
+                    p.format = fmt;
+                    p.width = tpage
+                        .width
+                        .or_else(|| defaults.and_then(|d| d.width))
+                        .unwrap_or(def_w);
+                    p.height = tpage
+                        .height
+                        .or_else(|| defaults.and_then(|d| d.height))
+                        .unwrap_or(def_h);
+                } else {
+                    if let Some(w) = tpage.width.or_else(|| defaults.and_then(|d| d.width)) {
+                        p.width = w;
+                    }
+                    if let Some(h) = tpage.height.or_else(|| defaults.and_then(|d| d.height)) {
+                        p.height = h;
+                    }
+                }
+                if let Some(bg) = tpage
+                    .background
+                    .clone()
+                    .or_else(|| defaults.and_then(|d| d.background.clone()))
+                {
+                    p.background = bg;
+                }
+            }
             let p = working.pages.iter().find(|p| p.id == pid).unwrap();
             let bottom = working
                 .objects
@@ -1125,5 +1160,47 @@ mod tests {
         });
         let err2 = apply_template(&board, &dup_key, Some("p1")).unwrap_err();
         assert_eq!(err2.code, EditErrorCode::InvalidTemplate);
+    }
+
+    #[test]
+    fn current_page_applies_page_properties_when_empty_and_preserves_when_non_empty() {
+        let board = create_new_board("b1".into(), "p1".into(), "".into());
+        let tpl = json!({
+            "schemaVersion": 1,
+            "target": "current_page",
+            "pages": [{
+                "key": "cover",
+                "title": "Kickoff Deck",
+                "format": "wide_16_9",
+                "background": { "kind": "grid", "color": "#F8FAFC", "pattern": "dot" },
+                "blocks": [
+                    { "type": "title", "key": "t1", "text": "Hello" }
+                ]
+            }]
+        });
+
+        let res = apply_template(&board, &tpl, Some("p1")).unwrap();
+        assert_eq!(res.doc.pages.len(), 1);
+        assert_eq!(res.doc.pages[0].title, "Kickoff Deck");
+        assert_eq!(res.doc.pages[0].format, PageFormat::Wide169);
+        assert_eq!(res.doc.pages[0].width, 1920.0);
+        assert_eq!(res.doc.pages[0].height, 1080.0);
+
+        // Applying another current_page template onto a non-empty page preserves existing page properties.
+        let tpl2 = json!({
+            "schemaVersion": 1,
+            "target": "current_page",
+            "pages": [{
+                "key": "append",
+                "title": "Should Not Overwrite",
+                "format": "a4_portrait",
+                "blocks": [
+                    { "type": "sticky", "key": "s2", "text": "More" }
+                ]
+            }]
+        });
+        let res2 = apply_template(&res.doc, &tpl2, Some("p1")).unwrap();
+        assert_eq!(res2.doc.pages[0].title, "Kickoff Deck");
+        assert_eq!(res2.doc.pages[0].format, PageFormat::Wide169);
     }
 }

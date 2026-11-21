@@ -107,7 +107,7 @@ export function createWhiteboardTools(deps: WhiteboardToolsDeps): McpToolDefinit
           .array(z.record(z.string(), z.unknown()))
           .optional()
           .describe(
-            'Ordered list of whiteboard edit operations (add, update, delete, reorder, add_page, delete_page, rename_page, set_page_format, patch_table).',
+            'Ordered list of whiteboard edit operations (add, update [including tablePatch], move [x/y and z-order], delete, add_page, rename_page, delete_page, set_page_format).',
           ),
         template: z
           .record(z.string(), z.unknown())

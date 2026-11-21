@@ -51,7 +51,7 @@ export const WHITEBOARD_TOOLS: readonly AgentToolDef[] = [
   {
     name: WHITEBOARD_TOOL_NAMES.edit,
     description:
-      'Apply an atomic list of edit operations to the whiteboard (all-or-nothing, 1 undo step). Supported ops: add, update, delete, reorder, add_page, delete_page, rename_page, set_page_format, patch_table.',
+      'Apply an atomic list of edit operations to the whiteboard (all-or-nothing, 1 undo step). Supported ops: add, update (including tablePatch), move (x/y and z-order toFront/toBack), delete, add_page, rename_page, delete_page, set_page_format.',
     inputSchema: {
       type: 'object',
       properties: {

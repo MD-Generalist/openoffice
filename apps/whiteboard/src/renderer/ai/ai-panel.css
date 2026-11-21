@@ -229,3 +229,86 @@
 .wbai-starter:hover {
   background: var(--hover);
 }
+
+.ai-attach-notice {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--wbai-error);
+}
+
+.ai-composer {
+  font-family: var(--gs-font-sans, inherit);
+}
+
+.ai-input-box {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  box-shadow: 0 1px 3px var(--wbai-shadow-soft);
+}
+
+.ai-input-box textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  resize: none;
+  border: none;
+  background: none;
+  border-radius: 14px 14px 0 0;
+  padding: 10px 12px 4px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 22px;
+  outline: none;
+  color: var(--text);
+  min-height: 52px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.ai-input-box textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.ai-input-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 8px 10px;
+}
+
+.ai-input-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-send-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  margin-left: auto;
+  flex-shrink: 0;
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--bg);
+  cursor: pointer;
+}
+
+.ai-send-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ai-send-btn.ai-stop-btn {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}

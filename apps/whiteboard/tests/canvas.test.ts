@@ -44,11 +44,37 @@ describe('WhiteboardSession & canvas rendering', () => {
     expect(svg!.svg).toContain('Hello board')
     expect(svg!.svg).not.toContain('var(--')
 
-    // Undo and redo restore cleanly.
+    // Undo and redo restore cleanly and keep dirty/unchanged-save state exact.
     expect(session.undo()).toBe(true)
     expect(session.getDocument().objects).toHaveLength(0)
+    expect(session.isDirty()).toBe(false)
     expect(session.redo()).toBe(true)
     expect(session.getDocument().objects).toHaveLength(1)
+    expect(session.isDirty()).toBe(true)
+
+    // Mark saved, then edit -> undo -> must report clean & unchanged on save.
+    session.markSaved('/tmp/saved.whiteboard')
+    expect(session.isDirty()).toBe(false)
+    session.addObject({
+      kind: 'sticker',
+      stickerId: 'star',
+      tint: '" onload="alert(1)" data-x="',
+      x: 20,
+      y: 20,
+      width: 64,
+      height: 64,
+    })
+    expect(session.isDirty()).toBe(true)
+    const stickerSvg = renderPageToSvg(
+      session.getDocument(),
+      session.getActivePageId(),
+      session.getAllResourceDataUrls(),
+    )
+    expect(stickerSvg!.svg).not.toContain('onload=')
+    expect(session.undo()).toBe(true)
+    expect(session.isDirty()).toBe(false)
+    const saved = await session.serializeForSave({ updateThumbnail: false })
+    expect(saved.unchanged).toBe(true)
 
     // PDF background pages import in 1 undo step.
     const pdfPages = session.importPdfPages(
