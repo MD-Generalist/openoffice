@@ -133,7 +133,7 @@
   height: 15px;
   padding: 0 4px;
   border-radius: var(--radius-12);
-  background: var(--accent);
+  background: var(--accent, var(--color-brand-secondary));
   color: var(--color-btn-primary-text);
   font-size: 10px;
   font-weight: 600;
