@@ -171,6 +171,7 @@ import {
 import { createDocList } from './doc-picker/doc-list'
 import { resolveDocAsker } from './doc-picker/doc-asker'
 import { createDocPicker } from './doc-picker/doc-picker-window'
+import { createConnectorPicker } from './connector-picker/picker-window'
 import { handleDroppedFiles, type DroppedFilesDeps } from './dropped-files'
 import { collectLaunchPaths } from './launch-paths'
 
@@ -10581,6 +10582,23 @@ app.whenReady().then(async () => {
     }),
     lang: () => currentLang(),
     theme: () => currentTheme(),
+  })
+  // Direct attachment picker for Obsidian vault notes and Notion pages.
+  createConnectorPicker({
+    hub: mcpHub,
+    openIntegrations: () => {
+      const win = shellWindow
+      if (!win || win.isDestroyed()) return
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+      tabManager?.openHomeTab()
+      win.webContents.send(HOME_CHANNELS.openSettings, { section: 'integrations' })
+    },
+    lang: () => currentLang(),
+    theme: () => currentTheme(),
+    tempDir: app.getPath('temp'),
+    isUnsaved: (absPath) => fileHasUnsavedChanges(absPath),
   })
   // Which open documents have unsaved changes, for the attachment readers of the
   // editor mains and the knowledge base: a file being edited is not read as

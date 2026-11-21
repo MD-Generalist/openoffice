@@ -1,0 +1,341 @@
+/**
+ * Modal attachment picker window for Obsidian vault notes and Notion pages.
+ * Mirrors `doc-picker-window.ts`: one modal window at a time over the asking
+ * editor, validating selected IDs strictly against the last listing.
+ *
+ * User-initiated direct attachment does NOT trip `keepResultsInside` or Drive
+ * outbound guards — it hands file paths to the editor's normal attachment flow.
+ */
+import { join } from 'node:path'
+import { BrowserWindow, ipcMain, shell, webContents } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import { productName, type Lang } from '@genoffice/i18n'
+import { safeExternalUrl } from '@genoffice/electron-utils'
+import {
+  CONNECTOR_ATTACH_CHANNELS,
+  type ConnectorAttachSources,
+  type ConnectorAttachWireResult,
+} from '@genoffice/electron-utils/connector-attach-channels'
+import {
+  CONNECTOR_PICKER_CHANNELS,
+  type ConnectorPickerChooseResult,
+  type ConnectorPickerInit,
+  type ConnectorPickerItem,
+  type ConnectorPickerKind,
+  type ConnectorPickerListResult,
+  type ConnectorPickerTheme,
+} from '../../shared/connector-picker-api'
+import { connectorPickerText } from '../../renderer/src/i18n/strings-connector-picker'
+import type { McpHub } from '../mcp-client/hub'
+import {
+  cleanupOldNotionSnapshots,
+  fetchNotionPagesToTemp,
+  findNotionTools,
+  NOTION_ATTACH_SUBDIR,
+  parseNotionSearchResults,
+  type NotionToolPair,
+} from './notion-picker'
+import { listObsidianPickerItems, resolveObsidianSelection } from './obsidian-picker'
+
+export interface ConnectorPickerDeps {
+  hub: McpHub
+  openIntegrations: () => void
+  lang: () => Lang
+  theme: () => ConnectorPickerTheme
+  tempDir: string
+  isUnsaved: (absPath: string) => Promise<boolean> | boolean
+}
+
+export function createConnectorPicker(deps: ConnectorPickerDeps) {
+  let win: BrowserWindow | null = null
+  let activeKind: ConnectorPickerKind = 'obsidian'
+  let settle: ((result: ConnectorAttachWireResult) => void) | null = null
+  let lastItems: ConnectorPickerItem[] | null = null
+  let cachedNotionTools: { serverId: string; pair: NotionToolPair } | null = null
+  let listController: AbortController | null = null
+  let chooseController: AbortController | null = null
+
+  const attachDir = join(deps.tempDir, NOTION_ATTACH_SUBDIR)
+
+  const currentSources = (): ConnectorAttachSources => ({
+    obsidian: deps.hub.registeredVaults().length > 0,
+    notion: deps.hub.notionPickerStatus().available,
+  })
+
+  let lastSources = currentSources()
+  const broadcastSources = () => {
+    const next = currentSources()
+    if (next.obsidian === lastSources.obsidian && next.notion === lastSources.notion) return
+    lastSources = next
+    for (const wc of webContents.getAllWebContents()) {
+      if (!wc.isDestroyed()) {
+        wc.send(CONNECTOR_ATTACH_CHANNELS.sourcesChanged, next)
+      }
+    }
+  }
+  const unsubscribeHub = deps.hub.onChanged(broadcastSources)
+
+  const fromWindow = (event: IpcMainInvokeEvent) =>
+    !!win && !win.isDestroyed() && event.sender === win.webContents
+
+  const finish = (result: ConnectorAttachWireResult) => {
+    listController?.abort('closed')
+    chooseController?.abort('closed')
+    const done = settle
+    settle = null
+    done?.(result)
+    if (win && !win.isDestroyed()) win.close()
+  }
+
+  async function resolveNotionPair(
+    signal?: AbortSignal,
+  ): Promise<{ ok: true; serverId: string; pair: NotionToolPair } | { ok: false; error: string }> {
+    const status = deps.hub.notionPickerStatus()
+    if (!status.available || !status.serverId) {
+      return { ok: false, error: 'Notion is not connected or needs sign-in.' }
+    }
+    if (cachedNotionTools && cachedNotionTools.serverId === status.serverId) {
+      return { ok: true, serverId: status.serverId, pair: cachedNotionTools.pair }
+    }
+    const listed = await deps.hub.listToolsForUserPicker(status.serverId, signal)
+    if (!listed.ok) return { ok: false, error: listed.error }
+    const pair = findNotionTools(listed.tools)
+    if (!pair) {
+      return {
+        ok: false,
+        error: 'Notion search and page fetch tools were not found on the connected server.',
+      }
+    }
+    cachedNotionTools = { serverId: status.serverId, pair }
+    return { ok: true, serverId: status.serverId, pair }
+  }
+
+  // ---- picker window IPC ---------------------------------------------------
+
+  ipcMain.handle(CONNECTOR_PICKER_CHANNELS.getInit, (event): ConnectorPickerInit | null => {
+    if (!fromWindow(event)) return null
+    return {
+      kind: activeKind,
+      lang: deps.lang(),
+      theme: deps.theme(),
+      vaults:
+        activeKind === 'obsidian'
+          ? deps.hub.registeredVaults().map((v) => ({ id: v.id, name: v.name }))
+          : [],
+    }
+  })
+
+  ipcMain.handle(
+    CONNECTOR_PICKER_CHANNELS.list,
+    async (event, rawQuery?: unknown): Promise<ConnectorPickerListResult> => {
+      if (!fromWindow(event)) return { ok: false, error: 'Unavailable' }
+      listController?.abort('superseded')
+      const controller = new AbortController()
+      listController = controller
+
+      if (activeKind === 'obsidian') {
+        const vaults = deps.hub.registeredVaults()
+        const listed = await listObsidianPickerItems(vaults, deps.isUnsaved)
+        if (controller.signal.aborted) return { ok: false, error: 'Cancelled' }
+        lastItems = listed.items
+        return { ok: true, items: listed.items }
+      }
+
+      // Notion live search
+      const query = typeof rawQuery === 'string' ? rawQuery.trim() : ''
+      const resolved = await resolveNotionPair(controller.signal)
+      if (!resolved.ok) return { ok: false, error: resolved.error }
+      const answer = await deps.hub.callForUserPicker(
+        resolved.serverId,
+        resolved.pair.searchTool.name,
+        { [resolved.pair.searchQueryParam]: query },
+        controller.signal,
+      )
+      if (controller.signal.aborted) return { ok: false, error: 'Cancelled' }
+      if (!answer.ok) {
+        return { ok: false, error: answer.error || 'Notion search failed.' }
+      }
+      if (answer.isError) {
+        return { ok: false, error: answer.output || 'Notion search failed.' }
+      }
+      const items = parseNotionSearchResults(answer.output)
+      lastItems = items
+      return { ok: true, items }
+    },
+  )
+
+  ipcMain.handle(
+    CONNECTOR_PICKER_CHANNELS.choose,
+    async (event, rawIds: unknown): Promise<ConnectorPickerChooseResult> => {
+      if (!fromWindow(event)) return { ok: false, error: 'Unavailable' }
+
+      if (activeKind === 'obsidian') {
+        const { paths, skipped } = resolveObsidianSelection(rawIds, lastItems)
+        if (paths.length === 0) {
+          finish({ ok: false, reason: 'cancelled' })
+          return { ok: true }
+        }
+        finish({ ok: true, paths, ...(skipped > 0 ? { skipped } : {}) })
+        return { ok: true }
+      }
+
+      // Notion page fetch -> temporary markdown snapshots
+      const ids = Array.isArray(rawIds)
+        ? rawIds.filter((x): x is string => typeof x === 'string')
+        : []
+      const itemMap = new Map((lastItems ?? []).map((item) => [item.id, item]))
+      const selectedItems: ConnectorPickerItem[] = []
+      const seen = new Set<string>()
+      for (const id of ids) {
+        if (seen.has(id)) continue
+        seen.add(id)
+        const item = itemMap.get(id)
+        if (item) selectedItems.push(item)
+      }
+      if (selectedItems.length === 0) {
+        finish({ ok: false, reason: 'cancelled' })
+        return { ok: true }
+      }
+
+      chooseController?.abort('superseded')
+      const controller = new AbortController()
+      chooseController = controller
+
+      const resolved = await resolveNotionPair(controller.signal)
+      if (!resolved.ok) return { ok: false, error: resolved.error }
+
+      await cleanupOldNotionSnapshots(attachDir).catch(() => {})
+      const fetched = await fetchNotionPagesToTemp({
+        serverId: resolved.serverId,
+        selectedItems,
+        fetchTool: resolved.pair.fetchTool,
+        fetchIdParam: resolved.pair.fetchIdParam,
+        callForUserPicker: deps.hub.callForUserPicker,
+        attachDir,
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) return { ok: false, error: 'Cancelled' }
+      if (!fetched.ok) {
+        return { ok: false, error: 'Could not download selected Notion pages.' }
+      }
+      finish(fetched)
+      return { ok: true }
+    },
+  )
+
+  ipcMain.handle(CONNECTOR_PICKER_CHANNELS.cancel, (event) => {
+    if (fromWindow(event)) finish({ ok: false, reason: 'cancelled' })
+  })
+
+  ipcMain.handle(CONNECTOR_PICKER_CHANNELS.openSettings, (event) => {
+    if (!fromWindow(event)) return
+    finish({ ok: false, reason: 'cancelled' })
+    deps.openIntegrations()
+  })
+
+  // ---- editor AI panel bridge IPC ------------------------------------------
+
+  ipcMain.handle(CONNECTOR_ATTACH_CHANNELS.availableSources, (): ConnectorAttachSources => {
+    lastSources = currentSources()
+    return lastSources
+  })
+
+  ipcMain.handle(
+    CONNECTOR_ATTACH_CHANNELS.pickObsidian,
+    (event): Promise<ConnectorAttachWireResult> => {
+      if (deps.hub.registeredVaults().length === 0) {
+        return Promise.resolve({ ok: false, reason: 'not-connected' })
+      }
+      const parent = BrowserWindow.fromWebContents(event.sender)
+      if (!parent || parent.isDestroyed()) {
+        return Promise.resolve({ ok: false, reason: 'unavailable' })
+      }
+      return open('obsidian', parent)
+    },
+  )
+
+  ipcMain.handle(
+    CONNECTOR_ATTACH_CHANNELS.pickNotion,
+    (event): Promise<ConnectorAttachWireResult> => {
+      if (!deps.hub.notionPickerStatus().available) {
+        return Promise.resolve({ ok: false, reason: 'not-connected' })
+      }
+      const parent = BrowserWindow.fromWebContents(event.sender)
+      if (!parent || parent.isDestroyed()) {
+        return Promise.resolve({ ok: false, reason: 'unavailable' })
+      }
+      return open('notion', parent)
+    },
+  )
+
+  function open(
+    kind: ConnectorPickerKind,
+    parent: BrowserWindow | null,
+  ): Promise<ConnectorAttachWireResult> {
+    if (win && !win.isDestroyed()) {
+      win.show()
+      win.focus()
+      return Promise.resolve({ ok: false, reason: 'busy' })
+    }
+    const lang = deps.lang()
+    const titleKey = kind === 'obsidian' ? 'obsidianTitle' : 'notionTitle'
+    const next = new BrowserWindow({
+      width: 720,
+      height: 620,
+      minWidth: 480,
+      minHeight: 420,
+      ...(parent && !parent.isDestroyed() ? { parent, modal: true } : {}),
+      show: false,
+      center: true,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      autoHideMenuBar: true,
+      title: `${connectorPickerText(lang, titleKey)} - ${productName(lang)}`,
+      webPreferences: {
+        preload: join(__dirname, '../preload/connector-picker.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    win = next
+    activeKind = kind
+    lastItems = null
+    cachedNotionTools = null
+    next.removeMenu()
+    next.webContents.setWindowOpenHandler(({ url }) => {
+      const target = safeExternalUrl(url)
+      if (target) void shell.openExternal(target)
+      return { action: 'deny' }
+    })
+    const result = new Promise<ConnectorAttachWireResult>((resolve) => {
+      settle = resolve
+    })
+    next.once('ready-to-show', () => next.show())
+    next.on('closed', () => {
+      listController?.abort('closed')
+      chooseController?.abort('closed')
+      if (win === next) win = null
+      lastItems = null
+      const done = settle
+      settle = null
+      done?.({ ok: false, reason: 'cancelled' })
+    })
+    if (process.env.ELECTRON_RENDERER_URL) {
+      void next.loadURL(`${process.env.ELECTRON_RENDERER_URL}/connector-picker.html`)
+    } else {
+      void next.loadFile(join(__dirname, '../renderer/connector-picker.html'))
+    }
+    return result
+  }
+
+  return {
+    open,
+    close: () => win?.close(),
+    dispose: () => {
+      unsubscribeHub()
+      win?.close()
+    },
+  }
+}
