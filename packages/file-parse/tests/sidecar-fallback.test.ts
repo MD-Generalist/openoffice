@@ -33,6 +33,10 @@ vi.mock('../src/doc', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/doc')>()
   return { ...actual, docToText: vi.fn(actual.docToText) }
 })
+vi.mock('../src/ppt', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/ppt')>()
+  return { ...actual, pptToText: vi.fn(actual.pptToText) }
+})
 
 import {
   ParseSidecarClient,
@@ -44,6 +48,7 @@ import { docToText } from '../src/doc'
 import { docxToText } from '../src/docx'
 import { epubToText } from '../src/epub'
 import { odtToText } from '../src/odt'
+import { pptToText } from '../src/ppt'
 import { pptxToText } from '../src/pptx'
 import { xlsxToText } from '../src/xlsx'
 import { xmindToText } from '../src/xmind'
@@ -282,12 +287,31 @@ describe('parseFileToText: allowed fallbacks and redaction boundary', () => {
     expect(pptxToText).toHaveBeenCalledTimes(1)
   })
 
-  it('falls back to TS docToText for legacy OLE2 .doc files', async () => {
+  it('uses sidecar directly for legacy OLE2 .doc and .ppt without calling TS extractors, and falls back only when disabled', async () => {
     delete process.env.GENOFFICE_PARSE_SIDECAR
     const legacyDoc = fileURLToPath(new URL('./fixtures/legacy-sample.doc', import.meta.url))
-    const res = await parseFileToText(legacyDoc)
-    expect(res.ok).toBe(true)
+    const legacyPpt = fileURLToPath(new URL('./fixtures/legacy-sample.ppt', import.meta.url))
+
+    const docRes = await parseFileToText(legacyDoc)
+    expect(docRes.ok).toBe(true)
+    expect(docRes.text).toContain('Legacy DOC body text')
+    expect(docToText).not.toHaveBeenCalled()
+
+    const pptRes = await parseFileToText(legacyPpt)
+    expect(pptRes.ok).toBe(true)
+    expect(pptRes.text).toContain('## Slide 1')
+    expect(pptRes.text).toContain('Legacy PPT title')
+    expect(pptToText).not.toHaveBeenCalled()
+
+    // Explicit disable falls back to TS docToText / pptToText
+    process.env.GENOFFICE_PARSE_SIDECAR = '0'
+    const docFallback = await parseFileToText(legacyDoc)
+    expect(docFallback).toEqual(docRes)
     expect(docToText).toHaveBeenCalledTimes(1)
+
+    const pptFallback = await parseFileToText(legacyPpt)
+    expect(pptFallback).toEqual(pptRes)
+    expect(pptToText).toHaveBeenCalledTimes(1)
   })
 
   it('never invokes sidecar for redaction-bearing text/markup, pdf, or images', async () => {

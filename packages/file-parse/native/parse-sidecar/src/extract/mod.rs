@@ -1,6 +1,9 @@
+pub mod doc;
 pub mod docx;
 pub mod epub;
 pub mod odt;
+pub mod ole;
+pub mod ppt;
 pub mod pptx;
 pub mod rels;
 pub mod text;
@@ -10,7 +13,7 @@ pub mod xml_util;
 pub mod xmind;
 
 use std::fs::{self, File};
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -189,10 +192,10 @@ pub fn extract_file(
         return Ok(finalize_ok(text, opts));
     }
 
-    // ZIP-based document formats handled natively in Rust.
+    // ZIP-based and legacy OLE2 document formats handled natively in Rust.
     if !matches!(
         ext.as_str(),
-        "docx" | "xlsx" | "xlsm" | "pptx" | "odt" | "epub" | "xmind" | "doc"
+        "docx" | "xlsx" | "xlsm" | "pptx" | "odt" | "epub" | "xmind" | "doc" | "ppt"
     ) {
         return Ok(ExtractResult::Fallback {
             fallback_reason: FallbackReason::UnsupportedFormat,
@@ -252,9 +255,14 @@ pub fn extract_file(
         }
         "doc" => {
             if sniffed == BinaryKind::Ole2 {
-                return Ok(ExtractResult::Fallback {
-                    fallback_reason: FallbackReason::UnsupportedFormat,
-                });
+                return match doc::extract_doc(BufReader::new(file), opts.max_chars, cancelled) {
+                    Ok(text) => Ok(finalize_ok(text, opts)),
+                    Err(ole::OleError::Cancelled) => Err(()),
+                    Err(err) => Ok(ExtractResult::Rejected {
+                        reject_code: err.reject_code(),
+                        message: err.message(),
+                    }),
+                };
             }
             if sniffed != BinaryKind::Zip {
                 return Ok(ExtractResult::Rejected {
@@ -265,6 +273,25 @@ pub fn extract_file(
                     ),
                 });
             }
+        }
+        "ppt" => {
+            if sniffed != BinaryKind::Ole2 {
+                return Ok(ExtractResult::Rejected {
+                    reject_code: RejectCode::ContentMismatch,
+                    message: format!(
+                        "Content mismatch: .ppt file has {} magic bytes",
+                        sniffed.as_str()
+                    ),
+                });
+            }
+            return match ppt::extract_ppt(BufReader::new(file), opts.max_chars, cancelled) {
+                Ok(text) => Ok(finalize_ok(text, opts)),
+                Err(ole::OleError::Cancelled) => Err(()),
+                Err(err) => Ok(ExtractResult::Rejected {
+                    reject_code: err.reject_code(),
+                    message: err.message(),
+                }),
+            };
         }
         _ => {}
     }
