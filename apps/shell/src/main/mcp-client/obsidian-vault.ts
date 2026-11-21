@@ -99,7 +99,11 @@ function looksAbsolute(filePath: string): boolean {
   )
 }
 
-function serializeWrite<T>(filePath: string, platform: NodeJS.Platform, task: () => Promise<T>): Promise<T> {
+function serializeWrite<T>(
+  filePath: string,
+  platform: NodeJS.Platform,
+  task: () => Promise<T>,
+): Promise<T> {
   const key = comparablePath(filePath, platform)
   const previous = writeQueues.get(key) ?? Promise.resolve()
   const run = previous.then(task, task)
@@ -186,11 +190,15 @@ function parseMarkdownSegments(relPath: unknown): string[] | { error: string } {
   return segments
 }
 
-async function assertVaultRoot(vaultRoot: string, platform: NodeJS.Platform): Promise<string | null> {
+async function assertVaultRoot(
+  vaultRoot: string,
+  platform: NodeJS.Platform,
+): Promise<string | null> {
   if (!looksAbsolute(vaultRoot)) return 'Vault path is not absolute.'
   try {
     const info = await lstat(vaultRoot)
-    if (info.isSymbolicLink() || !info.isDirectory()) return 'Vault folder is no longer a valid directory.'
+    if (info.isSymbolicLink() || !info.isDirectory())
+      return 'Vault folder is no longer a valid directory.'
     const real = await realpath(vaultRoot)
     if (!samePath(real, vaultRoot, platform)) return 'Vault folder path has moved or changed.'
     return null
@@ -214,7 +222,8 @@ async function resolveExistingNote(
     dir = join(dir, seg)
     const info = await lstatOrNull(dir)
     if (!info) return { ok: false, error: `Note not found: ${segs.join('/')}` }
-    if (info.isSymbolicLink()) return { ok: false, error: 'Symlinks and junctions are not allowed inside a vault.' }
+    if (info.isSymbolicLink())
+      return { ok: false, error: 'Symlinks and junctions are not allowed inside a vault.' }
     if (!info.isDirectory()) return { ok: false, error: `Invalid folder in path: ${seg}` }
   }
   if (!samePath(await realpath(dir), dir, platform)) {
@@ -251,13 +260,16 @@ async function resolveNewNote(
       try {
         await mkdir(dir)
       } catch (error) {
-        if (errorCode(error) !== 'EEXIST') return { ok: false, error: `Could not create folder: ${seg}` }
+        if (errorCode(error) !== 'EEXIST')
+          return { ok: false, error: `Could not create folder: ${seg}` }
       }
       info = await lstatOrNull(dir)
     }
     if (!info) return { ok: false, error: `Could not access folder: ${seg}` }
-    if (info.isSymbolicLink()) return { ok: false, error: 'Symlinks and junctions are not allowed inside a vault.' }
-    if (!info.isDirectory()) return { ok: false, error: `Path component "${seg}" is not a directory.` }
+    if (info.isSymbolicLink())
+      return { ok: false, error: 'Symlinks and junctions are not allowed inside a vault.' }
+    if (!info.isDirectory())
+      return { ok: false, error: `Path component "${seg}" is not a directory.` }
   }
   if (!samePath(await realpath(dir), dir, platform)) {
     return { ok: false, error: 'Symlinks and junctions are not allowed inside a vault.' }
@@ -265,7 +277,10 @@ async function resolveNewNote(
   const target = join(dir, segs[segs.length - 1]!)
   const existing = await lstatOrNull(target)
   if (existing) {
-    return { ok: false, error: `Note already exists: ${segs.join('/')}. Use update_note or append_note instead.` }
+    return {
+      ok: false,
+      error: `Note already exists: ${segs.join('/')}. Use update_note or append_note instead.`,
+    }
   }
   return { ok: true, absPath: target, relPath: segs.join('/') }
 }
@@ -279,7 +294,10 @@ interface ScannedNote {
   mtimeMs: number
 }
 
-async function scanVaultNotes(vaultRoot: string, platform: NodeJS.Platform): Promise<ScannedNote[]> {
+async function scanVaultNotes(
+  vaultRoot: string,
+  platform: NodeJS.Platform,
+): Promise<ScannedNote[]> {
   if (await assertVaultRoot(vaultRoot, platform)) return []
   const notes: ScannedNote[] = []
 
@@ -341,11 +359,14 @@ export function extractFrontmatterAndTags(text: string): { frontmatter: string; 
       const blockMatch = frontmatter.match(/^tags\s*:\s*\r?\n((?:[ \t]*-[ \t]*[^\r\n]+\r?\n?)+)/im)
       if (blockMatch?.[1]) {
         for (const line of blockMatch[1].split(/\r?\n/)) {
-          const item = line.replace(/^[ \t]*-[ \t]*/, '').trim().replace(/^['"#]+|['"]+$/g, '')
+          const item = line
+            .replace(/^[ \t]*-[ \t]*/, '')
+            .trim()
+            .replace(/^['"#]+|['"]+$/g, '')
           if (item) tags.add(item.toLowerCase())
         }
       } else {
-        const single = frontmatter.match(/^tags\s*:\s*([^\r\n\[]+)/im)
+        const single = frontmatter.match(/^tags\s*:\s*([^\r\n[]+)/im)
         if (single?.[1]) {
           for (const raw of single[1].split(/[,\s]+/)) {
             const cleaned = raw.trim().replace(/^['"#]+|['"]+$/g, '')
@@ -356,7 +377,9 @@ export function extractFrontmatterAndTags(text: string): { frontmatter: string; 
     }
   }
   const cleanBody = stripCodeBlocks(body)
-  for (const match of cleanBody.matchAll(/(?:^|[\s(])#([A-Za-z0-9_\u00C0-\u024F\u3131-\uD7A3/-]+)/g)) {
+  for (const match of cleanBody.matchAll(
+    /(?:^|[\s(])#([A-Za-z0-9_\u00C0-\u024F\u3131-\uD7A3/-]+)/g,
+  )) {
     const tag = match[1]?.trim().toLowerCase()
     if (tag && !/^\d+$/.test(tag)) tags.add(tag)
   }
@@ -366,14 +389,17 @@ export function extractFrontmatterAndTags(text: string): { frontmatter: string; 
 function extractWikilinks(text: string): string[] {
   const clean = stripCodeBlocks(text)
   const targets = new Set<string>()
-  for (const match of clean.matchAll(/(?<!!)\[\[([^\[\]\r\n]+)\]\]/g)) {
+  for (const match of clean.matchAll(/(?<!!)\[\[([^[\]\r\n]+)\]\]/g)) {
     const raw = (match[1] ?? '').split('|')[0]?.split('#')[0]?.trim() ?? ''
     if (raw) targets.add(raw)
   }
   return [...targets]
 }
 
-function resolveWikilinks(links: readonly string[], notes: readonly ScannedNote[]): { target: string; resolved: string[] }[] {
+function resolveWikilinks(
+  links: readonly string[],
+  notes: readonly ScannedNote[],
+): { target: string; resolved: string[] }[] {
   const byRelLower = new Map<string, string>()
   const byBaseLower = new Map<string, string[]>()
   for (const note of notes) {
@@ -397,7 +423,12 @@ function resolveWikilinks(links: readonly string[], notes: readonly ScannedNote[
 async function readNoteTextForIndex(absPath: string): Promise<string> {
   try {
     const info = await lstat(absPath)
-    if (!info.isFile() || info.isSymbolicLink() || info.nlink > 1 || info.size > MAX_SEARCH_READ_BYTES) {
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      info.nlink > 1 ||
+      info.size > MAX_SEARCH_READ_BYTES
+    ) {
       return ''
     }
     return await readFile(absPath, 'utf8')
@@ -473,7 +504,10 @@ function normalizeTagFilter(raw: unknown): string {
 }
 
 function insertUnderHeading(source: string, heading: string, content: string): string | null {
-  const wanted = heading.trim().replace(/^#+\s*/, '').toLowerCase()
+  const wanted = heading
+    .trim()
+    .replace(/^#+\s*/, '')
+    .toLowerCase()
   if (!wanted) return null
   const lines = source.split(/\r?\n/)
   const eol = source.includes('\r\n') ? '\r\n' : '\n'
@@ -507,6 +541,26 @@ function insertUnderHeading(source: string, heading: string, content: string): s
 
 // ---- 7 tool executors -------------------------------------------------------
 
+async function readNoteTextForAi(absPath: string, deps: ObsidianVaultDeps): Promise<string | null> {
+  if (await deps.hasUnsavedChanges(absPath)) return null
+  try {
+    const info = await lstat(absPath)
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      info.nlink > 1 ||
+      info.size > MAX_SEARCH_READ_BYTES
+    ) {
+      return null
+    }
+    const parsed = await deps.parseFileToText(absPath)
+    if (!parsed.ok || typeof parsed.text !== 'string') return null
+    return parsed.text
+  } catch {
+    return null
+  }
+}
+
 export async function executeObsidianTool(
   toolName: string,
   input: Record<string, unknown>,
@@ -521,7 +575,11 @@ export async function executeObsidianTool(
     if (!picked.ok) return err(picked.error)
     const folderPrefix =
       typeof input.folder === 'string'
-        ? input.folder.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '').toLowerCase()
+        ? input.folder
+            .trim()
+            .replace(/\\/g, '/')
+            .replace(/^\/+|\/+$/g, '')
+            .toLowerCase()
         : ''
     const tagFilter = normalizeTagFilter(input.tag)
     const limit = clampInt(input.limit, DEFAULT_LIST_LIMIT, 1, MAX_LIST_LIMIT)
@@ -532,8 +590,8 @@ export async function executeObsidianTool(
       const notes = await scanVaultNotes(vault.path, platform)
       for (const note of notes) {
         if (folderPrefix && !note.relPath.toLowerCase().startsWith(`${folderPrefix}/`)) continue
-        const text = await readNoteTextForIndex(note.absPath)
-        const { tags } = extractFrontmatterAndTags(text)
+        const text = await readNoteTextForAi(note.absPath, deps)
+        const { tags } = text !== null ? extractFrontmatterAndTags(text) : { tags: [] as string[] }
         if (tagFilter && !tags.includes(tagFilter)) continue
         for (const t of tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1)
         rows.push({ vault: vault.name, relPath: note.relPath, mtimeMs: note.mtimeMs, tags })
@@ -566,10 +624,7 @@ export async function executeObsidianTool(
     if (!picked.ok) return err(picked.error)
     const tagFilter = normalizeTagFilter(input.tag)
     const limit = clampInt(input.limit, DEFAULT_SEARCH_LIMIT, 1, MAX_SEARCH_LIMIT)
-    const terms = query
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(Boolean)
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
     const matches: {
       vault: string
       relPath: string
@@ -583,9 +638,11 @@ export async function executeObsidianTool(
     for (const vault of picked.vaults) {
       const notes = await scanVaultNotes(vault.path, platform)
       for (const note of notes) {
-        const text = await readNoteTextForIndex(note.absPath)
-        const { frontmatter, tags } = extractFrontmatterAndTags(text)
+        const safeText = await readNoteTextForAi(note.absPath, deps)
+        const { frontmatter, tags } =
+          safeText !== null ? extractFrontmatterAndTags(safeText) : { frontmatter: '', tags: [] }
         if (tagFilter && !tags.includes(tagFilter)) continue
+        const text = safeText ?? ''
         const lowerTitle = note.title.toLowerCase()
         const lowerPath = note.relPath.toLowerCase()
         const lowerFm = frontmatter.toLowerCase()
@@ -609,7 +666,10 @@ export async function executeObsidianTool(
         const snippetStart = Math.max(0, firstIdx - 60)
         const snippet =
           firstIdx >= 0
-            ? text.slice(snippetStart, snippetStart + 180).replace(/\s+/g, ' ').trim()
+            ? text
+                .slice(snippetStart, snippetStart + 180)
+                .replace(/\s+/g, ' ')
+                .trim()
             : text.slice(0, 140).replace(/\s+/g, ' ').trim()
         matches.push({
           vault: vault.name,
@@ -663,7 +723,9 @@ export async function executeObsidianTool(
       const vaultNotes = await scanVaultNotes(vault.path, platform)
       const resolvedLinks = resolveWikilinks(links, vaultNotes)
       const formatted = resolvedLinks.map((l) =>
-        l.resolved.length > 0 ? `[[${l.target}]] -> ${l.resolved.join(', ')}` : `[[${l.target}]] -> (unresolved)`,
+        l.resolved.length > 0
+          ? `[[${l.target}]] -> ${l.resolved.join(', ')}`
+          : `[[${l.target}]] -> (unresolved)`,
       )
       linkSection = `\n\nWikilinks:\n${formatted.join('\n')}`
     }

@@ -51,6 +51,7 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
   let activeKind: ConnectorPickerKind = 'obsidian'
   let settle: ((result: ConnectorAttachWireResult) => void) | null = null
   let lastItems: ConnectorPickerItem[] | null = null
+  let knownNotionItems = new Map<string, ConnectorPickerItem>()
   let cachedNotionTools: { serverId: string; pair: NotionToolPair } | null = null
   let listController: AbortController | null = null
   let chooseController: AbortController | null = null
@@ -160,6 +161,7 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
       }
       const items = parseNotionSearchResults(answer.output)
       lastItems = items
+      for (const item of items) knownNotionItems.set(item.id, item)
       return { ok: true, items }
     },
   )
@@ -183,13 +185,12 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
       const ids = Array.isArray(rawIds)
         ? rawIds.filter((x): x is string => typeof x === 'string')
         : []
-      const itemMap = new Map((lastItems ?? []).map((item) => [item.id, item]))
       const selectedItems: ConnectorPickerItem[] = []
       const seen = new Set<string>()
       for (const id of ids) {
         if (seen.has(id)) continue
         seen.add(id)
-        const item = itemMap.get(id)
+        const item = knownNotionItems.get(id)
         if (item) selectedItems.push(item)
       }
       if (selectedItems.length === 0) {
@@ -302,6 +303,7 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
     win = next
     activeKind = kind
     lastItems = null
+    knownNotionItems = new Map()
     cachedNotionTools = null
     next.removeMenu()
     next.webContents.setWindowOpenHandler(({ url }) => {

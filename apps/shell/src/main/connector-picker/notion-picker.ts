@@ -56,7 +56,13 @@ export function findNotionTools(tools: readonly NotionToolDescriptor[]): NotionT
   const scoreFetch = (t: NotionToolDescriptor): number => {
     const n = t.name.toLowerCase()
     if (n === 'notion-fetch' || n === 'notion_fetch' || n === 'fetch') return 100
-    if (n.includes('fetch') || n.includes('get-page') || n.includes('get_page') || n.includes('retrieve-page') || n.includes('retrieve_page')) {
+    if (
+      n.includes('fetch') ||
+      n.includes('get-page') ||
+      n.includes('get_page') ||
+      n.includes('retrieve-page') ||
+      n.includes('retrieve_page')
+    ) {
       return 70
     }
     return 0
@@ -84,8 +90,10 @@ export function findNotionTools(tools: readonly NotionToolDescriptor[]): NotionT
   return {
     searchTool,
     fetchTool,
-    searchQueryParam: schemaStringProp(searchTool.inputSchema, ['query', 'q', 'text', 'keyword']) ?? 'query',
-    fetchIdParam: schemaStringProp(fetchTool.inputSchema, ['id', 'page_id', 'pageId', 'url']) ?? 'id',
+    searchQueryParam:
+      schemaStringProp(searchTool.inputSchema, ['query', 'q', 'text', 'keyword']) ?? 'query',
+    fetchIdParam:
+      schemaStringProp(fetchTool.inputSchema, ['id', 'page_id', 'pageId', 'url']) ?? 'id',
   }
 }
 
@@ -110,7 +118,9 @@ function extractTitle(entry: Record<string, unknown>): string {
         if (Array.isArray(titleArr)) {
           const joined = titleArr
             .map((t) =>
-              t && typeof t === 'object' && typeof (t as { plain_text?: unknown }).plain_text === 'string'
+              t &&
+              typeof t === 'object' &&
+              typeof (t as { plain_text?: unknown }).plain_text === 'string'
                 ? (t as { plain_text: string }).plain_text
                 : '',
             )
@@ -174,7 +184,9 @@ export function parseNotionSearchResults(output: string): ConnectorPickerItem[] 
   for (const row of rawList) {
     if (!row || typeof row !== 'object') continue
     const rec = row as Record<string, unknown>
-    const kind = String(rec.type ?? rec.object ?? '').trim().toLowerCase()
+    const kind = String(rec.type ?? rec.object ?? '')
+      .trim()
+      .toLowerCase()
     if (kind && EXCLUDED_NOTION_TYPES.has(kind)) continue
     const id =
       typeof rec.id === 'string' && rec.id.trim()
@@ -185,8 +197,7 @@ export function parseNotionSearchResults(output: string): ConnectorPickerItem[] 
     if (!id || seen.has(id)) continue
     seen.add(id)
     const title = extractTitle(rec) || id
-    const subtitleRaw =
-      rec.timestamp ?? rec.last_edited_time ?? rec.updated_at ?? rec.url ?? ''
+    const subtitleRaw = rec.timestamp ?? rec.last_edited_time ?? rec.updated_at ?? rec.url ?? ''
     const subtitle = typeof subtitleRaw === 'string' ? subtitleRaw.trim() : ''
     items.push({ id, title, subtitle })
   }
@@ -222,8 +233,12 @@ export async function cleanupOldNotionSnapshots(
 }
 
 function safeSnapshotName(title: string, id: string, index: number): string {
-  const cleaned = title
-    .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, ' ')
+  let noCtrl = ''
+  for (const ch of title) {
+    noCtrl += ch.charCodeAt(0) < 32 ? ' ' : ch
+  }
+  const cleaned = noCtrl
+    .replace(/[<>:"/\\|?*]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 64)
@@ -240,8 +255,7 @@ function countNonTextElements(markdown: string): number {
 }
 
 export type NotionPickerCallAnswer =
-  | { ok: true; output: string; isError: boolean }
-  | { ok: false; error: string }
+  { ok: true; output: string; isError: boolean } | { ok: false; error: string }
 
 export interface FetchNotionPagesParams {
   serverId: string

@@ -78,7 +78,10 @@ function makeFakeApi(servers: McpServerSettingsView[]) {
     setEnabled: vi.fn(ok),
     markToolsSeen: vi.fn(ok),
     plannedLaunch: vi.fn(async () => ({ ok: false as const, problem: 'not-local' as const })),
-    answerRuntimeDownload: vi.fn(async () => ({ ok: false as const, problem: 'not-local' as const })),
+    answerRuntimeDownload: vi.fn(async () => ({
+      ok: false as const,
+      problem: 'not-local' as const,
+    })),
     retry: vi.fn(ok),
     connectPreset: vi.fn(async () => ({ ok: true as const, id: 'preset-new' })),
     pickVaultFolder: vi.fn(async () => ({
@@ -170,7 +173,9 @@ describe('Settings → Integrations: 6-service curated connectors', () => {
     expect(confirm).toBeTruthy()
     expect(h.api.addVault).not.toHaveBeenCalled()
     const buttons = [...confirm.querySelectorAll('button')]
-    await click(buttons.find((b) => b.textContent === connectorsText('en', 'obsidianConnectAnyway')))
+    await click(
+      buttons.find((b) => b.textContent === connectorsText('en', 'obsidianConnectAnyway')),
+    )
     expect(h.api.addVault).toHaveBeenCalledWith({ path: 'C:/Vaults/Notes', name: 'Notes' })
   })
 
@@ -227,6 +232,33 @@ describe('Settings → Integrations: 6-service curated connectors', () => {
     const customList = host.querySelector('section > ul.mcp-list')!
     expect(customList.querySelectorAll('[data-mcp-server]')).toHaveLength(1)
     expect(customList.querySelector('[data-mcp-server="c1"]')).toBeTruthy()
+  })
+
+  it('sends lawOc (not env) when connecting Korean Law MCP', async () => {
+    const h = makeFakeApi([])
+    window.aiOfficeMcpServers = h.api
+    await act(async () => {
+      root.render(createElement(LocaleProvider, { initial: 'en' }, createElement(McpServersCard)))
+    })
+    await flush()
+    const lawCard = host.querySelector('[data-preset="korean-law"]')!
+    await click(lawCard.querySelector('button'))
+    const setup = host.querySelector('[data-testid="preset-setup-korean-law"]')!
+    const input = setup.querySelector<HTMLInputElement>('input[name="LAW_OC"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        '  my-oc-id  ',
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await Promise.resolve()
+    })
+    const buttons = [...setup.querySelectorAll('button')]
+    await click(buttons.find((b) => b.textContent === connectorsText('en', 'registerAndReview')))
+    expect(h.api.connectPreset).toHaveBeenCalledWith({
+      presetId: 'korean-law',
+      lawOc: 'my-oc-id',
+    })
   })
 
   it('provides all 22 UI languages with matching placeholders for connectors & agent-mcp strings', () => {

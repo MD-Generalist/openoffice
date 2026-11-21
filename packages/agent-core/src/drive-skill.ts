@@ -455,15 +455,16 @@ function composeGuarded(
   const kept = mcp
     ? guardReceivedContent(composed, {
         keepsInside: (server) => mcp.keepsInside(server),
-        isLocalOnly,
+        ...(isLocalOnly ? { isLocalOnly } : {}),
         messages,
       })
     : composed
+  const localToolOpts = isLocalOnlyTool ? { isLocalOnlyTool } : undefined
   return guardOutbound(
-    guardDriveContent(kept, drive, { isLocalOnlyTool }),
+    guardDriveContent(kept, drive, localToolOpts),
     windowOutboundBridge(),
     messages,
-    { isLocalOnlyTool },
+    localToolOpts,
   )
 }
 

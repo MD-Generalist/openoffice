@@ -3,11 +3,7 @@ import type { Lang } from '@genoffice/i18n'
 import type { DriveWindowState, McpServerView, McpWindowState } from '@genoffice/agent-core'
 import { aiModelPopoverStyle } from './AiModelPicker'
 import { useDismissablePopover } from './popover-dismiss'
-import {
-  mcpServerAction,
-  mcpServerStatusText,
-  type McpServerAction,
-} from './user-mcp-model'
+import { mcpServerAction, mcpServerStatusText, type McpServerAction } from './user-mcp-model'
 import { userMcpText, type UserMcpStringKey } from './strings-user-mcp'
 import { useDriveWindow, useMcpWindow } from './use-mcp-window'
 import './user-mcp.css'
@@ -275,44 +271,43 @@ export function McpServerButton({
               {servers.flatMap((server) => {
                 if (server.localOnly && server.vaults && server.status !== 'disabled') {
                   const enabledVaults = server.vaults.filter((v) => v.enabled)
-                  if (enabledVaults.length > 0) {
-                    return enabledVaults.map((vault) => {
-                      const vaultOn = !offInChat.has(server.name) && !vaultsOffInChat.has(vault.id)
-                      const rowTitle = `Obsidian · ${vault.name}`
-                      return (
-                        <li
-                          key={`${server.name}:${vault.id}`}
-                          data-vault-id={vault.id}
-                          className={`ai-mcp-row${vaultOn ? '' : ' is-off'}`}
-                        >
-                          <label className="ai-mcp-row-main">
-                            <input
-                              type="checkbox"
-                              checked={vaultOn}
-                              aria-label={userMcpText(lang, 'useVaultInChat', {
-                                vault: vault.name,
-                              })}
-                              onChange={(e) =>
-                                mcp.setVaultOffInChat(vault.id, !e.currentTarget.checked)
-                              }
-                            />
-                            <span className="ai-mcp-row-name" dir="auto">
-                              {rowTitle}
-                            </span>
-                          </label>
-                          <div className="ai-mcp-row-meta">
-                            <span
-                              className={`ai-mcp-row-status is-${vaultOn ? 'connected' : 'off-in-chat'}`}
-                            >
-                              {vaultOn
-                                ? userMcpText(lang, 'statusConnected')
-                                : userMcpText(lang, 'offInChat')}
-                            </span>
-                          </div>
-                        </li>
-                      )
-                    })
-                  }
+                  if (enabledVaults.length === 0) return []
+                  return enabledVaults.map((vault) => {
+                    const vaultOn = !offInChat.has(server.name) && !vaultsOffInChat.has(vault.id)
+                    const rowTitle = `Obsidian · ${vault.name}`
+                    return (
+                      <li
+                        key={`${server.name}:${vault.id}`}
+                        data-vault-id={vault.id}
+                        className={`ai-mcp-row${vaultOn ? '' : ' is-off'}`}
+                      >
+                        <label className="ai-mcp-row-main">
+                          <input
+                            type="checkbox"
+                            checked={vaultOn}
+                            aria-label={userMcpText(lang, 'useVaultInChat', {
+                              vault: vault.name,
+                            })}
+                            onChange={(e) =>
+                              mcp.setVaultOffInChat(vault.id, !e.currentTarget.checked)
+                            }
+                          />
+                          <span className="ai-mcp-row-name" dir="auto">
+                            {rowTitle}
+                          </span>
+                        </label>
+                        <div className="ai-mcp-row-meta">
+                          <span
+                            className={`ai-mcp-row-status is-${vaultOn ? 'connected' : 'off-in-chat'}`}
+                          >
+                            {vaultOn
+                              ? userMcpText(lang, 'statusConnected')
+                              : userMcpText(lang, 'offInChat')}
+                          </span>
+                        </div>
+                      </li>
+                    )
+                  })
                 }
                 return [
                   <ServerRow

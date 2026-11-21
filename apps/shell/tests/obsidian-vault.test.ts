@@ -2,7 +2,10 @@ import { link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { OBSIDIAN_LISTED_TOOLS, obsidianServerInstructions } from '../src/main/mcp-client/obsidian-tools'
+import {
+  OBSIDIAN_LISTED_TOOLS,
+  obsidianServerInstructions,
+} from '../src/main/mcp-client/obsidian-tools'
 import {
   executeObsidianTool,
   listVaultNotesForPicker,
@@ -50,8 +53,16 @@ beforeEach(async () => {
     '---\ntags: [daily, overview]\nauthor: Alice\n---\n# Welcome\n\nSee [[Roadmap]] and [[Projects/Alpha|Alpha Project]] and [[MissingNote]].\n\nBody text with #planning.\n',
     'utf8',
   )
-  await writeFile(join(vaultA, 'Roadmap.md'), '# Roadmap\n\n## Q1\n- Item 1\n\n## Q2\n- Item 2\n', 'utf8')
-  await writeFile(join(vaultA, 'Projects', 'Alpha.md'), '# Alpha\n\nStatus: active #alpha\n', 'utf8')
+  await writeFile(
+    join(vaultA, 'Roadmap.md'),
+    '# Roadmap\n\n## Q1\n- Item 1\n\n## Q2\n- Item 2\n',
+    'utf8',
+  )
+  await writeFile(
+    join(vaultA, 'Projects', 'Alpha.md'),
+    '# Alpha\n\nStatus: active #alpha\n',
+    'utf8',
+  )
   await writeFile(join(vaultB, 'Sprint.md'), '# Sprint\n\nWork note #work\n', 'utf8')
   await writeFile(join(outsideDir, 'Secret.md'), '# Outside secret\n', 'utf8')
 })
@@ -80,7 +91,9 @@ describe('OBSIDIAN_LISTED_TOOLS metadata', () => {
     expect(byName.get('append_note')?.annotations?.destructiveHint).toBe(true)
     expect(byName.get('update_note')?.annotations?.destructiveHint).toBe(true)
     expect(byName.get('delete_note')?.annotations?.destructiveHint).toBe(true)
-    expect(obsidianServerInstructions([{ name: 'Personal' }, { name: 'Work' }])).toContain('Personal')
+    expect(obsidianServerInstructions([{ name: 'Personal' }, { name: 'Work' }])).toContain(
+      'Personal',
+    )
   })
 })
 
@@ -121,7 +134,9 @@ describe('validateVaultFolder & suggestVaultName', () => {
 })
 
 describe('security boundaries', () => {
-  const vaults = (): VaultEntryLike[] => [{ id: 'a', name: 'Personal', path: vaultA, enabled: true }]
+  const vaults = (): VaultEntryLike[] => [
+    { id: 'a', name: 'Personal', path: vaultA, enabled: true },
+  ]
 
   it('rejects path traversal, absolute paths, .obsidian, hidden files, and non-.md files', async () => {
     const deps = makeDeps()
@@ -151,7 +166,12 @@ describe('security boundaries', () => {
     const hardLinked = join(vaultA, 'HardLinked.md')
     await link(join(outsideDir, 'Secret.md'), hardLinked)
 
-    const hardRead = await executeObsidianTool('read_note', { path: 'HardLinked.md' }, vaults(), deps)
+    const hardRead = await executeObsidianTool(
+      'read_note',
+      { path: 'HardLinked.md' },
+      vaults(),
+      deps,
+    )
     expect(hardRead.isError).toBe(true)
     const hardUpdate = await executeObsidianTool(
       'update_note',
@@ -189,12 +209,28 @@ describe('security boundaries', () => {
       hasUnsavedChanges: (p) => p.toLowerCase() === target.toLowerCase(),
     })
 
-    expect((await executeObsidianTool('read_note', { path: 'Roadmap.md' }, vaults(), deps)).isError).toBe(true)
     expect(
-      (await executeObsidianTool('append_note', { path: 'Roadmap.md', content: 'x' }, vaults(), deps)).isError,
+      (await executeObsidianTool('read_note', { path: 'Roadmap.md' }, vaults(), deps)).isError,
     ).toBe(true)
     expect(
-      (await executeObsidianTool('update_note', { path: 'Roadmap.md', content: 'x' }, vaults(), deps)).isError,
+      (
+        await executeObsidianTool(
+          'append_note',
+          { path: 'Roadmap.md', content: 'x' },
+          vaults(),
+          deps,
+        )
+      ).isError,
+    ).toBe(true)
+    expect(
+      (
+        await executeObsidianTool(
+          'update_note',
+          { path: 'Roadmap.md', content: 'x' },
+          vaults(),
+          deps,
+        )
+      ).isError,
     ).toBe(true)
     expect(
       (await executeObsidianTool('delete_note', { path: 'Roadmap.md' }, vaults(), deps)).isError,
@@ -246,12 +282,22 @@ describe('7 Obsidian tools & multi-vault rules', () => {
     expect(listAll.output).not.toContain('.hidden.md')
     expect(listAll.output).not.toContain('plain.txt')
 
-    const searchTag = await executeObsidianTool('search_notes', { query: 'Alice' }, twoVaults(), deps)
+    const searchTag = await executeObsidianTool(
+      'search_notes',
+      { query: 'Alice' },
+      twoVaults(),
+      deps,
+    )
     expect(searchTag.isError).toBe(false)
     expect(searchTag.output).toContain('Welcome.md')
 
     // Missing vault param when 2 vaults are active -> error naming active vaults
-    const readMissingVault = await executeObsidianTool('read_note', { path: 'Welcome.md' }, twoVaults(), deps)
+    const readMissingVault = await executeObsidianTool(
+      'read_note',
+      { path: 'Welcome.md' },
+      twoVaults(),
+      deps,
+    )
     expect(readMissingVault.isError).toBe(true)
     expect(readMissingVault.output).toContain('Personal')
     expect(readMissingVault.output).toContain('Work')
@@ -278,7 +324,9 @@ describe('7 Obsidian tools & multi-vault rules', () => {
   })
 
   it('supports create_note (no overwrite + subfolder creation), append_note (EOF & heading), update_note, and delete_note', async () => {
-    const singleVault: VaultEntryLike[] = [{ id: 'a', name: 'Personal', path: vaultA, enabled: true }]
+    const singleVault: VaultEntryLike[] = [
+      { id: 'a', name: 'Personal', path: vaultA, enabled: true },
+    ]
     const deps = makeDeps()
 
     // create_note creates subfolder and refuses overwrite
@@ -333,5 +381,69 @@ describe('7 Obsidian tools & multi-vault rules', () => {
     expect(pickerNotes.some((n) => n.vaultId === 'a' && n.relPath === 'Welcome.md')).toBe(true)
     expect(pickerNotes.some((n) => n.vaultId === 'b' && n.relPath === 'Sprint.md')).toBe(true)
     expect(pickerNotes.some((n) => n.relPath.includes('.obsidian'))).toBe(false)
+  })
+
+  it('uses parseFileToText and skips unsaved open notes in search_notes and list_notes', async () => {
+    const secretFile = join(vaultA, 'Secret.md')
+    const unsavedFile = join(vaultA, 'Draft.md')
+    await writeFile(secretFile, '# Secret\nTOPSECRET_RAW_TOKEN #hidden-tag', 'utf8')
+    await writeFile(unsavedFile, '# Draft\nUNSAVED_DISK_TOKEN #draft-tag', 'utf8')
+
+    const singleVault = [twoVaults()[0]!]
+    const deps = makeDeps({
+      hasUnsavedChanges: (p) => p.toLowerCase() === unsavedFile.toLowerCase(),
+      parseFileToText: async (p) => {
+        const raw = await readFile(p, 'utf8')
+        return {
+          ok: true,
+          text: raw
+            .replace('TOPSECRET_RAW_TOKEN', '{{redacted}}')
+            .replace('#hidden-tag', '{{redacted-tag}}'),
+        }
+      },
+    })
+
+    const searchSecret = await executeObsidianTool(
+      'search_notes',
+      { query: 'TOPSECRET_RAW_TOKEN' },
+      singleVault,
+      deps,
+    )
+    expect(searchSecret.isError).toBe(false)
+    expect(searchSecret.output).toBe('No notes matched "TOPSECRET_RAW_TOKEN".')
+
+    const searchSecretByTitle = await executeObsidianTool(
+      'search_notes',
+      { query: 'Secret' },
+      singleVault,
+      deps,
+    )
+    expect(searchSecretByTitle.isError).toBe(false)
+    expect(searchSecretByTitle.output).toContain('Secret.md')
+    expect(searchSecretByTitle.output).toContain('{{redacted}}')
+    expect(searchSecretByTitle.output).not.toContain('TOPSECRET_RAW_TOKEN')
+
+    const searchUnsaved = await executeObsidianTool(
+      'search_notes',
+      { query: 'UNSAVED_DISK_TOKEN' },
+      singleVault,
+      deps,
+    )
+    expect(searchUnsaved.isError).toBe(false)
+    expect(searchUnsaved.output).toBe('No notes matched "UNSAVED_DISK_TOKEN".')
+
+    const searchUnsavedByTitle = await executeObsidianTool(
+      'search_notes',
+      { query: 'Draft' },
+      singleVault,
+      deps,
+    )
+    expect(searchUnsavedByTitle.isError).toBe(false)
+    expect(searchUnsavedByTitle.output).not.toContain('UNSAVED_DISK_TOKEN')
+
+    const listed = await executeObsidianTool('list_notes', {}, singleVault, deps)
+    expect(listed.isError).toBe(false)
+    expect(listed.output).not.toContain('#hidden-tag')
+    expect(listed.output).not.toContain('#draft-tag')
   })
 })

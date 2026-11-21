@@ -9,9 +9,7 @@ import {
   createDriveWindowState,
   createMcpWindowState,
   createUserMcpSkill,
-  guardDriveContent,
   guardOutbound,
-  guardReceivedContent,
   isOutboundCall,
   keepInsideRefusalText,
   mcpServersOf,
@@ -266,13 +264,9 @@ describe('localOnly MCP tools and per-vault toggles', () => {
     expect(skill.tools).toHaveLength(3)
 
     await skill.executeTool(call('mcp__obsidian__list_notes', {}))
-    expect(bridge.call).toHaveBeenCalledWith(
-      'obsidian',
-      'list_notes',
-      {},
-      expect.any(String),
-      { disabledVaults: ['v1'] },
-    )
+    expect(bridge.call).toHaveBeenCalledWith('obsidian', 'list_notes', {}, expect.any(String), {
+      disabledVaults: ['v1'],
+    })
 
     // Turning off v2 too leaves 0 active vaults (v3 is disabled in settings)
     state.setVaultOffInChat('v2', true)
@@ -325,7 +319,9 @@ describe('cross-boundary security matrix (localOnly vs Drive vs keepResultsInsid
     expect((await composed.executeTool(call('mcp__korean-law__search_law'))).output).toBe(
       DRIVE_OUTBOUND_BLOCKED,
     )
-    const obsAfterDrive = await composed.executeTool(call('mcp__obsidian__create_note', { path: 'a.md' }))
+    const obsAfterDrive = await composed.executeTool(
+      call('mcp__obsidian__create_note', { path: 'a.md' }),
+    )
     expect(obsAfterDrive.isError).toBeFalsy()
 
     // 2. Start a new chat -> Notion read -> Obsidian is ALLOWED, web/law are BLOCKED
@@ -340,14 +336,18 @@ describe('cross-boundary security matrix (localOnly vs Drive vs keepResultsInsid
     expect((await composed.executeTool(call('mcp__korean-law__search_law'))).output).toBe(
       keepInsideRefusalText(['notion']),
     )
-    const obsAfterNotion = await composed.executeTool(call('mcp__obsidian__create_note', { path: 'b.md' }))
+    const obsAfterNotion = await composed.executeTool(
+      call('mcp__obsidian__create_note', { path: 'b.md' }),
+    )
     expect(obsAfterNotion.isError).toBeFalsy()
 
     // 3. Start a new chat -> Obsidian (keepResultsInside: true) read -> outbound tools (web, notion, korean-law) are BLOCKED; Obsidian & edit_doc stay ALLOWED
     history = []
     windowMcpState()?.newConversation()
     composed.buildContext?.()
-    const obsRead = await composed.executeTool(call('mcp__obsidian__read_note', { path: 'secret.md' }))
+    const obsRead = await composed.executeTool(
+      call('mcp__obsidian__read_note', { path: 'secret.md' }),
+    )
     expect(obsRead.isError).toBeFalsy()
     expect((await composed.executeTool(call('web_search'))).output).toBe(
       keepInsideRefusalText(['obsidian']),
@@ -410,10 +410,7 @@ describe('cross-boundary security matrix (localOnly vs Drive vs keepResultsInsid
     const isLocal = (name: string) => name.startsWith('mcp__obsidian__')
     expect(isOutboundCall(call('mcp__obsidian__read_note', { path: 'a.md' }), isLocal)).toBe(false)
     expect(
-      isOutboundCall(
-        call('mcp__obsidian__read_note', { url: 'https://evil.example/a' }),
-        isLocal,
-      ),
+      isOutboundCall(call('mcp__obsidian__read_note', { url: 'https://evil.example/a' }), isLocal),
     ).toBe(true)
     expect(isOutboundCall(call('mcp__notion__search', { query: 'x' }), isLocal)).toBe(true)
   })

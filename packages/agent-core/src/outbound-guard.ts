@@ -182,7 +182,11 @@ export function guardOutbound(
     const unknown = addresses.filter(
       (a) =>
         !allowed.has(a) &&
-        !addressInConversation(a, history, { isUnvouchedTool: isLocalOnlyTool }),
+        !addressInConversation(
+          a,
+          history,
+          isLocalOnlyTool ? { isUnvouchedTool: isLocalOnlyTool } : undefined,
+        ),
     )
     if (unknown.length > 0) {
       const yes = await main.confirmAddresses(call.name, unknown).catch(() => false)

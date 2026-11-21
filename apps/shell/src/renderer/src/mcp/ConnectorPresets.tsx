@@ -7,12 +7,7 @@ import {
   type McpVaultEntry,
 } from '../../../shared/mcp-servers-api'
 import { connectorsText, type ConnectorsStringKey } from '../i18n/strings-connectors'
-import {
-  PERMISSION_KEYS,
-  STATUS_KEYS,
-  mcpServersApi,
-  signInOutcome,
-} from './mcp-model'
+import { PERMISSION_KEYS, STATUS_KEYS, mcpServersApi, signInOutcome } from './mcp-model'
 import { McpServerItem } from './McpServerItem'
 import type { McpText } from './McpServersCard'
 
@@ -30,33 +25,83 @@ function PresetOutlineIcon({ kind }: PresetIconsProps) {
   switch (kind) {
     case 'notion':
       return (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <path d="M4 2.5h5.5L13 6v7.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z" />
           <path d="M9.5 2.5V6H13M5.5 9h5M5.5 11.5h3.5" />
         </svg>
       )
     case 'canva':
       return (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
           <path d="M2.5 7h11M7.5 7v6.5" />
         </svg>
       )
     case 'obsidian':
       return (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.3 1.5h4.7A1.5 1.5 0 0 1 14 6v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12V4.5Z" />
         </svg>
       )
     case 'korean-law':
       return (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <path d="M8 2.5v11M4.5 13.5h7M3 5.5h10M4.5 5.5 3 9h3l-1.5-3.5ZM11.5 5.5 10 9h3l-1.5-3.5Z" />
         </svg>
       )
     case 'kordoc':
       return (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <rect x="3" y="2.5" width="10" height="11" rx="1.5" />
           <path d="M5.5 6h5M5.5 8.5h5M5.5 11h3" />
         </svg>
@@ -309,7 +354,8 @@ function RemotePresetCard({
   }
 
   const isExpanded = openIds.has(server.id)
-  const needsSignIn = server.status.status === 'login-required' || !server.oauth?.signedIn
+  const needsSignIn =
+    server.status.status === 'login-required' || (server.oauth !== null && !server.oauth.signedIn)
 
   return (
     <div className="mcp-preset-card" data-preset={presetId} data-mcp-server={server.id}>
@@ -344,18 +390,10 @@ function RemotePresetCard({
             {s('signInAgain')}
           </button>
         )}
-        <button
-          type="button"
-          className="set-btn"
-          onClick={() => onOpen(server.id, !isExpanded)}
-        >
+        <button type="button" className="set-btn" onClick={() => onOpen(server.id, !isExpanded)}>
           {isExpanded ? c('hideTools') : c('showTools')}
         </button>
-        <button
-          type="button"
-          className="set-btn danger"
-          onClick={() => setConfirmDisconnect(true)}
-        >
+        <button type="button" className="set-btn danger" onClick={() => setConfirmDisconnect(true)}>
           {c('disconnect')}
         </button>
       </div>
@@ -480,9 +518,7 @@ function ObsidianVaultCard({
           <div className="mcp-server-name-line">
             <span className="mcp-server-name">{c('obsidianName')}</span>
             {vaults.length > 0 && (
-              <span className="mcp-status">
-                {c('obsidianVaultCount', { n: vaults.length })}
-              </span>
+              <span className="mcp-status">{c('obsidianVaultCount', { n: vaults.length })}</span>
             )}
           </div>
           <div className="set-field-desc">{c('obsidianDesc')}</div>
@@ -597,11 +633,7 @@ function ObsidianVaultCard({
                       >
                         {s('save')}
                       </button>
-                      <button
-                        type="button"
-                        className="set-btn"
-                        onClick={() => setRenamingId(null)}
-                      >
+                      <button type="button" className="set-btn" onClick={() => setRenamingId(null)}>
                         {s('cancel')}
                       </button>
                     </span>
@@ -708,9 +740,7 @@ function ObsidianVaultCard({
                           aria-pressed={tool.permission === perm}
                           onClick={() => {
                             if (tool.permission !== perm) {
-                              void api
-                                .setToolPermission(server.id, toolName, perm)
-                                .then(onChanged)
+                              void api.setToolPermission(server.id, toolName, perm).then(onChanged)
                             }
                           }}
                         >
@@ -775,10 +805,9 @@ function LocalPresetCard({
     setBusy(true)
     setError(null)
     try {
-      const res = await api.connectPreset({
-        presetId,
-        ...(requireLawOc ? { env: { LAW_OC: lawOc.trim() } } : {}),
-      })
+      const res = await api.connectPreset(
+        requireLawOc ? { presetId, lawOc: lawOc.trim() } : { presetId },
+      )
       if (!res.ok) {
         setError(s('saveFailed'))
         return
