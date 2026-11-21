@@ -18112,13 +18112,13 @@
   },
   {
     "date": "2026-11-21",
-    "totalDownloads": 77887,
+    "totalDownloads": 77941,
     "installs": {
-      "windows": 55823,
-      "macos": 18941,
-      "linux": 3123
+      "windows": 55862,
+      "macos": 18953,
+      "linux": 3126
     },
-    "updateChecks": 169191,
+    "updateChecks": 170244,
     "releaseCount": 14,
     "stars": 914,
     "forks": 167,
@@ -18126,7 +18126,7 @@
       {
         "tag": "v0.13.0",
         "publishedAt": "2026-11-17T09:56:45Z",
-        "downloads": 8054
+        "downloads": 8108
       },
       {
         "tag": "v0.12.12",
@@ -18198,12 +18198,12 @@
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-0.13.0-arm64-mac.zip",
-        "downloads": 1137
+        "downloads": 1138
       },
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-0.13.0-arm64.dmg",
-        "downloads": 793
+        "downloads": 802
       },
       {
         "release": "v0.13.0",
@@ -18213,12 +18213,12 @@
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-0.13.0-x64.dmg",
-        "downloads": 109
+        "downloads": 111
       },
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-0.13.0.AppImage",
-        "downloads": 168
+        "downloads": 170
       },
       {
         "release": "v0.13.0",
@@ -18228,27 +18228,27 @@
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-Setup-0.13.0.exe",
-        "downloads": 5652
+        "downloads": 5691
       },
       {
         "release": "v0.13.0",
         "asset": "ieumoffice_0.13.0_amd64.deb",
-        "downloads": 59
+        "downloads": 60
       },
       {
         "release": "v0.13.0",
         "asset": "latest-linux.yml",
-        "downloads": 362
+        "downloads": 367
       },
       {
         "release": "v0.13.0",
         "asset": "latest-mac.yml",
-        "downloads": 14508
+        "downloads": 15217
       },
       {
         "release": "v0.13.0",
         "asset": "latest.yml",
-        "downloads": 11592
+        "downloads": 11931
       },
       {
         "release": "v0.12.12",
