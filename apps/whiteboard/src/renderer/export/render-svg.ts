@@ -4,15 +4,13 @@
  * `.whiteboard` thumbnails, and AI vision PNG page snapshots.
  *
  * Never reads CSS theme variables — document paper and objects always render in
- * their own document colors, and UI chrome (selection handles, AI highlights) is
- * never included.
+ * their own warm paper-craft document colors, and UI chrome (selection handles,
+ * AI highlights) is never included.
  */
 import {
   computePageBounds,
   computeStrokeOutline,
   type BoardDocument,
-  type BoardObject,
-  type ConnectorEnd,
   type ConnectorProps,
   type ImageProps,
   type LinkProps,
@@ -22,9 +20,11 @@ import {
   type StickyProps,
   type StrokeProps,
   type TableProps,
+  type TextAlign,
   type TextProps,
 } from '@genoffice/whiteboard-engine'
-import { shapePath } from '../canvas/shape-paths'
+import { computeConnectorGeometry, PAPER_COLORS, resolveConnectorEnd } from '../canvas/paper-style'
+import { shapePath, shapeTextBox } from '../canvas/shape-paths'
 import { stickerInnerSvg } from '../canvas/stickers'
 
 export interface RenderedPageSvg {
@@ -34,6 +34,8 @@ export interface RenderedPageSvg {
   viewBoxX: number
   viewBoxY: number
 }
+
+const FONT_STACK = "'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, -apple-system, sans-serif"
 
 function escXml(s: string): string {
   return s
@@ -51,50 +53,55 @@ export function richTextPlain(rt: RichText | undefined): string {
     .join('\n')
 }
 
-function renderMultilineTextSvg(
-  text: string,
+function renderRichTextSvg(
+  rt: RichText | undefined,
   x: number,
   y: number,
   w: number,
   h: number,
   fontSize: number,
-  color: string,
-  align: 'left' | 'center' | 'right' = 'left',
+  defaultColor: string,
+  defaultAlign: TextAlign = 'left',
+  verticalAlign: 'top' | 'center' = 'top',
 ): string {
-  if (!text) return ''
-  const lines = text.split('\n')
-  const lineH = fontSize * 1.35
-  const anchor = align === 'center' ? 'middle' : align === 'right' ? 'end' : 'start'
-  const tx = align === 'center' ? x + w / 2 : align === 'right' ? x + w - 8 : x + 8
-  const startY = y + Math.max(fontSize + 4, (h - lines.length * lineH) / 2 + fontSize * 0.85)
-  const tspans = lines
-    .map(
-      (line, i) =>
-        `<tspan x="${tx.toFixed(1)}" y="${(startY + i * lineH).toFixed(1)}">${escXml(line || ' ')}</tspan>`,
+  if (!rt || !Array.isArray(rt.paragraphs) || rt.paragraphs.length === 0) return ''
+  const plain = richTextPlain(rt)
+  if (!plain) return ''
+
+  const lineH = fontSize * 1.38
+  const totalH = rt.paragraphs.length * lineH
+  const startY =
+    verticalAlign === 'center'
+      ? y + Math.max(fontSize * 0.9, (h - totalH) / 2 + fontSize * 0.85)
+      : y + fontSize * 0.95
+
+  const out: string[] = []
+  rt.paragraphs.forEach((p, idx) => {
+    const align = p.align ?? defaultAlign
+    const anchor = align === 'center' ? 'middle' : align === 'right' ? 'end' : 'start'
+    const tx = align === 'center' ? x + w / 2 : align === 'right' ? x + w : x
+    const ty = startY + idx * lineH
+    const runs = (p.runs ?? []).map((r) => {
+      const attrs: string[] = []
+      if (r.bold) attrs.push('font-weight="700"')
+      if (r.italic) attrs.push('font-style="italic"')
+      const decos = [r.underline ? 'underline' : '', r.strike ? 'line-through' : '']
+        .filter(Boolean)
+        .join(' ')
+      if (decos) attrs.push(`text-decoration="${decos}"`)
+      attrs.push(`fill="${escXml(r.color || defaultColor)}"`)
+      return `<tspan ${attrs.join(' ')}>${escXml(r.text || ' ')}</tspan>`
+    })
+    out.push(
+      `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" font-family="${FONT_STACK}" font-size="${fontSize}" text-anchor="${anchor}">${runs.join('')}</text>`,
     )
-    .join('')
-  return `<text font-family="system-ui, -apple-system, sans-serif" font-size="${fontSize}" fill="${escXml(color)}" text-anchor="${anchor}">${tspans}</text>`
+  })
+  return out.join('')
 }
 
-function resolveConnectorPoint(
-  end: ConnectorEnd,
-  byId: Map<string, BoardObject>,
-): { x: number; y: number } {
-  if ('objectId' in end) {
-    const obj = byId.get(end.objectId)
-    if (obj) {
-      const ax = end.anchorX ?? 0.5
-      const ay = end.anchorY ?? 0.5
-      return { x: obj.x + obj.width * ax, y: obj.y + obj.height * ay }
-    }
-    return { x: 0, y: 0 }
-  }
-  return { x: end.x, y: end.y }
-}
-
-function dashAttr(style?: string): string {
-  if (style === 'dashed') return ' stroke-dasharray="8 6"'
-  if (style === 'dotted') return ' stroke-dasharray="2 5"'
+function dashAttr(style?: string, strokeWidth = 2): string {
+  if (style === 'dashed') return ` stroke-dasharray="${strokeWidth * 3} ${strokeWidth * 2.4}"`
+  if (style === 'dotted') return ` stroke-dasharray="${strokeWidth} ${strokeWidth * 2.2}"`
   return ''
 }
 
@@ -126,7 +133,7 @@ export function renderPageToSvg(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}">`,
   )
   parts.push(
-    `<defs><marker id="wb-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="context-stroke"/></marker><marker id="wb-circle" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6"><circle cx="5" cy="5" r="4" fill="context-stroke"/></marker></defs>`,
+    `<defs><filter id="wb-card-shadow" x="-12%" y="-10%" width="124%" height="128%"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#221D17" flood-opacity="0.12"/><feDropShadow dx="0" dy="3.5" stdDeviation="4" flood-color="#221D17" flood-opacity="0.08"/></filter></defs>`,
   )
 
   // Background layer (document paper colors, never inverted by dark UI theme).
@@ -143,11 +150,11 @@ export function renderPageToSvg(
     const patId = `wb-grid-${bg.pattern}`
     if (bg.pattern === 'dot') {
       parts.push(
-        `<defs><pattern id="${patId}" width="${step}" height="${step}" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.2" fill="#CBD5E1"/></pattern></defs>`,
+        `<defs><pattern id="${patId}" width="${step}" height="${step}" patternUnits="userSpaceOnUse"><circle cx="16" cy="16" r="1.4" fill="#221D17" fill-opacity="0.15"/></pattern></defs>`,
       )
     } else {
       parts.push(
-        `<defs><pattern id="${patId}" width="${step}" height="${step}" patternUnits="userSpaceOnUse"><path d="M ${step} 0 L 0 0 0 ${step}" fill="none" stroke="#E2E8F0" stroke-width="1"/></pattern></defs>`,
+        `<defs><pattern id="${patId}" width="${step}" height="${step}" patternUnits="userSpaceOnUse"><path d="M ${step} 0 L 0 0 0 ${step}" fill="none" stroke="#DDD3C2" stroke-width="1"/></pattern></defs>`,
       )
     }
     parts.push(
@@ -155,7 +162,7 @@ export function renderPageToSvg(
     )
   } else if (bg.kind === 'image') {
     parts.push(
-      `<rect x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" fill="#FFFFFF"/>`,
+      `<rect x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" fill="${PAPER_COLORS.paper}"/>`,
     )
     const dataUrl = resourceDataUrls.get(bg.resourceId)
     if (dataUrl) {
@@ -174,21 +181,21 @@ export function renderPageToSvg(
     switch (obj.kind) {
       case 'sticky': {
         const p = obj.props as unknown as StickyProps
-        const txt = richTextPlain(p.text)
-        parts.push(`<g${rotAttr}>`)
+        parts.push(`<g${rotAttr} filter="url(#wb-card-shadow)">`)
         parts.push(
-          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="8" fill="${escXml(p.color || '#FEF08A')}" stroke="#D4B830" stroke-width="1"/>`,
+          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="3" fill="${escXml(p.color || '#FBE7A1')}"/>`,
         )
         parts.push(
-          renderMultilineTextSvg(
-            txt,
-            obj.x + 8,
-            obj.y + 8,
-            obj.width - 16,
-            obj.height - 16,
-            p.fontSize ?? 16,
-            '#1E293B',
+          renderRichTextSvg(
+            p.text,
+            obj.x + 16,
+            obj.y + 16,
+            Math.max(10, obj.width - 32),
+            Math.max(10, obj.height - 32),
+            p.fontSize ?? 18,
+            PAPER_COLORS.ink,
             p.align ?? 'left',
+            'top',
           ),
         )
         parts.push('</g>')
@@ -196,23 +203,23 @@ export function renderPageToSvg(
       }
       case 'text': {
         const p = obj.props as unknown as TextProps
-        const txt = richTextPlain(p.text)
         parts.push(`<g${rotAttr}>`)
         if (p.background || p.borderColor) {
           parts.push(
-            `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="4" fill="${escXml(p.background || 'none')}" stroke="${escXml(p.borderColor || 'none')}" stroke-width="1"/>`,
+            `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="6" fill="${escXml(p.background || 'none')}" stroke="${escXml(p.borderColor || 'none')}" stroke-width="1"/>`,
           )
         }
         parts.push(
-          renderMultilineTextSvg(
-            txt,
-            obj.x,
-            obj.y,
-            obj.width,
-            obj.height,
-            p.fontSize ?? 18,
-            p.color || '#0F172A',
+          renderRichTextSvg(
+            p.text,
+            obj.x + 6,
+            obj.y + 4,
+            Math.max(10, obj.width - 12),
+            Math.max(10, obj.height - 8),
+            p.fontSize ?? 24,
+            p.color || PAPER_COLORS.ink,
             p.align ?? 'left',
+            'top',
           ),
         )
         parts.push('</g>')
@@ -220,23 +227,25 @@ export function renderPageToSvg(
       }
       case 'shape': {
         const p = obj.props as unknown as ShapeProps
-        const sw = p.strokeWidth ?? 2
-        const d = shapePath(p.shape || 'rounded_rectangle', obj.width, obj.height, sw / 2)
-        const txt = richTextPlain(p.text)
+        const sw = p.strokeWidth ?? 2.5
+        const kind = p.shape || 'rounded_rectangle'
+        const d = shapePath(kind, obj.width, obj.height, sw / 2)
+        const box = shapeTextBox(kind, obj.width, obj.height)
         parts.push(`<g${rotAttr}>`)
         parts.push(
-          `<g transform="translate(${obj.x} ${obj.y})"><path d="${d}" fill="${escXml(p.fill || '#EFF6FF')}" stroke="${escXml(p.stroke || '#2563EB')}" stroke-width="${sw}"${dashAttr(p.lineStyle)}/></g>`,
+          `<g transform="translate(${obj.x} ${obj.y})"><path d="${d}" fill="${escXml(p.fill || PAPER_COLORS.zoneFill)}" stroke="${escXml(p.stroke || PAPER_COLORS.ink)}" stroke-width="${sw}" stroke-linejoin="round"${dashAttr(p.lineStyle, sw)}/></g>`,
         )
         parts.push(
-          renderMultilineTextSvg(
-            txt,
-            obj.x + 8,
-            obj.y + 8,
-            obj.width - 16,
-            obj.height - 16,
-            p.fontSize ?? 15,
-            '#0F172A',
+          renderRichTextSvg(
+            p.text,
+            obj.x + box.left,
+            obj.y + box.top,
+            Math.max(10, box.width),
+            Math.max(10, box.height),
+            p.fontSize ?? 18,
+            PAPER_COLORS.ink,
             p.align ?? 'center',
+            'center',
           ),
         )
         parts.push('</g>')
@@ -244,41 +253,52 @@ export function renderPageToSvg(
       }
       case 'connector': {
         const p = obj.props as unknown as ConnectorProps
-        const a = resolveConnectorPoint(p.start, byId)
-        const b = resolveConnectorPoint(p.end, byId)
-        const pts = [a, ...(p.waypoints ?? []), b]
-        const d = pts.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ')
-        const startMarker =
-          p.startHead === 'arrow' || p.startHead === 'triangle'
-            ? ' marker-start="url(#wb-arrow)"'
-            : p.startHead === 'circle'
-              ? ' marker-start="url(#wb-circle)"'
-              : ''
-        const endMarker =
-          p.endHead === 'arrow' || p.endHead === 'triangle'
-            ? ' marker-end="url(#wb-arrow)"'
-            : p.endHead === 'circle'
-              ? ' marker-end="url(#wb-circle)"'
-              : ''
+        const a = resolveConnectorEnd(p.start, byId)
+        const b = resolveConnectorEnd(p.end, byId)
+        const sw = p.strokeWidth ?? 3
+        const ink = p.color || PAPER_COLORS.ink
+        const geom = computeConnectorGeometry(a, b, p.waypoints, sw, p.startHead, p.endHead)
+        const lineCap = p.lineStyle === 'dashed' || p.lineStyle === 'dotted' ? 'butt' : 'round'
+        parts.push('<g>')
         parts.push(
-          `<path d="${d}" fill="none" stroke="${escXml(p.color || '#334155')}" stroke-width="${p.strokeWidth ?? 2}"${dashAttr(p.lineStyle)}${startMarker}${endMarker}/>`,
+          `<path d="${geom.shaftPath}" fill="none" stroke="${escXml(ink)}" stroke-width="${sw}" stroke-linecap="${lineCap}" stroke-linejoin="round"${dashAttr(p.lineStyle, sw)}/>`,
         )
-        const lbl = richTextPlain(p.label)
-        if (lbl) {
-          const mx = (a.x + b.x) / 2
-          const my = (a.y + b.y) / 2 - 8
+        if (geom.startArrowPath) {
+          parts.push(`<path d="${geom.startArrowPath}" fill="${escXml(ink)}"/>`)
+        }
+        if (geom.endArrowPath) {
+          parts.push(`<path d="${geom.endArrowPath}" fill="${escXml(ink)}"/>`)
+        }
+        if (geom.startCircle) {
           parts.push(
-            `<text x="${mx}" y="${my}" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" fill="#334155">${escXml(lbl)}</text>`,
+            `<circle cx="${geom.startCircle.x}" cy="${geom.startCircle.y}" r="${Math.max(4, sw * 1.5)}" fill="${escXml(ink)}"/>`,
           )
         }
+        if (geom.endCircle) {
+          parts.push(
+            `<circle cx="${geom.endCircle.x}" cy="${geom.endCircle.y}" r="${Math.max(4, sw * 1.5)}" fill="${escXml(ink)}"/>`,
+          )
+        }
+        const lbl = richTextPlain(p.label)
+        if (lbl) {
+          const pillW = Math.max(48, lbl.length * 10 + 18)
+          parts.push(
+            `<rect x="${(geom.midpoint.x - pillW / 2).toFixed(1)}" y="${(geom.midpoint.y - 22).toFixed(1)}" width="${pillW}" height="24" rx="6" fill="${PAPER_COLORS.paper}" stroke="${PAPER_COLORS.line}" stroke-width="1"/>`,
+          )
+          parts.push(
+            `<text x="${geom.midpoint.x.toFixed(1)}" y="${(geom.midpoint.y - 6).toFixed(1)}" text-anchor="middle" font-family="${FONT_STACK}" font-size="13" font-weight="500" fill="${PAPER_COLORS.ink}">${escXml(lbl)}</text>`,
+          )
+        }
+        parts.push('</g>')
         break
       }
       case 'stroke': {
         const p = obj.props as unknown as StrokeProps
-        const d = computeStrokeOutline(p.points ?? [], p.width ?? 3, p.tool ?? 'pen')
+        const d = computeStrokeOutline(p.points ?? [], p.width ?? 4, p.tool ?? 'pen')
         if (d) {
+          const isHi = p.tool === 'highlighter'
           parts.push(
-            `<g transform="translate(${obj.x} ${obj.y})" opacity="${p.opacity ?? 1}"><path d="${d}" fill="${escXml(p.color || '#1E293B')}"/></g>`,
+            `<g transform="translate(${obj.x} ${obj.y})" opacity="${p.opacity ?? (isHi ? 0.35 : 1)}"${isHi ? ' style="mix-blend-mode:multiply"' : ''}><path d="${d}" fill="${escXml(p.color || PAPER_COLORS.ink)}"/></g>`,
           )
         }
         break
@@ -299,9 +319,9 @@ export function renderPageToSvg(
         const cols = p.colIds?.length || 1
         const cellW = obj.width / cols
         const cellH = obj.height / rows
-        parts.push(`<g${rotAttr}>`)
+        parts.push(`<g${rotAttr} filter="url(#wb-card-shadow)">`)
         parts.push(
-          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1"/>`,
+          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="4" fill="${PAPER_COLORS.paper}" stroke="${PAPER_COLORS.lineDashed}" stroke-width="1.5"/>`,
         )
         p.rowIds?.forEach((rid, ri) => {
           p.colIds?.forEach((cid, ci) => {
@@ -309,25 +329,26 @@ export function renderPageToSvg(
             const cy0 = obj.y + ri * cellH
             if (ri === 0 && p.headerRow) {
               parts.push(
-                `<rect x="${cx0}" y="${cy0}" width="${cellW}" height="${cellH}" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>`,
+                `<rect x="${cx0}" y="${cy0}" width="${cellW}" height="${cellH}" fill="${PAPER_COLORS.zoneFill}" stroke="${PAPER_COLORS.lineStrong}" stroke-width="1"/>`,
               )
             } else {
               parts.push(
-                `<rect x="${cx0}" y="${cy0}" width="${cellW}" height="${cellH}" fill="none" stroke="#CBD5E1" stroke-width="1"/>`,
+                `<rect x="${cx0}" y="${cy0}" width="${cellW}" height="${cellH}" fill="none" stroke="${PAPER_COLORS.lineStrong}" stroke-width="1"/>`,
               )
             }
-            const cellTxt = richTextPlain(p.cells?.[`${rid}:${cid}`])
-            if (cellTxt) {
+            const cellRt = p.cells?.[`${rid}:${cid}`]
+            if (cellRt && richTextPlain(cellRt)) {
               parts.push(
-                renderMultilineTextSvg(
-                  cellTxt,
-                  cx0,
-                  cy0,
-                  cellW,
-                  cellH,
-                  p.fontSize ?? 13,
-                  '#0F172A',
+                renderRichTextSvg(
+                  cellRt,
+                  cx0 + 10,
+                  cy0 + 4,
+                  Math.max(10, cellW - 20),
+                  Math.max(10, cellH - 8),
+                  p.fontSize ?? 14,
+                  PAPER_COLORS.ink,
                   'left',
+                  'center',
                 ),
               )
             }
@@ -339,19 +360,19 @@ export function renderPageToSvg(
       case 'sticker': {
         const p = obj.props as unknown as StickerProps
         parts.push(
-          `<g${rotAttr}><svg x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" viewBox="0 0 100 100">${stickerInnerSvg(p.stickerId, p.tint)}</svg></g>`,
+          `<g${rotAttr}><svg x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" viewBox="0 0 100 100" overflow="visible">${stickerInnerSvg(p.stickerId, p.tint)}</svg></g>`,
         )
         break
       }
       case 'link': {
         const p = obj.props as unknown as LinkProps
-        parts.push(`<g${rotAttr}>`)
+        parts.push(`<g${rotAttr} filter="url(#wb-card-shadow)">`)
         parts.push(
-          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>`,
+          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="10" fill="${PAPER_COLORS.paper}" stroke="${PAPER_COLORS.line}" stroke-width="1.5"/>`,
         )
         const hasPreview = p.previewResourceId && resourceDataUrls.has(p.previewResourceId)
-        const textX = hasPreview ? obj.x + 112 : obj.x + 14
-        const textW = hasPreview ? obj.width - 124 : obj.width - 28
+        const textX = hasPreview ? obj.x + 112 : obj.x + 16
+        const textW = hasPreview ? obj.width - 124 : obj.width - 32
         if (hasPreview) {
           const url = resourceDataUrls.get(p.previewResourceId!)!
           parts.push(
@@ -359,15 +380,15 @@ export function renderPageToSvg(
           )
         }
         parts.push(
-          `<text x="${textX}" y="${obj.y + 32}" font-family="system-ui, sans-serif" font-size="15" font-weight="600" fill="#0F172A">${escXml((p.title || p.url).slice(0, 60))}</text>`,
+          `<text x="${textX}" y="${obj.y + 34}" font-family="${FONT_STACK}" font-size="15" font-weight="600" fill="${PAPER_COLORS.accent}">${escXml((p.title || p.url).slice(0, 60))} ↗</text>`,
         )
         if (p.description) {
           parts.push(
-            `<text x="${textX}" y="${obj.y + 54}" font-family="system-ui, sans-serif" font-size="12" fill="#475569">${escXml(p.description.slice(0, 80))}</text>`,
+            `<text x="${textX}" y="${obj.y + 56}" font-family="${FONT_STACK}" font-size="12" fill="${PAPER_COLORS.inkMuted}">${escXml(p.description.slice(0, 80))}</text>`,
           )
         }
         parts.push(
-          `<text x="${textX}" y="${obj.y + obj.height - 16}" font-family="system-ui, sans-serif" font-size="11" fill="#2563EB">${escXml(p.url.slice(0, Math.max(20, Math.floor(textW / 6.5))))}</text>`,
+          `<text x="${textX}" y="${obj.y + obj.height - 16}" font-family="${FONT_STACK}" font-size="11" fill="${PAPER_COLORS.inkMuted}">${escXml(p.url.slice(0, Math.max(20, Math.floor(textW / 6.5))))}</text>`,
         )
         parts.push('</g>')
         break
@@ -410,7 +431,7 @@ export async function renderSvgToPngBytes(
     canvas.height = outH
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
-    ctx.fillStyle = '#FFFFFF'
+    ctx.fillStyle = PAPER_COLORS.paper
     ctx.fillRect(0, 0, outW, outH)
     ctx.drawImage(img, 0, 0, outW, outH)
     const pngBlob = await new Promise<Blob | null>((resolve) =>
