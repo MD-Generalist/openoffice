@@ -169,9 +169,9 @@ test.describe('Whiteboard editor core workflows', () => {
       await expect(reopened.locator('[data-object-kind="link"]')).toHaveCount(1)
       await expect(reopened.locator('.wb-page-tab')).toHaveCount(2)
 
-      // 8. Dark theme leaves board paper white (#FFFFFF)
+      // 8. Dark theme leaves board paper warm ivory (#FFFDF8)
       await shell.evaluate(() => (window as unknown as ShellApis).aiOffice.setTheme('dark'))
-      await expect(reopened.locator('.wb-stage-svg rect[fill="#FFFFFF"]').first()).toBeVisible()
+      await expect(reopened.locator('.wb-stage-svg rect[fill="#FFFDF8"]').first()).toBeVisible()
     } finally {
       await closeAndSaveVideo(launched, 'whiteboard-editor')
       rmSync(dir, { recursive: true, force: true })

@@ -28,6 +28,11 @@ export const WHITEBOARD_SYSTEM_PROMPT = [
   '- Use edit_board for precise adds, updates, deletes, connectors, tables, and page operations. Every call is all-or-nothing and counts as one undo step.',
   '- Use apply_template for structured layouts (kanban, grid, mindmap, timeline, comparison) in a single step.',
   '- Use search_images + insert_image or generate_image to embed raster images inside the .whiteboard file.',
+  '## Visual style (warm paper-craft aesthetic)',
+  '- Use soft warm-paper sticky note colors: #FBE7A1 (yellow), #F7C9C4 (pink), #F9CFA0 (orange), #CFE6C2 (green), #C9DDF0 (blue), #E9DEF2 (purple), #B3DCD5 (teal). Prefer square stickies (200x200) with fontSize 18.',
+  '- Use warm parchment zone frames (shape: rounded_rectangle, fill: #F7F2E8, stroke: #CFC3AF, strokeWidth: 1.5, lineStyle: dashed) to group columns or sections cleanly.',
+  '- Use warm espresso ink (#221D17) or muted accent tones (#B4462A, #1E6B66, #2F5FA8) for titles, borders, and connectors (strokeWidth: 3, endHead: arrow).',
+  '- Give section titles bold runs and larger fontSize (24–36) so hierarchy reads clearly at a glance.',
   '- Leave clean spacing (30–60 px) so new items do not overlap existing objects.',
   '- Keep replies concise: summarize what changed in one or two sentences.',
 ].join('\n')
