@@ -10,6 +10,8 @@ import type { Lang } from '@genoffice/i18n'
 import type { ProjectApi } from '@genoffice/project-store'
 import type { AiPanelPrefs } from '@genoffice/ui'
 import { APP_CHOICE_BRIDGE_KEY, appChoiceBridge } from '@genoffice/electron-utils/app-choice-bridge'
+import { connectorAttachBridge } from '@genoffice/electron-utils/connector-attach-bridge'
+import { CONNECTOR_ATTACH_BRIDGE_KEY } from '@genoffice/electron-utils/connector-attach-channels'
 import { docAttachBridge } from '@genoffice/electron-utils/doc-attach-bridge'
 import { DOC_ATTACH_BRIDGE_KEY } from '@genoffice/electron-utils/doc-attach-channels'
 import { driveAiBridge } from '@genoffice/electron-utils/drive-ai-bridge'
@@ -231,6 +233,7 @@ contextBridge.exposeInMainWorld(APP_CHOICE_BRIDGE_KEY, {
 contextBridge.exposeInMainWorld(PROJECT_FOLDER_BRIDGE_KEY, projectFolderBridge(ipcRenderer))
 contextBridge.exposeInMainWorld(USER_SKILLS_BRIDGE_KEY, userSkillsBridge())
 contextBridge.exposeInMainWorld(DOC_ATTACH_BRIDGE_KEY, docAttachBridge())
+contextBridge.exposeInMainWorld(CONNECTOR_ATTACH_BRIDGE_KEY, connectorAttachBridge())
 contextBridge.exposeInMainWorld('aiOfficeDriveAi', driveAiBridge())
 contextBridge.exposeInMainWorld('aiOfficeMcpTools', mcpToolsBridge())
 contextBridge.exposeInMainWorld('aiOfficeOutbound', outboundBridge())
