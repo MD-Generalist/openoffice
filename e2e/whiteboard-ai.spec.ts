@@ -1,9 +1,9 @@
-import { rmSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
-import { closeAndSaveVideo, launchShell } from './helpers'
+import { closeAndSaveVideo, launchShell, waitForPageWithUrl } from './helpers'
 
 async function waitWhiteboardPage(app: ElectronApplication, before: Set<Page>): Promise<Page> {
   let found: Page | undefined
@@ -107,10 +107,21 @@ async function scriptWhiteboardAi(app: ElectronApplication): Promise<void> {
           seen.push(request)
           const last = JSON.stringify(request.messages[request.messages.length - 1] ?? '')
           const chunks = last.includes('GOOD-WB-TURN')
-            ? [good, { type: 'done' }]
+            ? [
+                good,
+                { type: 'usage', usage: { inputTokens: 120, outputTokens: 45 } },
+                { type: 'done' },
+              ]
             : last.includes('BAD-WB-TURN')
               ? [bad, { type: 'done' }]
-              : [{ type: 'delta', text: 'Updated the whiteboard.' }, { type: 'done' }]
+              : [
+                  {
+                    type: 'delta',
+                    text: 'Updated the whiteboard with **two connected stickies**.',
+                  },
+                  { type: 'usage', usage: { inputTokens: 210, outputTokens: 64 } },
+                  { type: 'done' },
+                ]
           setTimeout(() => {
             for (const chunk of chunks as Array<Record<string, unknown>>) {
               realSend.call(event.sender, 'ai:stream-chunk', {
@@ -223,6 +234,254 @@ test.describe('Whiteboard AI panel', () => {
       await expect(board.locator('[data-object-id="ai-conn"]')).toHaveCount(0)
     } finally {
       await closeAndSaveVideo(launched, 'whiteboard-ai')
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('matches shared AI panel design system, side swap, resize, collapse, changes card, and dark theme', async () => {
+    test.setTimeout(180_000)
+    const dir = await mkdtemp(join(tmpdir(), 'genoffice-wb-aidesign-'))
+    const shotDir = process.env.WB_AI_SHOT_DIR
+    if (shotDir) mkdirSync(shotDir, { recursive: true })
+    const launched = await launchShell({
+      onboardingSeen: true,
+      lang: 'ko',
+      videoDir: 'whiteboard-ai-design',
+      settings: { defaultSaveDir: dir },
+    })
+    const { app, page: shell } = launched
+    try {
+      // Open a Whiteboard tab via shell home API and a Docs tab for style comparison
+      const beforeWb = new Set(app.windows())
+      await shell.evaluate(() =>
+        (
+          window as unknown as {
+            aiOffice: { newWhiteboard(): Promise<void> }
+          }
+        ).aiOffice.newWhiteboard(),
+      )
+      const board = await waitWhiteboardPage(app, beforeWb)
+
+      const pageErrors: string[] = []
+      const consoleErrors: string[] = []
+      board.on('pageerror', (err) => pageErrors.push(err.message))
+      board.on('console', (msg) => {
+        if (msg.type() === 'error') consoleErrors.push(msg.text())
+      })
+
+      await scriptWhiteboardAi(app)
+
+      if ((await board.locator('.ai-rail').count()) > 0) {
+        await board.locator('.ai-rail').click()
+      }
+
+      // Wait for empty state badge & starters
+      await expect(board.locator('.ai-panel-header')).toBeVisible()
+      await expect(board.locator('.ai-chat-empty-badge')).toBeVisible()
+      await expect(board.locator('.ai-starter')).toHaveCount(4)
+      await expect(board.locator('.ai-chat-empty-hints')).toBeVisible()
+
+      if (shotDir) {
+        await board.screenshot({ path: join(shotDir, '01-wb-light-empty-left.png') })
+      }
+
+      // Measure Whiteboard AI panel computed styles
+      const readPanelStyles = (p: Page) =>
+        p.evaluate(() => {
+          const get = (sel: string) => {
+            const el = document.querySelector(sel)
+            if (!el) return null
+            const s = getComputedStyle(el)
+            return {
+              bg: s.backgroundColor,
+              color: s.color,
+              fontSize: s.fontSize,
+              borderRadius: s.borderRadius,
+              borderTopWidth: s.borderTopWidth,
+              width: Math.round(el.getBoundingClientRect().width),
+              height: Math.round(el.getBoundingClientRect().height),
+            }
+          }
+          return {
+            copilot: get('.copilot, .ai-panel'),
+            header: get('.ai-panel-header'),
+            chat: get('.ai-chat'),
+            starter: get('.ai-starter'),
+            composer: get('.ai-composer:last-of-type'),
+            inputBox: get('.ai-input-box'),
+            sendBtn: get('.ai-send-btn'),
+          }
+        })
+
+      const wbStyles = await readPanelStyles(board)
+
+      // Open Docs tab and compare computed styles against Whiteboard AI panel
+      await shell.evaluate(() =>
+        (
+          window as unknown as {
+            aiOffice: { newDoc(): Promise<void> }
+          }
+        ).aiOffice.newDoc(),
+      )
+      const docs = await waitForPageWithUrl(app, '://docs/')
+      await expect(docs.locator('.ai-panel-header')).toBeVisible({ timeout: 20_000 })
+      if (shotDir) {
+        await docs.screenshot({ path: join(shotDir, '02-docs-light-empty-left.png') })
+      }
+      const docsStyles = await readPanelStyles(docs)
+
+      expect(wbStyles.copilot?.bg).toBe(docsStyles.copilot?.bg)
+      expect(wbStyles.header?.bg).toBe(docsStyles.header?.bg)
+      expect(wbStyles.header?.height).toBe(docsStyles.header?.height)
+      expect(wbStyles.chat?.fontSize).toBe(docsStyles.chat?.fontSize)
+      expect(wbStyles.starter?.bg).toBe(docsStyles.starter?.bg)
+      expect(wbStyles.starter?.borderRadius).toBe(docsStyles.starter?.borderRadius)
+      expect(wbStyles.composer?.borderTopWidth).toBe('0px')
+      expect(wbStyles.composer?.bg).toBe(docsStyles.composer?.bg)
+      expect(wbStyles.inputBox?.bg).toBe(docsStyles.inputBox?.bg)
+      expect(wbStyles.inputBox?.borderRadius).toBe(docsStyles.inputBox?.borderRadius)
+      expect(wbStyles.sendBtn?.width).toBe(docsStyles.sendBtn?.width)
+      expect(wbStyles.sendBtn?.height).toBe(docsStyles.sendBtn?.height)
+      expect(wbStyles.sendBtn?.borderRadius).toBe(docsStyles.sendBtn?.borderRadius)
+
+      // Switch back to Whiteboard tab
+      await shell.evaluate(async () => {
+        const api = (
+          window as unknown as {
+            aiOfficeTabs: {
+              list(): Promise<Array<{ id: string; kind: string }>>
+              activate(id: string): Promise<void>
+            }
+          }
+        ).aiOfficeTabs
+        const wb = (await api.list()).find((t) => t.kind === 'whiteboard')
+        if (wb) await api.activate(wb.id)
+      })
+      await expect(board.locator('.ai-panel-header')).toBeVisible()
+
+      // 1. Default side = left: dock is to the left of .wb-main
+      const dock = board.locator('.ai-dock')
+      const main = board.locator('.wb-main')
+      const resizer = board.locator('.ai-panel-resizer')
+      const leftDockBox = (await dock.boundingBox())!
+      const leftMainBox = (await main.boundingBox())!
+      expect(leftDockBox.x).toBeLessThan(leftMainBox.x)
+      const leftHandleBox = (await resizer.boundingBox())!
+      expect(
+        Math.abs(leftHandleBox.x + leftHandleBox.width - (leftDockBox.x + leftDockBox.width)),
+      ).toBeLessThanOrEqual(4)
+
+      // 2. Click side-swap button -> moves to right side
+      await board.locator('.ai-panel-side-button').click()
+      await expect
+        .poll(async () => {
+          const d = await dock.boundingBox()
+          const m = await main.boundingBox()
+          return d && m ? d.x > m.x : false
+        })
+        .toBe(true)
+      const rightDockBox = (await dock.boundingBox())!
+      const rightHandleBox = (await resizer.boundingBox())!
+      expect(Math.abs(rightHandleBox.x - rightDockBox.x)).toBeLessThanOrEqual(4)
+      const collapseFlip = await board
+        .locator('.ai-panel-collapse svg')
+        .evaluate((el) => getComputedStyle(el).transform)
+      expect(collapseFlip).toBe('matrix(-1, 0, 0, 1, 0, 0)')
+
+      if (shotDir) {
+        await board.screenshot({ path: join(shotDir, '03-wb-light-right.png') })
+      }
+
+      // Move back to left side
+      await board.locator('.ai-panel-side-button').click()
+      await expect
+        .poll(async () => {
+          const d = await dock.boundingBox()
+          const m = await main.boundingBox()
+          return d && m ? d.x < m.x : false
+        })
+        .toBe(true)
+
+      // 3. Resize by dragging .ai-panel-resizer
+      const beforeResize = (await dock.boundingBox())!
+      const handle = (await resizer.boundingBox())!
+      await board.mouse.move(handle.x + handle.width / 2, handle.y + 120)
+      await board.mouse.down()
+      await board.mouse.move(handle.x + 80, handle.y + 120, { steps: 5 })
+      await board.mouse.up()
+      await expect
+        .poll(async () => Math.round((await dock.boundingBox())!.width))
+        .toBeGreaterThan(beforeResize.width + 50)
+
+      // 4. Test attach menu (+), skill button (/), and model picker popovers
+      await board.locator('.ai-attach-menu button').click()
+      await expect(board.locator('.ai-attach-menu-pop')).toBeVisible()
+      await board.keyboard.press('Escape')
+      await expect(board.locator('.ai-attach-menu-pop')).toHaveCount(0)
+
+      // 5. Click starter -> fills composer -> send stubbed turn with tool + usage + changes card
+      await board.locator('.ai-starter').first().click()
+      const textarea = board.locator('.ai-input-box textarea')
+      await expect(textarea).not.toHaveValue('')
+      await textarea.fill('GOOD-WB-TURN: create two connected stickies')
+      await board.locator('.ai-send-btn').click()
+
+      await expect(board.locator('.ai-msg-user')).toHaveCount(1)
+      await expect(board.locator('.ai-work-group')).toBeVisible({ timeout: 20_000 })
+      await expect(board.locator('.ai-run-changes[data-state="applied"]')).toBeVisible({
+        timeout: 20_000,
+      })
+      await expect(board.locator('.ai-reply-footer')).toBeVisible()
+      await expect(board.locator('.ai-reply-footer .ai-usage-chip')).toBeVisible()
+      await expect(board.locator('.ai-input-below .ai-usage-chip')).toBeVisible()
+      await expect(board.locator('.wb-ai-highlight-rect').first()).toBeVisible()
+
+      if (shotDir) {
+        await board.screenshot({ path: join(shotDir, '04-wb-light-chat-changes.png') })
+      }
+
+      // 6. Dark theme check
+      await board.evaluate(() => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+      })
+      const darkBg = await board
+        .locator('.copilot')
+        .evaluate((el) => getComputedStyle(el).backgroundColor)
+      expect(darkBg).toBe('rgb(30, 30, 30)')
+      if (shotDir) {
+        await board.screenshot({ path: join(shotDir, '05-wb-dark-chat.png') })
+      }
+      await board.evaluate(() => {
+        document.documentElement.removeAttribute('data-theme')
+      })
+
+      // 7. Clear highlights & Revert via AiChangesCard
+      await board.locator('[data-action="ai-changes-unmark"]').click()
+      await expect(board.locator('.wb-ai-highlight-rect')).toHaveCount(0)
+      await board.locator('[data-action="ai-changes-revert"]').click()
+      await expect(board.locator('.ai-run-changes[data-state="reverted"]')).toBeVisible()
+      await expect(board.locator('[data-object-id="ai-1"]')).toHaveCount(0)
+
+      // 8. New chat restores empty state
+      await board.locator('.ai-panel-header-actions .ai-header-btn').nth(1).click()
+      await expect(board.locator('.ai-chat-empty')).toBeVisible()
+
+      // 9. Collapse to rail and reopen
+      await board.locator('.ai-panel-collapse').click()
+      await expect(board.locator('.ai-dock.collapsed')).toHaveCount(1)
+      await expect(board.locator('.ai-rail')).toBeVisible()
+      await expect.poll(async () => Math.round((await dock.boundingBox())!.width)).toBe(34)
+      if (shotDir) {
+        await board.screenshot({ path: join(shotDir, '06-wb-light-collapsed-rail.png') })
+      }
+      await board.locator('.ai-rail').click()
+      await expect(board.locator('.ai-dock.collapsed')).toHaveCount(0)
+      await expect(board.locator('.ai-panel-header')).toBeVisible()
+
+      expect(pageErrors).toEqual([])
+      expect(consoleErrors).toEqual([])
+    } finally {
+      await closeAndSaveVideo(launched, 'whiteboard-ai-design')
       rmSync(dir, { recursive: true, force: true })
     }
   })
