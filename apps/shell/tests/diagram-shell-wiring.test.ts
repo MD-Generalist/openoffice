@@ -233,7 +233,8 @@ describe('the diagram menu', () => {
       "drawio: { label: 'menuNewDiagram', icon: 'diagram', open: () => newDiagramTab() },",
     )
     expect(HOME_KINDS).toContain('drawio')
-    expect(main).toContain('diagram: loadMenuIcon(menuDiagramIcon1x, menuDiagramIcon2x)')
+    expect(main).toContain('diagram: [menuDiagramIcon1x, menuDiagramIcon2x]')
+    expect(main).toContain('icon = loadMenuIcon(p1, p2)')
   })
 
   it('names its items, the untitled tab and the dialog filter in every language', () => {
