@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   ledger: {} as Record<string, unknown>,
   /** skills dir → install status readInstallState reports */
   states: {} as Record<string, string>,
+  cliInspectCalls: 0,
 }))
 
 vi.mock('electron', () => ({
@@ -64,13 +65,21 @@ vi.mock('@genoffice/cli/agent-skills', () => {
     readInstallState: (dir: string) => ({
       status: h.states[dir] ?? 'missing',
       path: skillFilePath(dir),
+      ...(h.states[dir] === 'outdated' ? { older: true } : {}),
     }),
   }
 })
 
 vi.mock('@genoffice/cli/install', () => ({
   CLI_COMMAND: 'ieumoffice',
-  inspectCliLink: () => ({ linked: false }),
+  inspectCliLink: () => {
+    h.cliInspectCalls += 1
+    return { linked: false }
+  },
+  inspectCliLinkAsync: async () => {
+    h.cliInspectCalls += 1
+    return { linked: false }
+  },
   launcherFileName: () => 'ieumoffice',
 }))
 
@@ -93,6 +102,7 @@ beforeEach(() => {
   h.dialogResult = { canceled: true, filePaths: [] }
   h.ledger = {}
   h.states = {}
+  h.cliInspectCalls = 0
   dir = mkdtempSync(join(tmpdir(), 'genoffice-integrations-'))
   writeFileSync(join(dir, 'SKILL.md'), '---\nname: ieumoffice\n---\n')
   writeFileSync(join(dir, 'package.json'), JSON.stringify({ version: '0.0.0' }))
@@ -167,5 +177,12 @@ describe('integrations:install-skill and the shared ~/.agents row', () => {
     }
     expect(status.agents.map((a) => a.id)).toEqual(['claude-code', 'agents', 'codex'])
     expect(status.agents[2]!.legacy).toBe(true)
+  })
+
+  it('checks skillUpdateDue without probing the CLI link', async () => {
+    expect(await invoke(INTEGRATIONS_CHANNELS.skillUpdateDue)).toBe(false)
+    h.states['/home/me/.claude/skills'] = 'outdated'
+    expect(await invoke(INTEGRATIONS_CHANNELS.skillUpdateDue)).toBe(true)
+    expect(h.cliInspectCalls).toBe(0)
   })
 })

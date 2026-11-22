@@ -18,7 +18,7 @@ import {
   type BundledSkill,
   type SkillLedger,
 } from '@genoffice/cli/agent-skills'
-import { CLI_COMMAND, inspectCliLink, launcherFileName } from '@genoffice/cli/install'
+import { CLI_COMMAND, inspectCliLinkAsync, launcherFileName } from '@genoffice/cli/install'
 import { readAppSettings, writeAppSetting } from './app-settings'
 import { isEphemeralInstall } from './cli-link'
 import { isInstallableSkillDir } from './skill-target'
@@ -55,13 +55,14 @@ export function registerIntegrationsIpc(deps: IntegrationsDeps): void {
   const stateOf = (skillsDir: string): SkillInstallState =>
     readInstallState(skillsDir, bundled(), ledger())
 
-  ipcMain.handle(INTEGRATIONS_CHANNELS.status, (): IntegrationsStatus => {
+  ipcMain.handle(INTEGRATIONS_CHANNELS.status, async (): Promise<IntegrationsStatus> => {
     const skill = bundled()
     const l = ledger()
     const launcher = join(deps.cliDir, launcherFileName(process.platform))
+    const cliLink = await inspectCliLinkAsync({ launcher })
     return {
       cli: {
-        ...inspectCliLink({ launcher }),
+        ...cliLink,
         launcherDir: deps.cliDir,
         ephemeral: app.isPackaged && isEphemeralInstall(process.resourcesPath, process.env),
         version: cliVersion(deps.cliPackageJson),
@@ -70,6 +71,12 @@ export function registerIntegrationsIpc(deps: IntegrationsDeps): void {
       skillNeedsCli: /^\s+cli:\s*['"]?>=\s*(\d+\.\d+\.\d+)/m.exec(skill.text)?.[1] ?? '',
       agents: skillRows(l).map((a) => ({ ...a, state: readInstallState(a.skillsDir, skill, l) })),
     }
+  })
+
+  ipcMain.handle(INTEGRATIONS_CHANNELS.skillUpdateDue, (): boolean => {
+    const skill = bundled()
+    const l = ledger()
+    return skillRows(l).some((a) => readInstallState(a.skillsDir, skill, l).older === true)
   })
 
   ipcMain.handle(

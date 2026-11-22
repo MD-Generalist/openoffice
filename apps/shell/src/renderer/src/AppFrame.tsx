@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import type { SplitViewState } from '../../shared/split-view-api'
 import { useFirstConnectionNotice } from './FirstConnectionNotice'
 import { Home } from './Home'
-import { Onboarding } from './Onboarding'
+import { subscribeProjectScreen, type ProjectScreenRequest } from './project-screen-events'
 import {
   SPLIT_EVEN_RATIO,
   dividerRect,
@@ -12,6 +12,8 @@ import {
 } from './split-view-geometry'
 import { TabBar } from './TabBar'
 import { useSubscriptionConnection } from './subscription-client'
+
+const Onboarding = lazy(() => import('./Onboarding').then((m) => ({ default: m.Onboarding })))
 
 interface AppFrameProps {
   /** resolved before first paint (main.tsx) so home never flashes under the overlay */
@@ -165,24 +167,44 @@ function SplitDivider({ split, viewport }: { split: SplitViewState; viewport: Vi
 }
 
 export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
-  const [homeActive, setHomeActive] = useState(true)
+  // null until the initial tabs:list response arrives (~0.1 ms), so a direct
+  // file-launch does not mount Home and fire its IPCs behind the editor view.
+  const [homeActive, setHomeActive] = useState<boolean | null>(initialOnboardingSeen ? null : true)
+  const [homeMounted, setHomeMounted] = useState(!initialOnboardingSeen)
   const [showOnboarding, setShowOnboarding] = useState(!initialOnboardingSeen)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [pendingProjectRequest, setPendingProjectRequest] = useState<ProjectScreenRequest | null>(
+    null,
+  )
   const split = useSplitView()
   const viewport = useViewportSize()
   // one live view of the subscription connection for the home screen, the
-  // onboarding and the first-connection notice
-  const connection = useSubscriptionConnection()
+  // onboarding and the first-connection notice; defer the initial CLI probes
+  // slightly on returning launches so Home finishes painting first
+  const connection = useSubscriptionConnection({ initialDelayMs: showOnboarding ? 0 : 600 })
   const notice = useFirstConnectionNotice(connection.statuses)
 
   useEffect(() => {
     const applyTabs = (tabs: Awaited<ReturnType<typeof window.aiOfficeTabs.list>>) => {
       const active = tabs.find((tab) => tab.active)
-      setHomeActive(!active || active.kind === 'home')
+      const isHome = !active || active.kind === 'home'
+      setHomeActive(isHome)
+      if (isHome) setHomeMounted(true)
     }
     void window.aiOfficeTabs.list().then(applyTabs)
     return window.aiOfficeTabs.onChanged(applyTabs)
   }, [])
+
+  // Buffer "open project screen" from an editor AI panel's "[view]" even before
+  // Home has mounted on a direct file launch so the request is never lost.
+  useEffect(
+    () =>
+      subscribeProjectScreen(window.projectFolderApi, (request) => {
+        setPendingProjectRequest(request)
+        setHomeMounted(true)
+      }),
+    [],
+  )
 
   const finishOnboarding = async (): Promise<boolean> => {
     try {
@@ -195,36 +217,46 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
     }
   }
 
+  const isHomeVisible = homeActive === true
+
   return (
     <div className="app-frame">
       <TabBar split={split} />
       {/* divider sits in the gap between the two pane views — the one slice of
        * the content area they do not cover. Home paints this document instead
        * (the panes are only hidden there, not closed), so no seam over it. */}
-      {split && !homeActive && <SplitDivider split={split} viewport={viewport} />}
+      {split && !isHomeVisible && <SplitDivider split={split} viewport={viewport} />}
       {/* docs/sheets tabs render as WebContentsView children of this window, positioned
        * by the main process to cover this area — only Home paints its own content here. */}
-      <div className="app-frame-content" style={{ visibility: homeActive ? 'visible' : 'hidden' }}>
-        <Home
-          connection={connection}
-          aiSettings={notice.settings}
-          // during the onboarding its connect step shows the notice instead
-          noticeDue={notice.due && !showOnboarding}
-          onNoticeAcknowledge={notice.acknowledge}
-          welcomeOpen={showOnboarding}
-          onSettingsOpenChange={setSettingsOpen}
-        />
+      <div
+        className="app-frame-content"
+        style={{ visibility: isHomeVisible ? 'visible' : 'hidden' }}
+      >
+        {(homeMounted || showOnboarding) && (
+          <Home
+            connection={connection}
+            aiSettings={notice.settings}
+            // during the onboarding its connect step shows the notice instead
+            noticeDue={notice.due && !showOnboarding}
+            onNoticeAcknowledge={notice.acknowledge}
+            welcomeOpen={showOnboarding}
+            onSettingsOpenChange={setSettingsOpen}
+            initialProjectRequest={pendingProjectRequest}
+          />
+        )}
       </div>
       {/* editor WebContentsViews paint above ALL shell DOM, so the overlay only
        * renders while the home tab is active — it comes back when home does */}
-      {showOnboarding && homeActive && (
-        <Onboarding
-          onDone={finishOnboarding}
-          connection={connection}
-          noticeDue={notice.due}
-          onNoticeAcknowledge={notice.acknowledge}
-          covered={settingsOpen}
-        />
+      {showOnboarding && isHomeVisible && (
+        <Suspense fallback={null}>
+          <Onboarding
+            onDone={finishOnboarding}
+            connection={connection}
+            noticeDue={notice.due}
+            onNoticeAcknowledge={notice.acknowledge}
+            covered={settingsOpen}
+          />
+        </Suspense>
       )}
     </div>
   )

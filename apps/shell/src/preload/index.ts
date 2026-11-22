@@ -702,6 +702,9 @@ const integrationsApi: IntegrationsApi = {
   async status() {
     return (await ipcRenderer.invoke(INTEGRATIONS_CHANNELS.status)) as IntegrationsStatus
   },
+  async skillUpdateDue() {
+    return (await ipcRenderer.invoke(INTEGRATIONS_CHANNELS.skillUpdateDue)) === true
+  },
   async installSkill(target) {
     return (await ipcRenderer.invoke(
       INTEGRATIONS_CHANNELS.installSkill,

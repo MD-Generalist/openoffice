@@ -51,16 +51,32 @@ export function applyPointerSizeTo(contents: Electron.WebContents, px: number): 
     })
 }
 
+export const POINTER_SIZE_INITIAL_DELAY_MS = 1000
+export const POINTER_SIZE_FOCUS_COOLDOWN_MS = 2500
+
 let current: number | null = null
 
 /** Every window gets the size on load; the shell re-reads it when it regains focus. */
 export function installPointerSize(app: Electron.App): void {
-  const refresh = async (): Promise<void> => {
-    const px = await readPointerSize()
-    if (px === current) return
-    current = px
-    if (px === null) return
-    for (const contents of webContents.getAllWebContents()) applyPointerSizeTo(contents, px)
+  let inFlight = false
+  let lastCheckedAt = 0
+  let initialTimer: ReturnType<typeof setTimeout> | null = null
+
+  const refresh = async (force = false): Promise<void> => {
+    if (inFlight) return
+    const now = Date.now()
+    if (!force && lastCheckedAt > 0 && now - lastCheckedAt < POINTER_SIZE_FOCUS_COOLDOWN_MS) return
+    inFlight = true
+    lastCheckedAt = now
+    try {
+      const px = await readPointerSize()
+      if (px === current) return
+      current = px
+      if (px === null) return
+      for (const contents of webContents.getAllWebContents()) applyPointerSizeTo(contents, px)
+    } finally {
+      inFlight = false
+    }
   }
   app.on('web-contents-created', (_event, contents) => {
     contents.on('did-finish-load', () => {
@@ -68,7 +84,21 @@ export function installPointerSize(app: Electron.App): void {
     })
   })
   // Settings changes the size while the app runs; coming back to the app is the
-  // moment the reader looks at a tip again.
-  app.on('browser-window-focus', () => void refresh())
-  void refresh()
+  // moment the reader looks at a tip again. Skip focus checks until the deferred
+  // initial probe has run so launch focus does not spawn reg.exe during startup.
+  app.on('browser-window-focus', () => {
+    if (initialTimer !== null) return
+    void refresh()
+  })
+  app.once('will-quit', () => {
+    if (initialTimer !== null) {
+      clearTimeout(initialTimer)
+      initialTimer = null
+    }
+  })
+  initialTimer = setTimeout(() => {
+    initialTimer = null
+    void refresh(true)
+  }, POINTER_SIZE_INITIAL_DELAY_MS)
+  initialTimer.unref?.()
 }

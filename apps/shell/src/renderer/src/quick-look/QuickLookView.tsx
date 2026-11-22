@@ -9,6 +9,7 @@ import type {
   QuickLookSlide,
 } from '../../../shared/quick-look-api'
 import { quickLookText } from '../i18n/strings-quick-look'
+import './quick-look.css'
 
 export interface QuickLookViewProps {
   lang: Lang

@@ -76,10 +76,8 @@ import {
   diagramPictureExtOf,
   diagramPictureExtOfName,
 } from '@genoffice/file-parse'
-import { convertHtmlToDocx } from '../../../../packages/html2docx/src'
 import { atomicWriteFile } from './atomic-write'
-import { ElectronBrowserDriver } from '../../../../packages/html2docx/src/drivers/electron'
-import { isFileUrlOf } from '../../../../packages/html2docx/src/drivers/file-url'
+import type { ElectronBrowserDriver } from '../../../../packages/html2docx/src/drivers/electron'
 import {
   copyImageIntoOwnedAssets,
   discardPendingOwnedAssets,
@@ -1155,6 +1153,11 @@ async function renderHtmlDocx(
     // The page may be a file someone sent. It keeps what the preview gives it
     // (its folder's assets through html-asset://, the web), but no file:// URL
     // other than its own: from file://, its scripts could read other local files.
+    const [{ convertHtmlToDocx }, { ElectronBrowserDriver }, { isFileUrlOf }] = await Promise.all([
+      import('../../../../packages/html2docx/src'),
+      import('../../../../packages/html2docx/src/drivers/electron'),
+      import('../../../../packages/html2docx/src/drivers/file-url'),
+    ])
     driver = await ElectronBrowserDriver.create(HTML2DOCX_VIEWPORT, {
       allowRequest: (url) => isFileUrlOf(url, htmlPath) || /^(?:https?|html-asset):/i.test(url),
       protocols: { [ASSET_SCHEME]: serveHtmlAsset },

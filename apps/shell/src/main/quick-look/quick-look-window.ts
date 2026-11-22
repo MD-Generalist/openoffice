@@ -40,8 +40,18 @@ let currentFilePath: string | null = null
 let currentPayload: QuickLookPayload | null = null
 let explorerHook: WinExplorerQuickLookHook | null = null
 let hideTimer: ReturnType<typeof setTimeout> | null = null
+let deferredSyncTimer: ReturnType<typeof setTimeout> | null = null
 
 const EXIT_ANIMATION_MS = 155
+/** Delay background Explorer hook + tray setup so it never blocks shell window creation. */
+export const QUICK_LOOK_STARTUP_DELAY_MS = 1500
+
+function clearDeferredSyncTimer(): void {
+  if (deferredSyncTimer !== null) {
+    clearTimeout(deferredSyncTimer)
+    deferredSyncTimer = null
+  }
+}
 
 function clearHideTimer(): void {
   if (hideTimer !== null) {
@@ -103,6 +113,7 @@ function syncTrayMenu(): void {
 }
 
 export function syncQuickLookRuntime(): void {
+  clearDeferredSyncTimer()
   if (!deps) return
   const settings = deps.readSettings()
 
@@ -150,10 +161,15 @@ export function syncQuickLookRuntime(): void {
 export function shouldKeepQuickLookInTray(): boolean {
   if (process.platform !== 'win32' || !deps) return false
   const settings = deps.readSettings()
-  return settings.explorerSpacePreview && settings.keepInTray
+  const keep = settings.explorerSpacePreview && settings.keepInTray
+  // If the user closes the window before the deferred startup timer fires,
+  // ensure the tray icon exists immediately so the app stays reachable.
+  if (keep && deferredSyncTimer !== null) syncQuickLookRuntime()
+  return keep
 }
 
 export function stopQuickLookRuntime(): void {
+  clearDeferredSyncTimer()
   explorerHook?.stop()
   explorerHook = null
   if (tray) {
@@ -368,5 +384,11 @@ function registerIpc(): void {
 export function configureQuickLookWindow(nextDeps: QuickLookWindowDeps): void {
   deps = nextDeps
   registerIpc()
-  syncQuickLookRuntime()
+  clearDeferredSyncTimer()
+  // Defer spawning the Windows Explorer hook and tray icon past initial window paint.
+  deferredSyncTimer = setTimeout(() => {
+    deferredSyncTimer = null
+    syncQuickLookRuntime()
+  }, QUICK_LOOK_STARTUP_DELAY_MS)
+  deferredSyncTimer.unref?.()
 }

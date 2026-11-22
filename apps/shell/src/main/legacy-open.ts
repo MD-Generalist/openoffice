@@ -1,7 +1,5 @@
 import { readFile } from 'node:fs/promises'
 import { basename, dirname, extname, join } from 'node:path'
-import { convertLegacyDocToDocx, isLegacyDocError } from '../../../../packages/doc2docx/src'
-import { convertPptToPptx, LegacyPptError } from '../../../../packages/ppt2pptx/src'
 
 /**
  * Legacy Office binaries that open as a converted copy: Word 97-2003 (.doc,
@@ -53,12 +51,20 @@ export async function convertLegacyFile(
   if (!editor) return null
   const from = extname(filePath).slice(1).toLowerCase()
   const to = editor === 'docs' ? 'docx' : 'pptx'
+  let isEncrypted: (error: unknown) => boolean = () => false
   try {
     const source = new Uint8Array(await read(filePath))
-    const bytes =
-      editor === 'docs'
-        ? (await convertLegacyDocToDocx(source)).docx
-        : (await convertPptToPptx(source)).bytes
+    let bytes: Uint8Array
+    if (editor === 'docs') {
+      const { convertLegacyDocToDocx, isLegacyDocError } =
+        await import('../../../../packages/doc2docx/src')
+      isEncrypted = (error) => isLegacyDocError(error) && error.code === 'encrypted'
+      bytes = (await convertLegacyDocToDocx(source)).docx
+    } else {
+      const { convertPptToPptx, LegacyPptError } = await import('../../../../packages/ppt2pptx/src')
+      isEncrypted = (error) => error instanceof LegacyPptError && error.code === 'encrypted'
+      bytes = (await convertPptToPptx(source)).bytes
+    }
     const name = basename(filePath)
     const stem = name.slice(0, name.length - from.length - 1) || name
     const fileName = `${stem}.${to}`
@@ -73,8 +79,7 @@ export async function convertLegacyFile(
       },
     }
   } catch (error) {
-    const encrypted =
-      (isLegacyDocError(error) || error instanceof LegacyPptError) && error.code === 'encrypted'
+    const encrypted = isEncrypted(error)
     return {
       ok: false,
       reason: encrypted ? 'encrypted' : 'failed',

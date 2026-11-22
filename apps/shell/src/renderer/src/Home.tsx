@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import type {
   DragEvent as ReactDragEvent,
   PointerEvent as ReactPointerEvent,
   ReactElement,
 } from 'react'
 import logoLockup from './assets/genoffice-logo.svg'
-import { KbAskPanel } from './KbAskPanel'
 import iconDocx from './assets/file-docx.svg'
 import iconXlsx from './assets/file-xlsx.svg'
 import iconPptx from './assets/file-pptx.svg'
@@ -52,31 +60,40 @@ import {
   openGenerateWithGroup,
   openGenerateWithPaths,
 } from './generate/home-entry'
-import { SettingsModal } from './SettingsModal'
 import { HOME_KIND_LABEL, useHomeKinds } from './SettingsHomeKinds'
 import { visibleHomeKinds, type HomeKind } from '../../shared/home-kinds'
 import { hiddenNewDocumentKinds, isEditorItemId } from '../../shared/editor-choice'
 import type { SettingsTarget } from './SettingsModal'
-import { skillUpdateDue } from './IntegrationsPane'
+import { skillUpdateDue } from './integrations-helpers'
 import { onFilesChanged } from './file-events'
-import { FirstConnectionDialog } from './FirstConnectionNotice'
 import { firstConnectionNoticeShown, useAiFeaturesOn } from './ai-features'
+import { FirstConnectionDialog } from './FirstConnectionNotice'
 import { LaunchRecoveryList } from './RecoveryList'
 import { OneTimeEditorPick } from './editor-choice/OneTimeEditorPick'
 import type { SubscriptionConnection } from './subscription-client'
 import { homeAiEntry } from './subscription-status'
 import './pdf-tools/globals'
 import './quick-look/globals'
-import './quick-look/quick-look.css'
-import { QuickLookView } from './quick-look/QuickLookView'
 import { quickLookText } from './i18n/strings-quick-look'
 import type { QuickLookPayload } from '../../shared/quick-look-api'
 import { agentText } from './i18n/strings-agent'
-import { DriveNavIcon, DrivePanel, useDriveState } from './DrivePanel'
+import { DriveNavIcon, useDriveState } from './drive-state'
 import { driveUiText } from './i18n/strings-drive'
-import { ProjectsPanel, subscribeProjectScreen, type ProjectScreenRequest } from './ProjectsPanel'
+import { subscribeProjectScreen, type ProjectScreenRequest } from './project-screen-events'
 import { projectsText } from './i18n/strings-projects'
 import { skillsText } from './i18n/strings-skills'
+
+const SettingsModal = lazy(() =>
+  import('./SettingsModal').then((m) => ({ default: m.SettingsModal })),
+)
+const KbAskPanel = lazy(() => import('./KbAskPanel').then((m) => ({ default: m.KbAskPanel })))
+const DrivePanel = lazy(() => import('./DrivePanel').then((m) => ({ default: m.DrivePanel })))
+const ProjectsPanel = lazy(() =>
+  import('./ProjectsPanel').then((m) => ({ default: m.ProjectsPanel })),
+)
+const QuickLookView = lazy(() =>
+  import('./quick-look/QuickLookView').then((m) => ({ default: m.QuickLookView })),
+)
 
 declare global {
   interface Window {
@@ -237,16 +254,37 @@ function MoreDots() {
   )
 }
 
+const timeFormatters = new Map<string, Intl.DateTimeFormat>()
+const dateFormatters = new Map<string, Intl.DateTimeFormat>()
+
+function cachedTimeFormat(locale: string): Intl.DateTimeFormat {
+  let fmt = timeFormatters.get(locale)
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' })
+    timeFormatters.set(locale, fmt)
+  }
+  return fmt
+}
+
+function cachedDateFormat(locale: string): Intl.DateTimeFormat {
+  let fmt = dateFormatters.get(locale)
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' })
+    dateFormatters.set(locale, fmt)
+  }
+  return fmt
+}
+
 function formatModified(mtimeMs: number, i18n: I18n): string {
   const date = new Date(mtimeMs)
   const now = new Date()
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   const days = Math.round((startOfDay(now) - startOfDay(date)) / 86400000)
   if (days <= 0) {
-    return `${i18n.t('today')} · ${date.toLocaleTimeString(i18n.dateLocale, { hour: '2-digit', minute: '2-digit' })}`
+    return `${i18n.t('today')} · ${cachedTimeFormat(i18n.dateLocale).format(date)}`
   }
   if (days === 1) return i18n.t('yesterday')
-  return date.toLocaleDateString(i18n.dateLocale, { month: 'short', day: 'numeric' })
+  return cachedDateFormat(i18n.dateLocale).format(date)
 }
 
 function formatSize(bytes: number): string {
@@ -898,14 +936,36 @@ function AccountEntry({
     onOpenChange?.(settingsOpen)
   }, [settingsOpen, onOpenChange])
 
-  // the skill state is a few file reads; re-probe after the modal closes so an
-  // update done inside it clears the dot
+  // Check only the bundled vs installed skill versions (skipping the CLI PATH
+  // probe) and defer the initial mount check slightly so Home lists paint first.
+  const initialSkillCheckRef = useRef(true)
   useEffect(() => {
-    if (settingsOpen) return
+    if (settingsOpen) {
+      initialSkillCheckRef.current = false
+      return
+    }
     let alive = true
-    void window.aiOfficeIntegrations?.status().then((st) => {
-      if (alive) setSkillUpdate(skillUpdateDue(st))
-    })
+    const probe = () => {
+      const api = window.aiOfficeIntegrations
+      if (!api) return
+      const req = api.skillUpdateDue
+        ? api.skillUpdateDue()
+        : api.status().then((st) => skillUpdateDue(st))
+      void req
+        .then((due) => {
+          if (alive) setSkillUpdate(due)
+        })
+        .catch(() => undefined)
+    }
+    if (initialSkillCheckRef.current) {
+      initialSkillCheckRef.current = false
+      const timer = window.setTimeout(probe, 800)
+      return () => {
+        alive = false
+        window.clearTimeout(timer)
+      }
+    }
+    probe()
     return () => {
       alive = false
     }
@@ -967,14 +1027,16 @@ function AccountEntry({
   return (
     <div className="account-entry">
       {settingsOpen && (
-        <SettingsModal
-          onClose={closeSettings}
-          onFileSearchChange={onFileSearchSettingsChange}
-          skillUpdateDue={skillUpdate}
-          onSkillUpdateDue={setSkillUpdate}
-          target={target}
-          overWelcome={overWelcome}
-        />
+        <Suspense fallback={null}>
+          <SettingsModal
+            onClose={closeSettings}
+            onFileSearchChange={onFileSearchSettingsChange}
+            skillUpdateDue={skillUpdate}
+            onSkillUpdateDue={setSkillUpdate}
+            target={target}
+            overWelcome={overWelcome}
+          />
+        </Suspense>
       )}
       <button
         className="account-btn"
@@ -1127,6 +1189,7 @@ export function Home({
   onNoticeAcknowledge,
   welcomeOpen = false,
   onSettingsOpenChange,
+  initialProjectRequest = null,
 }: {
   /** the live subscription connection (AppFrame owns the one instance) */
   connection: SubscriptionConnection
@@ -1143,6 +1206,8 @@ export function Home({
   welcomeOpen?: boolean
   /** Settings opened or closed (the welcome window stands down while it is open) */
   onSettingsOpenChange?: (open: boolean) => void
+  /** a project-screen open request buffered by AppFrame before Home mounted */
+  initialProjectRequest?: ProjectScreenRequest | null
 }) {
   const i18n = useI18n()
   const { t, lang } = i18n
@@ -1192,6 +1257,14 @@ export function Home({
   const [projectsNoticeAsked, setProjectsNoticeAsked] = useState(false)
   const projectsOffered = typeof window.projectFolderApi?.listProjects === 'function'
   // an AI panel's "[view]" (instructions or memory changed) opens the screen at that section
+  useEffect(() => {
+    if (!initialProjectRequest) return
+    setProjectsMode(true)
+    setAskMode(false)
+    setDriveMode(false)
+    setSelectedFolder(null)
+    setProjectRequest(initialProjectRequest)
+  }, [initialProjectRequest])
   useEffect(
     () =>
       subscribeProjectScreen(window.projectFolderApi, (request) => {
@@ -3560,37 +3633,43 @@ export function Home({
       {selectedFolder && rootOf(selectedFolder, roots)?.readable ? (
         renderFolderContent()
       ) : driveMode && driveOffered ? (
-        <DrivePanel
-          lang={lang}
-          dateLocale={i18n.dateLocale}
-          onOpenSettings={() => setSettingsRequest({ section: 'integrations' })}
-        />
+        <Suspense fallback={null}>
+          <DrivePanel
+            lang={lang}
+            dateLocale={i18n.dateLocale}
+            onOpenSettings={() => setSettingsRequest({ section: 'integrations' })}
+          />
+        </Suspense>
       ) : projectsMode && projectsOffered ? (
-        <ProjectsPanel
-          request={projectRequest}
-          aiSettings={aiSettings}
-          statuses={connection.statuses}
-          noticeDue={noticeDue}
-          onNoticeNeeded={() => setProjectsNoticeAsked(true)}
-          onOpenAiSettings={() => setSettingsRequest({ section: 'aiModel' })}
-          aiOn={aiOn}
-          onOpenHomeAsk={(chat) => {
-            if (!aiOn) return
-            setProjectsMode(false)
-            setAskMode(true)
-            setAskOpenChat((prev) => ({ ...chat, seq: (prev?.seq ?? 0) + 1 }))
-          }}
-        />
+        <Suspense fallback={null}>
+          <ProjectsPanel
+            request={projectRequest}
+            aiSettings={aiSettings}
+            statuses={connection.statuses}
+            noticeDue={noticeDue}
+            onNoticeNeeded={() => setProjectsNoticeAsked(true)}
+            onOpenAiSettings={() => setSettingsRequest({ section: 'aiModel' })}
+            aiOn={aiOn}
+            onOpenHomeAsk={(chat) => {
+              if (!aiOn) return
+              setProjectsMode(false)
+              setAskMode(true)
+              setAskOpenChat((prev) => ({ ...chat, seq: (prev?.seq ?? 0) + 1 }))
+            }}
+          />
+        </Suspense>
       ) : askMode && aiOn ? (
-        <KbAskPanel
-          connection={connection}
-          aiSettings={aiSettings}
-          noticeDue={noticeDue}
-          onOpenAiSettings={() => setSettingsRequest({ section: 'aiModel' })}
-          openChatRequest={askOpenChat}
-          onOpenPath={(path) => void window.aiOffice.openPath(path)}
-          onGoToRecents={() => changeView('recent')}
-        />
+        <Suspense fallback={null}>
+          <KbAskPanel
+            connection={connection}
+            aiSettings={aiSettings}
+            noticeDue={noticeDue}
+            onOpenAiSettings={() => setSettingsRequest({ section: 'aiModel' })}
+            openChatRequest={askOpenChat}
+            onOpenPath={(path) => void window.aiOffice.openPath(path)}
+            onGoToRecents={() => changeView('recent')}
+          />
+        </Suspense>
       ) : (
         renderGlobalContent()
       )}
@@ -3733,43 +3812,45 @@ export function Home({
           className={`ql-overlay${quickLookClosing ? ' ql-overlay-closing' : ''}`}
           onClick={closeQuickLook}
         >
-          <QuickLookView
-            lang={lang}
-            payload={quickLookPayload}
-            loading={quickLookLoading}
-            closing={quickLookClosing}
-            navDirection={quickLookNavDir}
-            canPrev={visiblePreviewPaths.indexOf(quickLookPath) > 0}
-            canNext={
-              visiblePreviewPaths.indexOf(quickLookPath) !== -1 &&
-              visiblePreviewPaths.indexOf(quickLookPath) < visiblePreviewPaths.length - 1
-            }
-            onPrev={() => {
-              const idx = visiblePreviewPaths.indexOf(quickLookPath)
-              if (idx > 0) {
-                const prev = visiblePreviewPaths[idx - 1]!
-                hoveredFilePathRef.current = prev
-                openQuickLook(prev, 'up')
+          <Suspense fallback={null}>
+            <QuickLookView
+              lang={lang}
+              payload={quickLookPayload}
+              loading={quickLookLoading}
+              closing={quickLookClosing}
+              navDirection={quickLookNavDir}
+              canPrev={visiblePreviewPaths.indexOf(quickLookPath) > 0}
+              canNext={
+                visiblePreviewPaths.indexOf(quickLookPath) !== -1 &&
+                visiblePreviewPaths.indexOf(quickLookPath) < visiblePreviewPaths.length - 1
               }
-            }}
-            onNext={() => {
-              const idx = visiblePreviewPaths.indexOf(quickLookPath)
-              if (idx !== -1 && idx < visiblePreviewPaths.length - 1) {
-                const next = visiblePreviewPaths[idx + 1]!
-                hoveredFilePathRef.current = next
-                openQuickLook(next, 'down')
-              }
-            }}
-            onOpenInEditor={() => {
-              const target = quickLookPath
-              closeQuickLook()
-              void window.aiOffice.openPath(target)
-            }}
-            onRevealInFolder={() => {
-              void window.aiOffice.revealPath(quickLookPath)
-            }}
-            onClose={closeQuickLook}
-          />
+              onPrev={() => {
+                const idx = visiblePreviewPaths.indexOf(quickLookPath)
+                if (idx > 0) {
+                  const prev = visiblePreviewPaths[idx - 1]!
+                  hoveredFilePathRef.current = prev
+                  openQuickLook(prev, 'up')
+                }
+              }}
+              onNext={() => {
+                const idx = visiblePreviewPaths.indexOf(quickLookPath)
+                if (idx !== -1 && idx < visiblePreviewPaths.length - 1) {
+                  const next = visiblePreviewPaths[idx + 1]!
+                  hoveredFilePathRef.current = next
+                  openQuickLook(next, 'down')
+                }
+              }}
+              onOpenInEditor={() => {
+                const target = quickLookPath
+                closeQuickLook()
+                void window.aiOffice.openPath(target)
+              }}
+              onRevealInFolder={() => {
+                void window.aiOffice.revealPath(quickLookPath)
+              }}
+              onClose={closeQuickLook}
+            />
+          </Suspense>
         </div>
       )}
 

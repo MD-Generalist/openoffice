@@ -111,9 +111,7 @@ import {
   diagramPictureExtOfName,
   rhwpWasmPath,
 } from '@genoffice/file-parse'
-import { convertHtmlToDocx } from '../../../../packages/html2docx/src'
-import { ElectronBrowserDriver } from '../../../../packages/html2docx/src/drivers/electron'
-import { isFileUrlOf } from '../../../../packages/html2docx/src/drivers/file-url'
+import type { ElectronBrowserDriver } from '../../../../packages/html2docx/src/drivers/electron'
 import {
   AI_MEDIA_PROVIDERS,
   AI_SEARCH_PROVIDERS,
@@ -5225,6 +5223,13 @@ export function registerDocsIpc(): void {
       // scripts and fetches nothing (CSP), and its window may load this one
       // file and nothing else: not the chunk's neighbours on disk, not the network.
       await writeFile(htmlPath, altChunkDocument(html), 'utf8')
+      const [{ convertHtmlToDocx }, { ElectronBrowserDriver }, { isFileUrlOf }] = await Promise.all(
+        [
+          import('../../../../packages/html2docx/src'),
+          import('../../../../packages/html2docx/src/drivers/electron'),
+          import('../../../../packages/html2docx/src/drivers/file-url'),
+        ],
+      )
       driver = await ElectronBrowserDriver.create(ALT_CHUNK_VIEWPORT, {
         allowRequest: (url) => isFileUrlOf(url, htmlPath),
       })
