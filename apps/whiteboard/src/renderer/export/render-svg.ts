@@ -4,8 +4,8 @@
  * `.whiteboard` thumbnails, and AI vision PNG page snapshots.
  *
  * Never reads CSS theme variables — document paper and objects always render in
- * their own warm paper-craft document colors, and UI chrome (selection handles,
- * AI highlights) is never included.
+ * their own light Miro/Allo/Claude-inspired document colors, and UI chrome
+ * (selection handles, hover outlines, AI highlights) is never included.
  */
 import {
   computePageBounds,
@@ -23,7 +23,19 @@ import {
   type TextAlign,
   type TextProps,
 } from '@genoffice/whiteboard-engine'
-import { computeConnectorGeometry, PAPER_COLORS, resolveConnectorEnd } from '../canvas/paper-style'
+import {
+  BOARD_FONT_STACK,
+  computeConnectorGeometry,
+  PAPER_COLORS,
+  resolveConnectorEndpoint,
+  SHAPE_DEFAULT_FONT_SIZE,
+  STICKY_DEFAULT_FONT_SIZE,
+  stickyLiftShadowPath,
+  strokeLineAttrs,
+  TEXT_DEFAULT_FONT_SIZE,
+  typographyMetrics,
+  type ConnectorHeadShape,
+} from '../canvas/paper-style'
 import { shapePath, shapeTextBox } from '../canvas/shape-paths'
 import { stickerInnerSvg } from '../canvas/stickers'
 
@@ -34,8 +46,6 @@ export interface RenderedPageSvg {
   viewBoxX: number
   viewBoxY: number
 }
-
-const FONT_STACK = "'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, -apple-system, sans-serif"
 
 function escXml(s: string): string {
   return s
@@ -63,12 +73,14 @@ function renderRichTextSvg(
   defaultColor: string,
   defaultAlign: TextAlign = 'left',
   verticalAlign: 'top' | 'center' = 'top',
+  defaultWeight: 400 | 500 | 600 = 400,
 ): string {
   if (!rt || !Array.isArray(rt.paragraphs) || rt.paragraphs.length === 0) return ''
   const plain = richTextPlain(rt)
   if (!plain) return ''
 
-  const lineH = fontSize * 1.38
+  const { lineHeight, letterSpacing } = typographyMetrics(fontSize)
+  const lineH = fontSize * lineHeight
   const totalH = rt.paragraphs.length * lineH
   const startY =
     verticalAlign === 'center'
@@ -83,7 +95,8 @@ function renderRichTextSvg(
     const ty = startY + idx * lineH
     const runs = (p.runs ?? []).map((r) => {
       const attrs: string[] = []
-      if (r.bold) attrs.push('font-weight="700"')
+      const weight = r.bold ? 700 : defaultWeight
+      if (weight !== 400) attrs.push(`font-weight="${weight}"`)
       if (r.italic) attrs.push('font-style="italic"')
       const decos = [r.underline ? 'underline' : '', r.strike ? 'line-through' : '']
         .filter(Boolean)
@@ -93,16 +106,39 @@ function renderRichTextSvg(
       return `<tspan ${attrs.join(' ')}>${escXml(r.text || ' ')}</tspan>`
     })
     out.push(
-      `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" font-family="${FONT_STACK}" font-size="${fontSize}" text-anchor="${anchor}">${runs.join('')}</text>`,
+      `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" font-family="${escXml(BOARD_FONT_STACK)}" font-size="${fontSize}" letter-spacing="${letterSpacing}" text-anchor="${anchor}">${runs.join('')}</text>`,
     )
   })
   return out.join('')
 }
 
-function dashAttr(style?: string, strokeWidth = 2): string {
-  if (style === 'dashed') return ` stroke-dasharray="${strokeWidth * 3} ${strokeWidth * 2.4}"`
-  if (style === 'dotted') return ` stroke-dasharray="${strokeWidth} ${strokeWidth * 2.2}"`
+function renderHeadSvg(head: ConnectorHeadShape | null, ink: string, strokeWidth: number): string {
+  if (!head) return ''
+  if (head.kind === 'chevron' && head.path) {
+    return `<path d="${head.path}" fill="none" stroke="${escXml(ink)}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`
+  }
+  if (head.kind === 'stealth' && head.path) {
+    return `<path d="${head.path}" fill="${escXml(ink)}"/>`
+  }
+  if (head.kind === 'circle' && head.point) {
+    const r = head.radius ?? Math.max(3.6, strokeWidth * 1.65)
+    return `<circle cx="${head.point.x}" cy="${head.point.y}" r="${r}" fill="${PAPER_COLORS.paper}" stroke="${escXml(ink)}" stroke-width="${Math.max(1.75, strokeWidth)}"/>`
+  }
   return ''
+}
+
+function estimatePillWidth(label: string): number {
+  let units = 0
+  for (const ch of label) {
+    const code = ch.codePointAt(0) ?? 0
+    const isWide =
+      (code >= 0x1100 && code <= 0x11ff) ||
+      (code >= 0x3000 && code <= 0x9fff) ||
+      (code >= 0xac00 && code <= 0xd7af) ||
+      (code >= 0xff00 && code <= 0xffef)
+    units += isWide ? 12.5 : 7.5
+  }
+  return Math.max(44, Math.ceil(units + 20))
 }
 
 export function renderPageToSvg(
@@ -133,7 +169,25 @@ export function renderPageToSvg(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}">`,
   )
   parts.push(
-    `<defs><filter id="wb-card-shadow" x="-12%" y="-10%" width="124%" height="128%"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#221D17" flood-opacity="0.12"/><feDropShadow dx="0" dy="3.5" stdDeviation="4" flood-color="#221D17" flood-opacity="0.08"/></filter></defs>`,
+    [
+      '<defs>',
+      '<filter id="wb-sticky-shadow" x="-16%" y="-14%" width="132%" height="138%">',
+      '<feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#1F1D1A" flood-opacity="0.07"/>',
+      '<feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#1F1D1A" flood-opacity="0.09"/>',
+      '</filter>',
+      '<filter id="wb-sticky-lift" x="-18%" y="-40%" width="136%" height="220%">',
+      '<feGaussianBlur stdDeviation="3.4"/>',
+      '</filter>',
+      '<linearGradient id="wb-sticky-sheen" x1="0" y1="0" x2="0" y2="1">',
+      '<stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.24"/>',
+      '<stop offset="22%" stop-color="#FFFFFF" stop-opacity="0"/>',
+      '</linearGradient>',
+      '<filter id="wb-card-shadow" x="-12%" y="-10%" width="124%" height="130%">',
+      '<feDropShadow dx="0" dy="1" stdDeviation="1.4" flood-color="#1F1D1A" flood-opacity="0.06"/>',
+      '<feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1F1D1A" flood-opacity="0.06"/>',
+      '</filter>',
+      '</defs>',
+    ].join(''),
   )
 
   // Background layer (document paper colors, never inverted by dark UI theme).
@@ -146,15 +200,15 @@ export function renderPageToSvg(
     parts.push(
       `<rect x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" fill="${escXml(bg.color)}"/>`,
     )
-    const step = 32
+    const step = 24
     const patId = `wb-grid-${bg.pattern}`
     if (bg.pattern === 'dot') {
       parts.push(
-        `<defs><pattern id="${patId}" width="${step}" height="${step}" patternUnits="userSpaceOnUse"><circle cx="16" cy="16" r="1.4" fill="#221D17" fill-opacity="0.15"/></pattern></defs>`,
+        `<defs><pattern id="${patId}" width="${step}" height="${step}" patternUnits="userSpaceOnUse"><circle cx="12" cy="12" r="1.05" fill="#1F1D1A" fill-opacity="0.14"/></pattern></defs>`,
       )
     } else {
       parts.push(
-        `<defs><pattern id="${patId}" width="${step}" height="${step}" patternUnits="userSpaceOnUse"><path d="M ${step} 0 L 0 0 0 ${step}" fill="none" stroke="#DDD3C2" stroke-width="1"/></pattern></defs>`,
+        `<defs><pattern id="${patId}" width="${step}" height="${step}" patternUnits="userSpaceOnUse"><path d="M ${step} 0 L 0 0 0 ${step}" fill="none" stroke="#E4DFD5" stroke-width="1"/></pattern></defs>`,
       )
     }
     parts.push(
@@ -181,45 +235,58 @@ export function renderPageToSvg(
     switch (obj.kind) {
       case 'sticky': {
         const p = obj.props as unknown as StickyProps
-        parts.push(`<g${rotAttr} filter="url(#wb-card-shadow)">`)
+        const liftPath = stickyLiftShadowPath(obj.x, obj.y, obj.width, obj.height)
+        parts.push(`<g${rotAttr}>`)
         parts.push(
-          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="3" fill="${escXml(p.color || '#FBE7A1')}"/>`,
+          `<path d="${liftPath}" fill="#1F1D1A" fill-opacity="0.11" filter="url(#wb-sticky-lift)"/>`,
+        )
+        parts.push('<g filter="url(#wb-sticky-shadow)">')
+        parts.push(
+          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="4" fill="${escXml(p.color || '#FFF3A1')}" stroke="rgba(31, 29, 26, 0.09)" stroke-width="1"/>`,
+        )
+        parts.push(
+          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="4" fill="url(#wb-sticky-sheen)"/>`,
         )
         parts.push(
           renderRichTextSvg(
             p.text,
-            obj.x + 16,
-            obj.y + 16,
-            Math.max(10, obj.width - 32),
-            Math.max(10, obj.height - 32),
-            p.fontSize ?? 18,
+            obj.x + 20,
+            obj.y + 18,
+            Math.max(10, obj.width - 40),
+            Math.max(10, obj.height - 36),
+            p.fontSize ?? STICKY_DEFAULT_FONT_SIZE,
             PAPER_COLORS.ink,
-            p.align ?? 'left',
-            'top',
+            p.align ?? 'center',
+            'center',
+            500,
           ),
         )
-        parts.push('</g>')
+        parts.push('</g></g>')
         break
       }
       case 'text': {
         const p = obj.props as unknown as TextProps
+        const hasBox = Boolean((p.background && p.background !== 'transparent') || p.borderColor)
+        const padX = hasBox ? 14 : 6
+        const padY = hasBox ? 10 : 4
         parts.push(`<g${rotAttr}>`)
-        if (p.background || p.borderColor) {
+        if (hasBox) {
           parts.push(
-            `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="6" fill="${escXml(p.background || 'none')}" stroke="${escXml(p.borderColor || 'none')}" stroke-width="1"/>`,
+            `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="8" fill="${escXml(p.background && p.background !== 'transparent' ? p.background : 'none')}" stroke="${escXml(p.borderColor || 'none')}" stroke-width="1"/>`,
           )
         }
         parts.push(
           renderRichTextSvg(
             p.text,
-            obj.x + 6,
-            obj.y + 4,
-            Math.max(10, obj.width - 12),
-            Math.max(10, obj.height - 8),
-            p.fontSize ?? 24,
+            obj.x + padX,
+            obj.y + padY,
+            Math.max(10, obj.width - padX * 2),
+            Math.max(10, obj.height - padY * 2),
+            p.fontSize ?? TEXT_DEFAULT_FONT_SIZE,
             p.color || PAPER_COLORS.ink,
             p.align ?? 'left',
             'top',
+            400,
           ),
         )
         parts.push('</g>')
@@ -227,13 +294,18 @@ export function renderPageToSvg(
       }
       case 'shape': {
         const p = obj.props as unknown as ShapeProps
-        const sw = p.strokeWidth ?? 2.5
+        const sw = p.strokeWidth ?? 1.75
         const kind = p.shape || 'rounded_rectangle'
         const d = shapePath(kind, obj.width, obj.height, sw / 2)
         const box = shapeTextBox(kind, obj.width, obj.height)
-        parts.push(`<g${rotAttr}>`)
+        const fill = p.fill || PAPER_COLORS.shapeDefaultFill
+        const isTransparent = fill === 'transparent' || fill === 'none'
+        const lineAttrs = strokeLineAttrs(p.lineStyle, sw)
+        const dashXml = lineAttrs.dasharray ? ` stroke-dasharray="${lineAttrs.dasharray}"` : ''
+        const shadowAttr = isTransparent ? '' : ' filter="url(#wb-card-shadow)"'
+        parts.push(`<g${rotAttr}${shadowAttr}>`)
         parts.push(
-          `<g transform="translate(${obj.x} ${obj.y})"><path d="${d}" fill="${escXml(p.fill || PAPER_COLORS.zoneFill)}" stroke="${escXml(p.stroke || PAPER_COLORS.ink)}" stroke-width="${sw}" stroke-linejoin="round"${dashAttr(p.lineStyle, sw)}/></g>`,
+          `<g transform="translate(${obj.x} ${obj.y})"><path d="${d}" fill="${escXml(fill)}" stroke="${escXml(p.stroke || PAPER_COLORS.shapeDefaultStroke)}" stroke-width="${sw}" stroke-linecap="${lineAttrs.linecap}" stroke-linejoin="round"${dashXml}/></g>`,
         )
         parts.push(
           renderRichTextSvg(
@@ -242,10 +314,11 @@ export function renderPageToSvg(
             obj.y + box.top,
             Math.max(10, box.width),
             Math.max(10, box.height),
-            p.fontSize ?? 18,
+            p.fontSize ?? SHAPE_DEFAULT_FONT_SIZE,
             PAPER_COLORS.ink,
             p.align ?? 'center',
             'center',
+            500,
           ),
         )
         parts.push('</g>')
@@ -253,40 +326,39 @@ export function renderPageToSvg(
       }
       case 'connector': {
         const p = obj.props as unknown as ConnectorProps
-        const a = resolveConnectorEnd(p.start, byId)
-        const b = resolveConnectorEnd(p.end, byId)
-        const sw = p.strokeWidth ?? 3
-        const ink = p.color || PAPER_COLORS.ink
-        const geom = computeConnectorGeometry(a, b, p.waypoints, sw, p.startHead, p.endHead)
-        const lineCap = p.lineStyle === 'dashed' || p.lineStyle === 'dotted' ? 'butt' : 'round'
+        const a = resolveConnectorEndpoint(p.start, byId)
+        const b = resolveConnectorEndpoint(p.end, byId)
+        const sw = p.strokeWidth ?? 2
+        const ink = p.color || PAPER_COLORS.connectorDefault
+        const geom = computeConnectorGeometry(
+          a.point,
+          b.point,
+          p.waypoints,
+          sw,
+          p.startHead,
+          p.endHead,
+          p.routing ?? 'straight',
+          a.normal,
+          b.normal,
+        )
+        const lineAttrs = strokeLineAttrs(p.lineStyle, sw)
+        const dashXml = lineAttrs.dasharray ? ` stroke-dasharray="${lineAttrs.dasharray}"` : ''
         parts.push('<g>')
         parts.push(
-          `<path d="${geom.shaftPath}" fill="none" stroke="${escXml(ink)}" stroke-width="${sw}" stroke-linecap="${lineCap}" stroke-linejoin="round"${dashAttr(p.lineStyle, sw)}/>`,
+          `<path d="${geom.shaftPath}" fill="none" stroke="${escXml(ink)}" stroke-width="${sw}" stroke-linecap="${lineAttrs.linecap}" stroke-linejoin="round"${dashXml}/>`,
         )
-        if (geom.startArrowPath) {
-          parts.push(`<path d="${geom.startArrowPath}" fill="${escXml(ink)}"/>`)
-        }
-        if (geom.endArrowPath) {
-          parts.push(`<path d="${geom.endArrowPath}" fill="${escXml(ink)}"/>`)
-        }
-        if (geom.startCircle) {
-          parts.push(
-            `<circle cx="${geom.startCircle.x}" cy="${geom.startCircle.y}" r="${Math.max(4, sw * 1.5)}" fill="${escXml(ink)}"/>`,
-          )
-        }
-        if (geom.endCircle) {
-          parts.push(
-            `<circle cx="${geom.endCircle.x}" cy="${geom.endCircle.y}" r="${Math.max(4, sw * 1.5)}" fill="${escXml(ink)}"/>`,
-          )
-        }
-        const lbl = richTextPlain(p.label)
+        const startHeadXml = renderHeadSvg(geom.startHead, ink, sw)
+        if (startHeadXml) parts.push(startHeadXml)
+        const endHeadXml = renderHeadSvg(geom.endHead, ink, sw)
+        if (endHeadXml) parts.push(endHeadXml)
+        const lbl = richTextPlain(p.label).trim()
         if (lbl) {
-          const pillW = Math.max(48, lbl.length * 10 + 18)
+          const pillW = estimatePillWidth(lbl)
           parts.push(
-            `<rect x="${(geom.midpoint.x - pillW / 2).toFixed(1)}" y="${(geom.midpoint.y - 22).toFixed(1)}" width="${pillW}" height="24" rx="6" fill="${PAPER_COLORS.paper}" stroke="${PAPER_COLORS.line}" stroke-width="1"/>`,
+            `<rect x="${(geom.midpoint.x - pillW / 2).toFixed(1)}" y="${(geom.midpoint.y - 12).toFixed(1)}" width="${pillW}" height="24" rx="12" fill="${PAPER_COLORS.cardBg}" stroke="${PAPER_COLORS.line}" stroke-width="1" filter="url(#wb-card-shadow)"/>`,
           )
           parts.push(
-            `<text x="${geom.midpoint.x.toFixed(1)}" y="${(geom.midpoint.y - 6).toFixed(1)}" text-anchor="middle" font-family="${FONT_STACK}" font-size="13" font-weight="500" fill="${PAPER_COLORS.ink}">${escXml(lbl)}</text>`,
+            `<text x="${geom.midpoint.x.toFixed(1)}" y="${(geom.midpoint.y + 4.5).toFixed(1)}" text-anchor="middle" font-family="${escXml(BOARD_FONT_STACK)}" font-size="12.5" font-weight="500" fill="${PAPER_COLORS.ink}">${escXml(lbl)}</text>`,
           )
         }
         parts.push('</g>')
@@ -319,9 +391,14 @@ export function renderPageToSvg(
         const cols = p.colIds?.length || 1
         const cellW = obj.width / cols
         const cellH = obj.height / rows
-        parts.push(`<g${rotAttr} filter="url(#wb-card-shadow)">`)
+        const clipId = `wb-tbl-clip-${escXml(obj.id)}`
         parts.push(
-          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="4" fill="${PAPER_COLORS.paper}" stroke="${PAPER_COLORS.lineDashed}" stroke-width="1.5"/>`,
+          `<defs><clipPath id="${clipId}"><rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="10"/></clipPath></defs>`,
+        )
+        parts.push(`<g${rotAttr} filter="url(#wb-card-shadow)">`)
+        parts.push(`<g clip-path="url(#${clipId})">`)
+        parts.push(
+          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" fill="${PAPER_COLORS.cardBg}"/>`,
         )
         p.rowIds?.forEach((rid, ri) => {
           p.colIds?.forEach((cid, ci) => {
@@ -329,11 +406,17 @@ export function renderPageToSvg(
             const cy0 = obj.y + ri * cellH
             if (ri === 0 && p.headerRow) {
               parts.push(
-                `<rect x="${cx0}" y="${cy0}" width="${cellW}" height="${cellH}" fill="${PAPER_COLORS.zoneFill}" stroke="${PAPER_COLORS.lineStrong}" stroke-width="1"/>`,
+                `<rect x="${cx0}" y="${cy0}" width="${cellW}" height="${cellH}" fill="${PAPER_COLORS.zoneFill}"/>`,
               )
-            } else {
+            }
+            if (ci > 0) {
               parts.push(
-                `<rect x="${cx0}" y="${cy0}" width="${cellW}" height="${cellH}" fill="none" stroke="${PAPER_COLORS.lineStrong}" stroke-width="1"/>`,
+                `<line x1="${cx0}" y1="${cy0}" x2="${cx0}" y2="${cy0 + cellH}" stroke="${PAPER_COLORS.line}" stroke-width="1"/>`,
+              )
+            }
+            if (ri > 0) {
+              parts.push(
+                `<line x1="${cx0}" y1="${cy0}" x2="${cx0 + cellW}" y2="${cy0}" stroke="${PAPER_COLORS.line}" stroke-width="1"/>`,
               )
             }
             const cellRt = p.cells?.[`${rid}:${cid}`]
@@ -341,19 +424,24 @@ export function renderPageToSvg(
               parts.push(
                 renderRichTextSvg(
                   cellRt,
-                  cx0 + 10,
+                  cx0 + 12,
                   cy0 + 4,
-                  Math.max(10, cellW - 20),
+                  Math.max(10, cellW - 24),
                   Math.max(10, cellH - 8),
                   p.fontSize ?? 14,
                   PAPER_COLORS.ink,
                   'left',
                   'center',
+                  ri === 0 && p.headerRow ? 600 : 400,
                 ),
               )
             }
           })
         })
+        parts.push('</g>')
+        parts.push(
+          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="10" fill="none" stroke="${PAPER_COLORS.lineStrong}" stroke-width="1.2"/>`,
+        )
         parts.push('</g>')
         break
       }
@@ -368,11 +456,11 @@ export function renderPageToSvg(
         const p = obj.props as unknown as LinkProps
         parts.push(`<g${rotAttr} filter="url(#wb-card-shadow)">`)
         parts.push(
-          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="10" fill="${PAPER_COLORS.paper}" stroke="${PAPER_COLORS.line}" stroke-width="1.5"/>`,
+          `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" rx="12" fill="${PAPER_COLORS.cardBg}" stroke="${PAPER_COLORS.line}" stroke-width="1.2"/>`,
         )
         const hasPreview = p.previewResourceId && resourceDataUrls.has(p.previewResourceId)
-        const textX = hasPreview ? obj.x + 112 : obj.x + 16
-        const textW = hasPreview ? obj.width - 124 : obj.width - 32
+        const textX = hasPreview ? obj.x + 112 : obj.x + 18
+        const textW = hasPreview ? obj.width - 126 : obj.width - 36
         if (hasPreview) {
           const url = resourceDataUrls.get(p.previewResourceId!)!
           parts.push(
@@ -380,15 +468,15 @@ export function renderPageToSvg(
           )
         }
         parts.push(
-          `<text x="${textX}" y="${obj.y + 34}" font-family="${FONT_STACK}" font-size="15" font-weight="600" fill="${PAPER_COLORS.accent}">${escXml((p.title || p.url).slice(0, 60))} ↗</text>`,
+          `<text x="${textX}" y="${obj.y + 34}" font-family="${escXml(BOARD_FONT_STACK)}" font-size="14.5" font-weight="600" fill="${PAPER_COLORS.ink}">${escXml((p.title || p.url).slice(0, 60))} ↗</text>`,
         )
         if (p.description) {
           parts.push(
-            `<text x="${textX}" y="${obj.y + 56}" font-family="${FONT_STACK}" font-size="12" fill="${PAPER_COLORS.inkMuted}">${escXml(p.description.slice(0, 80))}</text>`,
+            `<text x="${textX}" y="${obj.y + 56}" font-family="${escXml(BOARD_FONT_STACK)}" font-size="12" fill="${PAPER_COLORS.inkMuted}">${escXml(p.description.slice(0, 80))}</text>`,
           )
         }
         parts.push(
-          `<text x="${textX}" y="${obj.y + obj.height - 16}" font-family="${FONT_STACK}" font-size="11" fill="${PAPER_COLORS.inkMuted}">${escXml(p.url.slice(0, Math.max(20, Math.floor(textW / 6.5))))}</text>`,
+          `<text x="${textX}" y="${obj.y + obj.height - 16}" font-family="${escXml(BOARD_FONT_STACK)}" font-size="11.5" fill="${PAPER_COLORS.accent}">${escXml(p.url.slice(0, Math.max(20, Math.floor(textW / 6.5))))}</text>`,
         )
         parts.push('</g>')
         break

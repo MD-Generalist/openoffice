@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { LANGS } from '@genoffice/i18n'
 import { ensureWhiteboardEngineSync } from '@genoffice/whiteboard-engine/node'
 import { WhiteboardSession } from '../src/renderer/document/session'
+import {
+  computeConnectorGeometry,
+  estimateTextBoxSize,
+  stickyLiftShadowPath,
+  strokeLineAttrs,
+} from '../src/renderer/canvas/paper-style'
 import { parsePdfPageRange } from '../src/renderer/export/pdf-import'
 import { renderPageToSvg } from '../src/renderer/export/render-svg'
 import { appStrings } from '../src/renderer/i18n/strings-app'
@@ -93,6 +99,119 @@ describe('WhiteboardSession & canvas rendering', () => {
     expect(parsePdfPageRange('1-3, 5, 2, 100', 10)).toEqual([1, 2, 3, 5])
     expect(parsePdfPageRange('', 3)).toEqual([1, 2, 3])
     expect(parsePdfPageRange('1-100', 80, 50)).toHaveLength(50)
+  })
+
+  it('computes straight, curved, and rounded-elbow connector geometry with distinct arrowheads', () => {
+    const start = { x: 100, y: 120 }
+    const end = { x: 420, y: 260 }
+
+    const curved = computeConnectorGeometry(
+      start,
+      end,
+      undefined,
+      2,
+      'circle',
+      'arrow',
+      'curved',
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+    )
+    expect(curved.shaftPath).toContain('C')
+    expect(curved.startHead?.kind).toBe('circle')
+    expect(curved.endHead?.kind).toBe('chevron')
+    expect(curved.midpoint.x).toBeCloseTo(260, 0)
+    expect(curved.midpoint.y).toBeCloseTo(190, 0)
+
+    const elbow = computeConnectorGeometry(
+      start,
+      end,
+      undefined,
+      2,
+      'none',
+      'triangle',
+      'elbow',
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+    )
+    expect(elbow.shaftPath).toContain('Q')
+    expect(elbow.endHead?.kind).toBe('stealth')
+    expect(elbow.endArrowPath).toContain('Z')
+
+    const dotted = strokeLineAttrs('dotted', 2)
+    expect(dotted.dasharray).toMatch(/^0\.01 /)
+    expect(dotted.linecap).toBe('round')
+
+    const lift = stickyLiftShadowPath(10, 20, 208, 208)
+    expect(lift).toContain('Q')
+
+    const koSize = estimateTextBoxSize('화이트보드 디자인 개선', 20)
+    const enSize = estimateTextBoxSize('Hello', 20)
+    expect(koSize.width).toBeGreaterThan(enSize.width)
+  })
+
+  it('renders sticky lift shadow, curved/elbow connectors, and clipped rounded tables in SVG export', () => {
+    ensureWhiteboardEngineSync()
+    const session = WhiteboardSession.createBlank('Design Spec')
+    const s1 = session.addObject({
+      kind: 'sticky',
+      x: 40,
+      y: 40,
+      width: 208,
+      height: 208,
+      color: '#FFF3A1',
+      text: { paragraphs: [{ runs: [{ text: 'Sticky Card' }] }] },
+    })
+    const s2 = session.addObject({
+      kind: 'shape',
+      shape: 'rounded_rectangle',
+      x: 380,
+      y: 80,
+      width: 196,
+      height: 116,
+      fill: '#FFFFFF',
+      stroke: '#CBD5E1',
+      strokeWidth: 1.75,
+      text: { paragraphs: [{ runs: [{ text: 'Target Node' }] }] },
+    })
+    session.addObject({
+      kind: 'connector',
+      start: { objectId: s1!.id, anchorX: 1, anchorY: 0.5 },
+      end: { objectId: s2!.id, anchorX: 0, anchorY: 0.5 },
+      routing: 'curved',
+      startHead: 'circle',
+      endHead: 'arrow',
+      color: '#475569',
+      strokeWidth: 2,
+      lineStyle: 'solid',
+      label: { paragraphs: [{ runs: [{ text: 'Flows to' }] }] },
+    })
+    session.addObject({
+      kind: 'table',
+      x: 40,
+      y: 300,
+      width: 360,
+      height: 160,
+      rows: 2,
+      cols: 2,
+      headerRow: true,
+      data: [
+        ['Key', 'Value'],
+        ['Style', 'Miro'],
+      ],
+    })
+
+    const rendered = renderPageToSvg(
+      session.getDocument(),
+      session.getActivePageId(),
+      session.getAllResourceDataUrls(),
+    )
+    expect(rendered).not.toBeNull()
+    expect(rendered!.svg).toContain('wb-sticky-lift')
+    expect(rendered!.svg).toContain('wb-sticky-sheen')
+    expect(rendered!.svg).toContain('Flows to')
+    expect(rendered!.svg).toContain('clipPath')
+    expect(rendered!.svg).not.toContain('var(--')
+    session.dispose()
   })
 
   it('provides all UI languages in both appStrings and aiStrings with matching keys', () => {

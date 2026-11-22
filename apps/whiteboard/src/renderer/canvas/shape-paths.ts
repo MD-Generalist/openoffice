@@ -1,5 +1,6 @@
 /**
- * SVG path outlines and inner text boxes for the 8 whiteboard shape kinds.
+ * SVG path outlines and inner text boxes for the 8 whiteboard shape kinds,
+ * tuned with crisp modern Miro/Allo/Claude diagram proportions.
  */
 import type { ShapeKind } from '@genoffice/whiteboard-engine'
 
@@ -47,14 +48,9 @@ export function shapePath(kind: ShapeKind, width: number, height: number, inset 
   const h = Math.max(1, height - inset * 2)
   switch (kind) {
     case 'rectangle':
-      return polygon([
-        [x, y],
-        [x + w, y],
-        [x + w, y + h],
-        [x, y + h],
-      ])
+      return roundedRect(x, y, w, h, Math.min(3, Math.min(w, h) * 0.04))
     case 'rounded_rectangle':
-      return roundedRect(x, y, w, h, Math.min(32, Math.min(w, h) * 0.15))
+      return roundedRect(x, y, w, h, Math.min(14, Math.min(w, h) * 0.22))
     case 'ellipse': {
       const rx = w / 2
       const ry = h / 2
@@ -81,7 +77,7 @@ export function shapePath(kind: ShapeKind, width: number, height: number, inset 
       const points: Pt[] = []
       for (let i = 0; i < 10; i++) {
         const angle = -Math.PI / 2 + (i * Math.PI) / 5
-        const r = i % 2 === 0 ? 1 : 0.42
+        const r = i % 2 === 0 ? 1 : 0.44
         points.push([
           cx + (Math.cos(angle) * r * w) / 2,
           cy + (Math.sin(angle) * r * h) / 2 + h * 0.04,
@@ -90,10 +86,10 @@ export function shapePath(kind: ShapeKind, width: number, height: number, inset 
       return polygon(points)
     }
     case 'speech_bubble': {
-      const bodyH = h * 0.78
-      const r = Math.min(w, bodyH) * 0.16
-      const tailLeft = x + w * 0.18
-      const tailRight = x + w * 0.36
+      const bodyH = h * 0.8
+      const r = Math.min(14, Math.min(w, bodyH) * 0.2)
+      const tailLeft = x + w * 0.16
+      const tailRight = x + w * 0.34
       return [
         `M${round(x + r)} ${round(y)}`,
         `H${round(x + w - r)}`,
@@ -101,7 +97,7 @@ export function shapePath(kind: ShapeKind, width: number, height: number, inset 
         `V${round(y + bodyH - r)}`,
         `A${round(r)} ${round(r)} 0 0 1 ${round(x + w - r)} ${round(y + bodyH)}`,
         `H${round(tailRight)}`,
-        `L${round(x + w * 0.12)} ${round(y + h)}`,
+        `L${round(x + w * 0.13)} ${round(y + h)}`,
         `L${round(tailLeft)} ${round(y + bodyH)}`,
         `H${round(x + r)}`,
         `A${round(r)} ${round(r)} 0 0 1 ${round(x)} ${round(y + bodyH - r)}`,
@@ -111,15 +107,15 @@ export function shapePath(kind: ShapeKind, width: number, height: number, inset 
       ].join(' ')
     }
     case 'block_arrow': {
-      const head = Math.min(w * 0.45, h * 0.9)
+      const head = Math.min(w * 0.42, h * 0.85)
       return polygon([
-        [x, y + h * 0.28],
-        [x + w - head, y + h * 0.28],
+        [x, y + h * 0.27],
+        [x + w - head, y + h * 0.27],
         [x + w - head, y],
         [x + w, y + h / 2],
         [x + w - head, y + h],
-        [x + w - head, y + h * 0.72],
-        [x, y + h * 0.72],
+        [x + w - head, y + h * 0.73],
+        [x, y + h * 0.73],
       ])
     }
   }
@@ -140,16 +136,16 @@ export function shapeTextBox(
     case 'ellipse':
       return box(0.15, 0.15, 0.15, 0.15)
     case 'triangle':
-      return box(0.25, 0.4, 0.25, 0.05)
+      return box(0.24, 0.4, 0.24, 0.06)
     case 'diamond':
       return box(0.22, 0.22, 0.22, 0.22)
     case 'star':
       return box(0.3, 0.32, 0.3, 0.22)
     case 'speech_bubble':
-      return box(0.06, 0.04, 0.06, 0.26)
+      return box(0.08, 0.06, 0.08, 0.24)
     case 'block_arrow':
-      return box(0.04, 0.28, 0.3, 0.28)
+      return box(0.06, 0.28, 0.3, 0.28)
     default:
-      return box(0.05, 0.05, 0.05, 0.05)
+      return box(0.08, 0.08, 0.08, 0.08)
   }
 }
