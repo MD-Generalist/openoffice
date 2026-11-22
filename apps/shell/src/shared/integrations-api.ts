@@ -37,6 +37,8 @@ export interface IntegrationsStatus {
 export interface IntegrationsApi {
   /** probe the CLI link and every detected agent's skills directory (no writes) */
   status(): Promise<IntegrationsStatus>
+  /** lightweight check for whether any detected assistant holds an older skill (skips CLI PATH probe) */
+  skillUpdateDue?(): Promise<boolean>
   /**
    * write the bundled skill into one row's skills directory (or a picked folder); the shared
    * row also rewrites the legacy copies that are outdated, and a legacy row only takes a write
@@ -55,6 +57,7 @@ export interface IntegrationsApi {
 
 export const INTEGRATIONS_CHANNELS = {
   status: 'integrations:status',
+  skillUpdateDue: 'integrations:skill-update-due',
   installSkill: 'integrations:install-skill',
   uninstallSkill: 'integrations:uninstall-skill',
   pickSkillDir: 'integrations:pick-skill-dir',

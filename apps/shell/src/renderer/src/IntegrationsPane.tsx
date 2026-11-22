@@ -34,9 +34,7 @@ interface Pending {
 
 export const NPX_INSTALL_COMMAND = `npx skills add ${PRODUCT_REPO_SLUG}`
 
-/** some detected assistant holds an older copy of the skill than the bundled one */
-export const skillUpdateDue = (s: IntegrationsStatus): boolean =>
-  s.agents.some((a) => a.state.older === true)
+export { skillUpdateDue } from './integrations-helpers'
 
 const EXAMPLE_KEYS = ['intgExample1', 'intgExample2', 'intgExample3'] as const
 

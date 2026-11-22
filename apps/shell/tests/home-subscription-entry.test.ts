@@ -147,6 +147,18 @@ async function renderHome(map: SubscriptionStatusMap, options: RenderOptions = {
   })
 }
 
+async function waitForSelector(selector: string, timeoutMs = 4000): Promise<Element> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const found = host.querySelector(selector)
+    if (found) return found
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+  }
+  throw new Error(`Timed out waiting for selector: ${selector}`)
+}
+
 async function click(element: Element | null | undefined): Promise<void> {
   expect(element).toBeTruthy()
   await act(async () => {
@@ -237,6 +249,7 @@ describe('home settings entry', () => {
     expect(tip()).toBe('Claude · Off in this app')
     expect(entry().querySelector('.account-avatar')?.classList.contains('logged-in')).toBe(false)
     await click(entry())
+    await waitForSelector('.set-nav-item.active')
     expect(host.querySelector('.set-nav-item.active')?.textContent).toContain('AI')
   })
 
@@ -261,8 +274,8 @@ describe('home settings entry', () => {
     const refresh = vi.fn()
     await renderHome(statuses({ state: 'signed-out' }, { state: 'signed-out' }), { refresh })
     await click(entry())
-    const active = host.querySelector('.set-nav-item.active')
-    expect(active?.textContent).toContain('AI')
+    const active = await waitForSelector('.set-nav-item.active')
+    expect(active.textContent).toContain('AI')
     expect(host.querySelectorAll('.set-sub-cards .ai-sub-card')).toHaveLength(3)
 
     await click(host.querySelector('.set-close'))
@@ -298,6 +311,7 @@ describe('a request for Settings while the welcome window is up', () => {
     await renderHome(none, { welcomeOpen: true, onSettingsOpenChange })
     // a skill file dropped on the window: the main process asks for Settings → Skills
     await act(async () => askForSettings!({ section: 'skills' }))
+    await waitForSelector('.set-dialog')
     expect(dialog()).not.toBeNull()
     expect(host.querySelector('.set-nav-item.active')?.textContent).toContain('Skills')
     expect(overlay()!.classList.contains('over-welcome')).toBe(true)
@@ -308,6 +322,7 @@ describe('a request for Settings while the welcome window is up', () => {
   it('is not marked when no welcome window is up', async () => {
     await renderHome(none)
     await act(async () => askForSettings!({ section: 'skills' }))
+    await waitForSelector('.set-dialog')
     expect(dialog()).not.toBeNull()
     expect(overlay()!.classList.contains('over-welcome')).toBe(false)
   })
@@ -344,7 +359,7 @@ describe('first-connection notice on the home screen', () => {
     const map = statuses({ state: 'signed-out' }, { state: 'signed-out' })
     await renderHome(map, { noticeDue: false })
     await click(entry())
-    await click(host.querySelector('.set-close'))
+    await click(await waitForSelector('.set-close'))
     expect(host.querySelector('.first-notice')).toBeNull()
     // the connection made in the dialog arrives with the refresh
     await renderHome(ready, { noticeDue: true })
@@ -365,6 +380,7 @@ describe('ask panel without a connection', () => {
   const openAsk = async (): Promise<void> => {
     const items = host.querySelectorAll<HTMLElement>('.sidebar-nav .nav-item')
     await click(items[2])
+    await waitForSelector('.kb-ask')
   }
 
   it('says what to connect and leads to Settings → AI', async () => {
@@ -373,6 +389,7 @@ describe('ask panel without a connection', () => {
     const hint = host.querySelector('.kb-ask-login')!
     expect(hint.textContent).toContain(aiSubscriptionText('en', 'connectTitle'))
     await click(hint.querySelector('.kb-ask-login-link'))
+    await waitForSelector('.set-nav-item.active')
     expect(host.querySelector('.set-nav-item.active')?.textContent).toContain('AI')
   })
 

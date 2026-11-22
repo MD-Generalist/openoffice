@@ -114,6 +114,17 @@ function nav(label: string): HTMLButtonElement {
     (button) => button.querySelector('.nav-label')?.textContent === label,
   )!
 }
+async function waitForSelector(selector: string, timeoutMs = 4000): Promise<Element> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const found = container.querySelector(selector)
+    if (found) return found
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+  }
+  throw new Error(`Timed out waiting for selector: ${selector}`)
+}
 async function click(button: HTMLButtonElement) {
   expect(button).toBeTruthy()
   await act(async () => button.click())
@@ -129,6 +140,7 @@ describe('Home sidebar navigation', () => {
     await click(nav(from))
     expect(selected()).toEqual([from])
     await click(nav('Ask AI'))
+    await waitForSelector('.kb-ask')
     expect(container.querySelector('.kb-ask')).not.toBeNull()
     expect(selected()).toEqual(['Ask AI'])
     expect(nav('Ask AI').getAttribute('aria-current')).toBe('page')

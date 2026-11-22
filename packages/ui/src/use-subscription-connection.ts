@@ -114,6 +114,12 @@ export interface UseSubscriptionConnectionOptions {
   /** read `codexImageAvailable` once on mount (shell) */
   readonly readCodexImageAvailable?: boolean
   /**
+   * Optional delay before the initial status / recheck / codex-image IPC calls
+   * start on mount, so the host can finish first paint before spawning CLIs.
+   * Live `onChanged` updates still arrive immediately.
+   */
+  readonly initialDelayMs?: number
+  /**
    * How a browser page is opened when the bridge has no handler: `window`
    * opens it here (the editors), `api` asks the main process (shell, pdf).
    * `auto` uses the bridge's handler when it has one and falls back to `window`.
@@ -210,14 +216,27 @@ export function useSubscriptionConnection(
 
   useEffect(() => {
     alive.current = true
-    void attempt(optionsRef.current.api, (api) => api.statuses()).then(apply)
-    if (optionsRef.current.checkOnMount) void check()
-    if (optionsRef.current.readCodexImageAvailable) {
-      void attempt(optionsRef.current.api, (api) =>
-        api.codexImageAvailable ? api.codexImageAvailable() : Promise.resolve(false),
-      ).then((available) => {
-        if (alive.current) setCodexImageAvailable(available === true)
-      })
+    const runInitial = () => {
+      if (!alive.current) return
+      void attempt(optionsRef.current.api, (api) => api.statuses()).then(apply)
+      if (optionsRef.current.checkOnMount) void check()
+      if (optionsRef.current.readCodexImageAvailable) {
+        void attempt(optionsRef.current.api, (api) =>
+          api.codexImageAvailable ? api.codexImageAvailable() : Promise.resolve(false),
+        ).then((available) => {
+          if (alive.current) setCodexImageAvailable(available === true)
+        })
+      }
+    }
+    const delayMs = optionsRef.current.initialDelayMs ?? 0
+    let initialTimer: ReturnType<typeof setTimeout> | null = null
+    if (delayMs > 0) {
+      initialTimer = setTimeout(() => {
+        initialTimer = null
+        runInitial()
+      }, delayMs)
+    } else {
+      runInitial()
     }
     let off: (() => void) | undefined
     try {
@@ -247,6 +266,7 @@ export function useSubscriptionConnection(
     window.addEventListener('focus', onFocus)
     return () => {
       alive.current = false
+      if (initialTimer !== null) clearTimeout(initialTimer)
       window.removeEventListener('focus', onFocus)
       off?.()
     }

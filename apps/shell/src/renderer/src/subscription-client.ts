@@ -62,13 +62,16 @@ export interface SubscriptionConnection {
   readonly openConnectHelp: (path: SubscriptionConnectHelpPath | null) => void
 }
 
-export function useSubscriptionConnection(): SubscriptionConnection {
+export function useSubscriptionConnection(options?: {
+  initialDelayMs?: number
+}): SubscriptionConnection {
   const shared = useSharedSubscriptionConnection({
     api: () => window.aiOfficeSubscription,
     help: 'api',
     checkOnMount: true,
     refreshMode: 'statuses',
     readCodexImageAvailable: true,
+    ...(options?.initialDelayMs ? { initialDelayMs: options.initialDelayMs } : {}),
   })
   return {
     statuses: shared.statuses,

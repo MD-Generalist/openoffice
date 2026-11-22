@@ -7,8 +7,17 @@ export default defineConfig({
   // imported docs/sheets main modules are TS source with no build artifacts,
   // so externalizing them would break Node ESM resolution at runtime.
   main: {
-    // node:sqlite is a Node 22+ builtin the bundler's builtin list may predate
-    build: { rollupOptions: { external: ['node:sqlite'] } },
+    // node:sqlite is a Node 22+ builtin the bundler's builtin list may predate;
+    // index.js is a thin V8 compile-cache bootstrap that synchronously requires ./shell-main.js.
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/main/bootstrap.ts'),
+          'shell-main': resolve(__dirname, 'src/main/index.ts'),
+        },
+        external: ['node:sqlite', './shell-main.js'],
+      },
+    },
     // the Google client for Drive (decision 0033) comes from the build's
     // environment only; without it the build offers no Drive at all
     define: {

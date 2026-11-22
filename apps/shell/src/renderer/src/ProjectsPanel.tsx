@@ -15,8 +15,8 @@ import type {
   ProjectFolderApi,
   ProjectId,
   ProjectListItem,
-  ProjectScreenSection,
 } from '@genoffice/project-store'
+import { subscribeProjectScreen, type ProjectScreenRequest } from './project-screen-events'
 import {
   aiContextConfirmText,
   aiRunErrorText,
@@ -51,33 +51,7 @@ import './projects-panel.css'
  * buttons on each row here, so they are reachable from the keyboard.
  */
 
-/** A request to show the screen at a project (and section), from `onOpenProjectScreen` */
-export interface ProjectScreenRequest {
-  projectId: ProjectId
-  section?: ProjectScreenSection
-  /** bumps on every request, so asking for the same project again still applies */
-  seq: number
-}
-
-/**
- * Listen for "show the project screen" from main (an AI panel's "[view]").
- * Returns the unsubscribe function; a window without the bridge listens to nothing.
- */
-export function subscribeProjectScreen(
-  bridge: Pick<ProjectFolderApi, 'onOpenProjectScreen'> | null | undefined,
-  onRequest: (request: ProjectScreenRequest) => void,
-): () => void {
-  if (!bridge || typeof bridge.onOpenProjectScreen !== 'function') return () => undefined
-  let seq = 0
-  return bridge.onOpenProjectScreen((event) => {
-    seq += 1
-    onRequest({
-      projectId: event.projectId,
-      ...(event.section ? { section: event.section } : {}),
-      seq,
-    })
-  })
-}
+export { subscribeProjectScreen, type ProjectScreenRequest }
 
 type Tab = 'instructions' | 'memory' | 'files' | 'chats'
 
