@@ -23,7 +23,10 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The suite grew past the 45m set at the first release: typecheck, the Rust
+    # sidecar build and the tests now take about 42m together, so the job was
+    # cut off mid-run (#609). Keep 15m of room, as the e2e job does.
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
