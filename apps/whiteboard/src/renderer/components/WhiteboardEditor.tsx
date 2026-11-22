@@ -84,7 +84,7 @@ import {
   renderPdfPagesToPng,
 } from '../export/pdf-import'
 import { renderPageToSvg, richTextPlain } from '../export/render-svg'
-import { useI18n } from '../i18n/locale'
+import { t as tGlobal, useI18n } from '../i18n/locale'
 import {
   AlignCenterIcon,
   AlignLeftIcon,
@@ -675,7 +675,7 @@ export function WhiteboardEditor({
       try {
         const info = await inspectPdfBytes(bytes)
         if (info.pageCount <= 0) {
-          onToast(t('pdfImportFailed', { error: 'empty PDF' }))
+          onToast(tGlobal('pdfImportFailed', { error: 'empty PDF' }))
           return
         }
         if (info.pageCount === 1) {
@@ -687,13 +687,13 @@ export function WhiteboardEditor({
         setPdfRange(`1-${Math.min(info.pageCount, MAX_PDF_IMPORT_PAGES)}`)
       } catch (err) {
         onToast(
-          t('pdfImportFailed', {
+          tGlobal('pdfImportFailed', {
             error: err instanceof Error ? err.message : String(err),
           }),
         )
       }
     },
-    [onToast, session, t],
+    [onToast, session],
   )
 
   const handlePickPdf = useCallback(async () => {
@@ -723,7 +723,7 @@ export function WhiteboardEditor({
     try {
       const nums = parsePdfPageRange(pdfRange, pdfPending.pageCount, MAX_PDF_IMPORT_PAGES)
       if (nums.length === 0) {
-        onToast(t('pdfImportFailed', { error: 'no pages selected' }))
+        onToast(tGlobal('pdfImportFailed', { error: 'no pages selected' }))
         return
       }
       const rendered = await renderPdfPagesToPng(pdfPending.bytes, nums)
@@ -731,19 +731,19 @@ export function WhiteboardEditor({
       setPdfPending(null)
     } catch (err) {
       onToast(
-        t('pdfImportFailed', {
+        tGlobal('pdfImportFailed', {
           error: err instanceof Error ? err.message : String(err),
         }),
       )
     } finally {
       setPdfBusy(false)
     }
-  }, [onToast, pdfBusy, pdfPending, pdfRange, session, t])
+  }, [onToast, pdfBusy, pdfPending, pdfRange, session])
 
   const handleConfirmLinkCard = useCallback(async () => {
     const safe = openableLink(linkUrl)
     if (!safe) {
-      onToast(t('linkInvalidUrl'))
+      onToast(tGlobal('linkInvalidUrl'))
       return
     }
     localStorage.setItem(LINK_PREVIEW_PREF, linkFetchPreview ? '1' : '0')
@@ -763,10 +763,10 @@ export function WhiteboardEditor({
             previewResourceId = added.resourceId
           }
         } else {
-          onToast(t('linkPreviewFailed'))
+          onToast(tGlobal('linkPreviewFailed'))
         }
       } catch {
-        onToast(t('linkPreviewFailed'))
+        onToast(tGlobal('linkPreviewFailed'))
       } finally {
         setLinkBusy(false)
       }
@@ -784,7 +784,7 @@ export function WhiteboardEditor({
     setLinkModalOpen(false)
     setLinkUrl('')
     setLinkTitle('')
-  }, [linkFetchPreview, linkTitle, linkUrl, onToast, session, t])
+  }, [linkFetchPreview, linkTitle, linkUrl, onToast, session])
 
   // Drag & drop routing:
   // - `.pdf` dropped onto whiteboard -> PDF page background import
@@ -1341,10 +1341,10 @@ export function WhiteboardEditor({
   const handleOpenLinkCard = useCallback(
     (url: string) => {
       void window.whiteboardApi.core.openLink(url).then((opened) => {
-        if (!opened) onToast(t('linkNotOpened'))
+        if (!opened) onToast(tGlobal('linkNotOpened'))
       })
     },
-    [onToast, t],
+    [onToast],
   )
 
   const handleDuplicateSelected = useCallback(() => {

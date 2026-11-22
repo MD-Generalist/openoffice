@@ -20,7 +20,7 @@ import { WhiteboardAiDock, useWhiteboardAiOpen } from './ai/AiDock'
 import { WhiteboardEditor, type WhiteboardEditorMenuAction } from './components/WhiteboardEditor'
 import { WhiteboardSession } from './document/session'
 import { renderPageToSvg, renderSvgToPngBytes } from './export/render-svg'
-import { useI18n } from './i18n/locale'
+import { t as tGlobal, useI18n } from './i18n/locale'
 
 const AUTO_SAVE_INTERVAL_MS = 30_000
 const RECOVERY_INTERVAL_MS = 20_000
@@ -44,13 +44,15 @@ export default function App(): ReactElement {
     cmd: WhiteboardEditorMenuAction
   } | null>(null)
 
-  const [autoSave, setAutoSave] = useAutoSavePref('whiteboardapp.autoSave', {
-    getAutoSaveDefault: () => window.whiteboardApi.core.getAutoSaveDefault(),
-    onAutoSaveDefaultChanged: (h) => window.whiteboardApi.core.onAutoSaveDefaultChanged(h),
-  })
+  const [autoSave, setAutoSave] = useAutoSavePref(
+    'whiteboardapp.autoSave',
+    window.whiteboardApi.core,
+  )
 
   const sessionRef = useRef<WhiteboardSession | null>(null)
   sessionRef.current = session
+  const aiOpenRef = useRef(aiOpen)
+  aiOpenRef.current = aiOpen
   const savingRef = useRef(false)
 
   useSplitPaneFocusPing()
@@ -179,10 +181,10 @@ export default function App(): ReactElement {
     const { bytes } = await s.serializeForSave({ updateThumbnail: false })
     await window.whiteboardApi.recovery.writeRecoveryCopy({
       bytes,
-      title: s.getDocument().title || t('untitled'),
+      title: s.getDocument().title || tGlobal('untitled'),
       originalPath: s.getFilePath(),
     })
-  }, [t])
+  }, [])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -220,13 +222,13 @@ export default function App(): ReactElement {
       const s = sessionRef.current
       if (!s) return
       const doc = s.getDocument()
-      const suggestedName = doc.title || t('untitled')
+      const suggestedName = doc.title || tGlobal('untitled')
       try {
         if (format === 'pdf') {
           const pages = buildPrintPages(s, scope)
           const res = await window.whiteboardApi.exporting.exportPdf({ suggestedName, pages })
           if (!res.ok && !res.canceled) {
-            showToast(t('exportFailed', { error: res.error ?? 'unknown error' }))
+            showToast(tGlobal('exportFailed', { error: res.error ?? 'unknown error' }))
           }
           return
         }
@@ -256,13 +258,15 @@ export default function App(): ReactElement {
           singlePage: scope === 'current',
         })
         if (!res.ok && !res.canceled) {
-          showToast(t('exportFailed', { error: res.error ?? 'unknown error' }))
+          showToast(tGlobal('exportFailed', { error: res.error ?? 'unknown error' }))
         }
       } catch (err) {
-        showToast(t('exportFailed', { error: err instanceof Error ? err.message : String(err) }))
+        showToast(
+          tGlobal('exportFailed', { error: err instanceof Error ? err.message : String(err) }),
+        )
       }
     },
-    [buildPrintPages, showToast, t],
+    [buildPrintPages, showToast],
   )
 
   const handlePrint = useCallback(async () => {
@@ -271,16 +275,16 @@ export default function App(): ReactElement {
     try {
       const pages = buildPrintPages(s, 'all')
       const res = await window.whiteboardApi.exporting.print({
-        title: s.getDocument().title || t('untitled'),
+        title: s.getDocument().title || tGlobal('untitled'),
         pages,
       })
       if (!res.ok && !res.canceled) {
-        showToast(t('printFailed', { error: res.error ?? 'unknown error' }))
+        showToast(tGlobal('printFailed', { error: res.error ?? 'unknown error' }))
       }
     } catch (err) {
-      showToast(t('printFailed', { error: err instanceof Error ? err.message : String(err) }))
+      showToast(tGlobal('printFailed', { error: err instanceof Error ? err.message : String(err) }))
     }
-  }, [buildPrintPages, showToast, t])
+  }, [buildPrintPages, showToast])
 
   // Subscribe to shell IPC events (save, close-save, export, print, menu, recovery, MCP queries).
   useEffect(() => {
@@ -304,7 +308,7 @@ export default function App(): ReactElement {
         if (cmd === 'undo') sessionRef.current?.undo()
         else if (cmd === 'redo') sessionRef.current?.redo()
         else if (cmd === 'present') setPresenting((v) => !v)
-        else if (cmd === 'toggle-ai') setAiOpen(!aiOpen)
+        else if (cmd === 'toggle-ai') setAiOpen(!aiOpenRef.current)
         else if (
           cmd === 'import-pdf' ||
           cmd === 'zoom-in' ||
@@ -380,7 +384,7 @@ export default function App(): ReactElement {
     return () => {
       for (const u of unsubs) u()
     }
-  }, [aiOpen, handlePrint, performSave, setAiOpen, writeRecoveryNow])
+  }, [handlePrint, performSave, setAiOpen, writeRecoveryNow])
 
   if (loadError) {
     return (
