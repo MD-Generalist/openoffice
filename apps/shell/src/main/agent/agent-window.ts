@@ -51,7 +51,7 @@ import {
   type AgentMcpSession,
 } from './agent-sessions'
 import type { AgentSkillToolHooks } from './agent-mcp'
-import { startAgentMcpRelays, type AgentRelayHub } from './agent-mcp-relay'
+import type { AgentRelayHub } from './agent-mcp-relay'
 import {
   agentSkillProposalOf,
   agentTemplateCandidates,
@@ -659,6 +659,7 @@ export function configureAgentWindow(next: AgentWindowDeps): void {
               externalVaults: [],
               stop: async () => undefined,
             }
+          const { startAgentMcpRelays } = await import('./agent-mcp-relay')
           return startAgentMcpRelays({
             hub,
             ask,

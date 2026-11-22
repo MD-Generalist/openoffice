@@ -7,6 +7,9 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type { ZodRawShape } from 'zod'
+import { DEFAULT_MCP_PORT } from './constants'
+
+export { DEFAULT_MCP_PORT }
 
 /**
  * Local MCP server for GenOffice.
@@ -66,7 +69,6 @@ export interface McpSessionServer {
   connect(transport: Transport): Promise<void>
 }
 
-export const DEFAULT_MCP_PORT = 3093
 const LISTEN_RETRY_DELAY_MS = 1500
 const MAX_BODY_BYTES = 32 * 1024 * 1024
 

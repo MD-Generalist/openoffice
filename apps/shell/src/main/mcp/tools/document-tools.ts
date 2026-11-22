@@ -3,7 +3,10 @@ import { basename, extname, isAbsolute, join } from 'node:path'
 import { PRODUCT_NAME } from '@genoffice/i18n'
 import { z } from 'zod'
 import { createFileViaCli, readDocxTextViaCli } from '../headless-cli'
+import { sanitizeFileBase } from '../file-base'
 import type { McpToolDefinition } from '../mcp-server'
+
+export { sanitizeFileBase }
 import { capabilityReport, generateExtension } from './formats'
 import type { FamilyDriver, SessionHost, TargetResolver } from './session-tools'
 import { contentTarget } from './session-tools'
@@ -70,19 +73,6 @@ export interface DocsControl {
 const DOCX_EXT = `.${generateExtension('docx')}`
 // read_docx goes through the CLI's `docs read`, which reads .odt the same way
 const READABLE_WORD_EXTS = new Set([DOCX_EXT, '.odt'])
-
-/** sanitize a title into a file base name (mirrors docs' sanitizeAiDocFileBase) */
-export function sanitizeFileBase(title: string): string {
-  const cleaned = String(title ?? '')
-    // eslint-disable-next-line no-control-regex -- control characters are rejected on purpose
-    .replace(/[/\\:*?"<>|\u0000-\u001f]/g, '_')
-    .trim()
-    .slice(0, 80)
-    .trim()
-    .replace(/^\.+|\.+$/g, '')
-    .trim()
-  return cleaned && cleaned !== '.' && cleaned !== '..' ? cleaned : 'Untitled'
-}
 
 /** first free path for fileName inside dir: name.docx, name-2.docx, … */
 export function uniquePathIn(dir: string, fileName: string): string {

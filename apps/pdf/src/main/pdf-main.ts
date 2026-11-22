@@ -142,13 +142,6 @@ import {
 } from './signature-store'
 import { uniqueGeneratedPdfPath } from './generated-output'
 import { validateRedactionRegions } from './redaction'
-import { SignError, inspectCertificate, openCertificate, signPdf } from './pdf-sign'
-import { readPdfSignatures } from './pdf-signatures'
-import {
-  SystemStoreError,
-  exportSystemCertificate,
-  listSystemCertificates,
-} from './system-certificates'
 import type { ExportedIdentity, SystemCertificateRef } from './system-certificates'
 import {
   createNoteLinkService,
@@ -1011,7 +1004,10 @@ async function certMaterial(
   storePassword?: string,
 ): Promise<{ p12: Uint8Array; password: string }> {
   if (entry.kind === 'file') return { p12: await readCertificateFile(entry.path), password }
-  entry.identity ??= await exportSystemCertificate(entry.ref, storePassword)
+  if (!entry.identity) {
+    const { exportSystemCertificate } = await import('./system-certificates')
+    entry.identity = await exportSystemCertificate(entry.ref, storePassword)
+  }
   return entry.identity
 }
 
@@ -2900,6 +2896,7 @@ function registerPdfIpc(): void {
     async (e, path: unknown): Promise<PdfSignatureInfo[]> => {
       if (typeof path !== 'string' || !allowedByWc.get(e.sender.id)?.has(path)) return []
       try {
+        const { readPdfSignatures } = await import('./pdf-signatures')
         return await readPdfSignatures(await viewDocumentBytes(e.sender.id, path))
       } catch {
         return []
@@ -2927,6 +2924,7 @@ function registerPdfIpc(): void {
   ipcMain.handle(
     PDF_CHANNELS.listSystemCertificates,
     async (e, storePassword: unknown): Promise<ListSystemCertificatesResult> => {
+      const { listSystemCertificates } = await import('./system-certificates')
       const listing = await listSystemCertificates(
         typeof storePassword === 'string' && storePassword ? storePassword : undefined,
       )
@@ -2964,6 +2962,7 @@ function registerPdfIpc(): void {
       const entry = certEntryOf(e.sender.id, certId)
       if (!entry || typeof password !== 'string') return { ok: false, error: 'cert-invalid' }
       try {
+        const { inspectCertificate } = await import('./pdf-sign')
         const material = await certMaterial(
           entry,
           password,
@@ -2971,6 +2970,7 @@ function registerPdfIpc(): void {
         )
         return inspectCertificate(material.p12, material.password)
       } catch (err) {
+        const { SystemStoreError } = await import('./system-certificates')
         return { ok: false, error: err instanceof SystemStoreError ? err.code : 'cert-invalid' }
       }
     },
@@ -3002,6 +3002,7 @@ function registerPdfIpc(): void {
       }
       redactionFlows.add(e.sender.id)
       setPdfSaveAsInFlight(e.sender, true)
+      const { SignError, openCertificate, signPdf } = await import('./pdf-sign')
       try {
         const material = await certMaterial(
           certEntry,
@@ -3047,6 +3048,7 @@ function registerPdfIpc(): void {
         }
         return { ok: true, path: target }
       } catch (err) {
+        const { SystemStoreError } = await import('./system-certificates')
         if (err instanceof SignError || err instanceof SystemStoreError) {
           return { ok: false, error: err.code }
         }

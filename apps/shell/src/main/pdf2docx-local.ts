@@ -8,16 +8,12 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { convertPdfToDocx, PdfLoadError } from '../../../../packages/pdf2docx/src'
+import { PdfLoadError } from '../../../../packages/pdf2docx/src/extract/pdfium'
 import type { ConvertResult, OcrEngine, PdfiumModule } from '../../../../packages/pdf2docx/src'
-import {
-  createVisionOcrEngine,
-  createWindowsOcrEngine,
-} from '../../../../packages/pdf2docx/src/ocr-vision'
 import { pdfiumWasmPath } from '../../../pdf/src/main/wasm-path'
 
 export type { ConvertResult, PageResult } from '../../../../packages/pdf2docx/src'
-export { PdfLoadError } from '../../../../packages/pdf2docx/src'
+export { PdfLoadError } from '../../../../packages/pdf2docx/src/extract/pdfium'
 
 /**
  * Local OCR engine for scanned pages (platform system OCR; see
@@ -30,8 +26,10 @@ export { PdfLoadError } from '../../../../packages/pdf2docx/src'
  * Dev: the compiled helper in the repo (packages/pdf2docx/ocr-helper/).
  */
 let ocrEngine: OcrEngine | null | undefined
-function ensureOcrEngine(): OcrEngine | null {
+async function ensureOcrEngine(): Promise<OcrEngine | null> {
   if (ocrEngine !== undefined) return ocrEngine
+  const { createVisionOcrEngine, createWindowsOcrEngine } =
+    await import('../../../../packages/pdf2docx/src/ocr-vision')
   const here = dirname(fileURLToPath(import.meta.url))
   const helper = process.platform === 'darwin' ? 'vision-ocr' : 'win-ocr.exe'
   const create = process.platform === 'darwin' ? createVisionOcrEngine : createWindowsOcrEngine
@@ -83,10 +81,13 @@ export async function convertPdfFileToDocxLocal(
   onProgress?: (page: number, total: number) => void,
   password?: string,
 ): Promise<ConvertResult> {
-  const pdfium = await ensurePdfium()
+  const [pdfium, ocr, { convertPdfToDocx }] = await Promise.all([
+    ensurePdfium(),
+    ensureOcrEngine(),
+    import('../../../../packages/pdf2docx/src'),
+  ])
   const bytes = readFileSync(pdfPath)
   const pdf = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  const ocr = ensureOcrEngine()
   return convertPdfToDocx(pdf, {
     pdfium,
     ...(ocr ? { ocr } : {}),

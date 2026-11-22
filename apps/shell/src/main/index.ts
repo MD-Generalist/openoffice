@@ -232,14 +232,14 @@ import {
   type McpSettings,
 } from './mcp/app-mcp'
 import { createCliRunner } from './mcp/cli-runner'
-import { DEFAULT_MCP_PORT } from './mcp/mcp-server'
+import { DEFAULT_MCP_PORT } from './mcp/constants'
 import { createDocsControl, installDocsBridge } from './mcp/docs-bridge'
 import { createSlidesControl } from './mcp/slides-bridge'
 import { createSheetsControl, installSheetsBridge } from './mcp/sheets-bridge'
 import { createOpenDocumentsControl, createOpenTargetResolver } from './mcp/open-documents-bridge'
 import { createDiagramControl } from './mcp/diagram-bridge'
 import { createWhiteboardControl } from './mcp/whiteboard-bridge'
-import { sanitizeFileBase } from './mcp/tools/document-tools'
+import { sanitizeFileBase } from './mcp/file-base'
 import { createFileViaCli } from './mcp/headless-cli'
 import {
   configureSheetsRuntime,
@@ -625,7 +625,6 @@ import {
 } from './agent/agent-window'
 import { queueSkillHandoffFor } from '@genoffice/electron-utils/generate-handoff'
 import { openMarkdownAsHangul, type MarkdownImportDeps } from './hwp-import'
-import { startAgentMcpServer } from './agent/agent-mcp'
 import { sweepAgentSessionFolders } from './agent/agent-session-folders'
 import { userSkillsManageGate } from './agent/agent-skills'
 import {
@@ -7862,21 +7861,41 @@ interface MenuIconSet {
   whiteboard: NativeImage
   home: NativeImage
 }
+const MENU_ICON_PATHS: Record<keyof MenuIconSet, readonly [string, string]> = {
+  docx: [menuDocxIcon1x, menuDocxIcon2x],
+  xlsx: [menuXlsxIcon1x, menuXlsxIcon2x],
+  pptx: [menuPptxIcon1x, menuPptxIcon2x],
+  pdf: [menuPdfIcon1x, menuPdfIcon2x],
+  md: [menuMdIcon1x, menuMdIcon2x],
+  html: [menuHtmlIcon1x, menuHtmlIcon2x],
+  mindmap: [menuMindmapIcon1x, menuMindmapIcon2x],
+  hwp: [menuHwpIcon1x, menuHwpIcon2x],
+  epub: [menuEpubIcon1x, menuEpubIcon2x],
+  diagram: [menuDiagramIcon1x, menuDiagramIcon2x],
+  whiteboard: [menuWhiteboardIcon1x, menuWhiteboardIcon2x],
+  home: [menuHomeIcon1x, menuHomeIcon2x],
+}
+// Decode each icon on first demand rather than all 24 PNGs when e.g. only the tray icon is read.
+const menuIconEntries: Partial<MenuIconSet> = {}
 let menuIconCache: MenuIconSet | null = null
 function menuIcons(): MenuIconSet {
-  menuIconCache ??= {
-    docx: loadMenuIcon(menuDocxIcon1x, menuDocxIcon2x),
-    xlsx: loadMenuIcon(menuXlsxIcon1x, menuXlsxIcon2x),
-    pptx: loadMenuIcon(menuPptxIcon1x, menuPptxIcon2x),
-    pdf: loadMenuIcon(menuPdfIcon1x, menuPdfIcon2x),
-    md: loadMenuIcon(menuMdIcon1x, menuMdIcon2x),
-    html: loadMenuIcon(menuHtmlIcon1x, menuHtmlIcon2x),
-    mindmap: loadMenuIcon(menuMindmapIcon1x, menuMindmapIcon2x),
-    hwp: loadMenuIcon(menuHwpIcon1x, menuHwpIcon2x),
-    epub: loadMenuIcon(menuEpubIcon1x, menuEpubIcon2x),
-    diagram: loadMenuIcon(menuDiagramIcon1x, menuDiagramIcon2x),
-    whiteboard: loadMenuIcon(menuWhiteboardIcon1x, menuWhiteboardIcon2x),
-    home: loadMenuIcon(menuHomeIcon1x, menuHomeIcon2x),
+  if (!menuIconCache) {
+    const view = {} as MenuIconSet
+    for (const key of Object.keys(MENU_ICON_PATHS) as Array<keyof MenuIconSet>) {
+      Object.defineProperty(view, key, {
+        enumerable: true,
+        get() {
+          let icon = menuIconEntries[key]
+          if (!icon) {
+            const [p1, p2] = MENU_ICON_PATHS[key]
+            icon = loadMenuIcon(p1, p2)
+            menuIconEntries[key] = icon
+          }
+          return icon
+        },
+      })
+    }
+    menuIconCache = view
   }
   return menuIconCache
 }
@@ -11206,9 +11225,10 @@ app.whenReady().then(async () => {
       codex: (options, onEvent) => startCodexAgentSession(options, onEvent),
     },
     // the session's skill tools only show a card or an install proposal in the agent window
-    startAppMcp: (projectRoot, { skillTools }) => {
+    startAppMcp: async (projectRoot, { skillTools }) => {
       const mcp = currentMcpRuntimeDeps()
       if (!mcp) throw new Error('the MCP runtime is not configured')
+      const { startAgentMcpServer } = await import('./agent/agent-mcp')
       return startAgentMcpServer({ ...mcp, skillTools }, projectRoot)
     },
     // the person's MCP servers reach a session through relays the app opens (user MCP spec 9)

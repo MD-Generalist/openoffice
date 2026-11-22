@@ -254,16 +254,37 @@ function MoreDots() {
   )
 }
 
+const timeFormatters = new Map<string, Intl.DateTimeFormat>()
+const dateFormatters = new Map<string, Intl.DateTimeFormat>()
+
+function cachedTimeFormat(locale: string): Intl.DateTimeFormat {
+  let fmt = timeFormatters.get(locale)
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' })
+    timeFormatters.set(locale, fmt)
+  }
+  return fmt
+}
+
+function cachedDateFormat(locale: string): Intl.DateTimeFormat {
+  let fmt = dateFormatters.get(locale)
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' })
+    dateFormatters.set(locale, fmt)
+  }
+  return fmt
+}
+
 function formatModified(mtimeMs: number, i18n: I18n): string {
   const date = new Date(mtimeMs)
   const now = new Date()
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   const days = Math.round((startOfDay(now) - startOfDay(date)) / 86400000)
   if (days <= 0) {
-    return `${i18n.t('today')} · ${date.toLocaleTimeString(i18n.dateLocale, { hour: '2-digit', minute: '2-digit' })}`
+    return `${i18n.t('today')} · ${cachedTimeFormat(i18n.dateLocale).format(date)}`
   }
   if (days === 1) return i18n.t('yesterday')
-  return date.toLocaleDateString(i18n.dateLocale, { month: 'short', day: 'numeric' })
+  return cachedDateFormat(i18n.dateLocale).format(date)
 }
 
 function formatSize(bytes: number): string {
