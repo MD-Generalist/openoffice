@@ -33,9 +33,10 @@
 - **UI 크롬은 `@genoffice/ui` 토큰만 쓰고(`check:theme-colors`), 보드 용지·오브젝트·PNG·SVG·PDF·인쇄 출력은 앱 다크 테마와 무관하게 항상 밝은 색을 유지한다.**
 - **창구 이름은 `whiteboard:`로 시작한다.** 공용 `ai:*`·구독 창구는 여기서 등록하지 않는다.
 - **AI 끄기(`aiVisible(useAppChoice(window.aiOfficeEditorChoice))`)를 따른다.** AI가 꺼지면 AI 패널과 레일을 그리지 않는다.
+- **기본 스킬 `whiteboard`가 이 편집기의 도구·연산·페이지 형식·도형·스티커·색상표·템플릿 예시를 적는다**(`apps/shell/resources/builtin-skills/whiteboard`). 도구나 연산·형식·도형·스티커·색상표를 바꾸면 그 본문도 고친다(`tests/builtin-skill.test.ts`가 지킨다, 결정 0132).
 - 문구는 22개 언어 모두 채우고, 제품 이름은 `GenOffice`로 적는다.
 
 ## 테스트
 
 - `npm run test -w @genoffice/whiteboard`, `npm run typecheck -w @genoffice/whiteboard`, `npm run build -w @genoffice/whiteboard`.
-- 보안/저장 불변량(`tests/main-security.test.ts`), 캔버스 세션/무변경 저장/링크/다크테마(`tests/canvas.test.ts`), AI 도구/실행취소/비전 폴백(`tests/ai-tools.test.ts`).
+- 보안/저장 불변량(`tests/main-security.test.ts`), 캔버스 세션/무변경 저장/링크/다크테마(`tests/canvas.test.ts`), AI 도구/실행취소/비전 폴백(`tests/ai-tools.test.ts`), 기본 스킬(`tests/builtin-skill.test.ts`).

@@ -94,6 +94,7 @@ describe('BUILTIN_SKILL_STRINGS', () => {
       'hwp-exam-paper': 'hwp',
       mindmap: 'mindmap',
       diagram: 'diagram',
+      whiteboard: 'whiteboard',
       'html-document': 'html',
     }
     for (const [name, editor] of Object.entries(editors)) {
