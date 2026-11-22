@@ -54,7 +54,22 @@ async function mount(over: Partial<PrintDialogProps> = {}) {
 const q = <T extends Element>(sel: string) => container!.querySelector<T>(sel)
 const range = (v: string) => q<HTMLInputElement>(`input[data-print-range="${v}"]`)!
 const printButton = () => q<HTMLButtonElement>('[data-print-confirm]')!
+const printerSelect = () => q<HTMLSelectElement>('[data-print="printer"]')!
+const copiesInput = () => q<HTMLInputElement>('[data-print="copies"]')!
+const collateInput = () => q<HTMLInputElement>('[data-print="collate"]')!
+const duplexSelect = () => q<HTMLSelectElement>('[data-print="duplex"]')!
 const click = (el: Element) => act(async () => (el as HTMLElement).click())
+const setValue = async (el: HTMLInputElement | HTMLSelectElement, value: string) => {
+  const proto =
+    el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(proto, 'value')!.set!.call(el, value)
+    el.dispatchEvent(
+      new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }),
+    )
+  })
+}
+const DEFAULT_JOB = { deviceName: '', copies: 1, collate: true, duplex: 'simplex' }
 
 describe('PrintDialog', () => {
   it('shows the shared layout panel with paper and fit', async () => {
@@ -86,10 +101,61 @@ describe('PrintDialog', () => {
     await click(printButton())
     const onPrint = props.onPrint as ReturnType<typeof vi.fn>
     expect(onPrint.mock.calls).toEqual([
-      [undefined, createDefaultOptions()],
-      [[2], createDefaultOptions()],
-      [[3, 5], createDefaultOptions()],
+      [undefined, createDefaultOptions(), DEFAULT_JOB],
+      [[2], createDefaultOptions(), DEFAULT_JOB],
+      [[3, 5], createDefaultOptions(), DEFAULT_JOB],
     ])
+  })
+
+  it('passes chosen printer, copies, collate and duplex to onPrint', async () => {
+    const listPrinters = vi.fn(async () => [{ name: 'HP-Office', displayName: 'HP Office' }])
+    const props = await mount({ listPrinters })
+    expect(listPrinters).toHaveBeenCalledTimes(1)
+    await setValue(printerSelect(), 'HP-Office')
+    await setValue(copiesInput(), '3')
+    await click(collateInput())
+    await setValue(duplexSelect(), 'longEdge')
+    await click(printButton())
+    expect(props.onPrint).toHaveBeenCalledWith(undefined, createDefaultOptions(), {
+      deviceName: 'HP-Office',
+      copies: 3,
+      collate: false,
+      duplex: 'longEdge',
+    })
+  })
+
+  it('disables copies, collate and duplex when system print dialog is chosen', async () => {
+    const props = await mount()
+    await setValue(printerSelect(), '\u0000system-dialog')
+    expect(copiesInput().disabled).toBe(true)
+    expect(collateInput().disabled).toBe(true)
+    expect(duplexSelect().disabled).toBe(true)
+    await click(printButton())
+    expect(props.onPrint).toHaveBeenCalledWith(undefined, createDefaultOptions(), {
+      deviceName: null,
+    })
+  })
+
+  it('couples duplex with booklet and odd/even, and locks collate for layout options', async () => {
+    await mount()
+    await setValue(copiesInput(), '2')
+    await click(collateInput())
+    expect(collateInput().checked).toBe(false)
+
+    await setValue(duplexSelect(), 'longEdge')
+    await click(q('input[data-pl="mode"][value="booklet"]')!)
+    expect(duplexSelect().value).toBe('shortEdge')
+    expect(collateInput().checked).toBe(true)
+    expect(collateInput().disabled).toBe(true)
+
+    await click(q('input[data-pl="sides"][value="odd"]')!)
+    expect(duplexSelect().value).toBe('simplex')
+
+    await click(q('input[data-pl="mode"][value="single"]')!)
+    await click(q('input[data-pl="sides"][value="all"]')!)
+    expect(duplexSelect().value).toBe('longEdge')
+    expect(collateInput().checked).toBe(false)
+    expect(collateInput().disabled).toBe(false)
   })
 
   it('hands chosen layout options to the editor', async () => {
@@ -115,7 +181,7 @@ describe('PrintDialog', () => {
   it('marks a custom range that does not parse instead of printing', async () => {
     const props = await mount()
     await click(range('custom'))
-    const field = q<HTMLInputElement>('input.pdf-modal-input')!
+    const field = q<HTMLInputElement>('input[data-print="range-custom"]')!
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
       setter.call(field, '9')
@@ -123,7 +189,7 @@ describe('PrintDialog', () => {
     })
     await click(printButton())
     expect(props.onPrint).not.toHaveBeenCalled()
-    expect(q('input.pdf-modal-input.invalid')).not.toBeNull()
+    expect(q('input[data-print="range-custom"].invalid')).not.toBeNull()
   })
 })
 

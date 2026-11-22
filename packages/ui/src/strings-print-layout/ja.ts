@@ -95,4 +95,13 @@ export const ja = {
   rangeCurrentPage: '現在のページ',
   print: '印刷',
   rangeInvalid: 'ページ範囲は「1-3, 5」のように入力してください。',
+  printer: 'プリンター',
+  defaultPrinter: '既定のプリンター',
+  systemDialog: 'システムの印刷ダイアログ…',
+  copies: '部数',
+  collate: '部単位で印刷',
+  duplex: '両面印刷',
+  duplexOff: '片面',
+  duplexLong: '両面（長辺とじ）',
+  duplexShort: '両面（短辺とじ）',
 } satisfies Record<keyof typeof zh, string>

@@ -352,6 +352,7 @@ import type {
   TextInsertInput,
   PdfToolsHandoffTool,
   PdfPrintLayoutEditor,
+  PrintJobOptions,
 } from '../shared/ipc'
 import { PDF_PRINT_SAVE_RESTRICTED } from '../shared/ipc'
 import {
@@ -8276,6 +8277,7 @@ export default function App() {
     kind: 'print' | 'save',
     options: PrintLayoutOptions,
     pages: number[] | null,
+    job?: PrintJobOptions,
   ) => {
     if (printBusyRef.current) return
     printBusyRef.current = true
@@ -8286,7 +8288,11 @@ export default function App() {
       const result = await flushThen(async () => {
         setPrinting(true)
         try {
-          const request = { options, editor: printLayoutEditor(pages) }
+          const request = {
+            options,
+            editor: printLayoutEditor(pages),
+            ...(kind === 'print' && job ? { job } : {}),
+          }
           return kind === 'print' ? await bridge.print(request) : await bridge.savePdf(request)
         } finally {
           setPrinting(false)
@@ -8297,22 +8303,34 @@ export default function App() {
         return
       }
       setPrintJob(PRINT_JOB_IDLE)
-      if (kind === 'print' && result?.ok) setPrintDlg(false)
+      // closing the system print dialog keeps this one open
+      if (kind === 'print' && result?.ok && !('canceled' in result && result.canceled)) {
+        setPrintDlg(false)
+      }
     } finally {
       stopProgress()
       printBusyRef.current = false
     }
   }
 
-  /** Print pressed: default options keep the current path and its arguments */
-  const confirmPrint = (pages: number[] | undefined, options: PrintLayoutOptions) => {
-    routePrint(options, pages, {
-      current: (...args) => {
-        setPrintDlg(false)
-        void printDoc(...args)
+  /** Print pressed: system dialog with default options keeps the current path */
+  const confirmPrint = (
+    pages: number[] | undefined,
+    options: PrintLayoutOptions,
+    job: PrintJobOptions,
+  ) => {
+    routePrint(
+      options,
+      pages,
+      {
+        current: (...args) => {
+          setPrintDlg(false)
+          void printDoc(...args)
+        },
+        arranged: (jobPages) => void runArrangedJob('print', options, jobPages, job),
       },
-      arranged: (jobPages) => void runArrangedJob('print', options, jobPages),
-    })
+      job,
+    )
   }
 
   const previewArranged = async (
@@ -8335,6 +8353,11 @@ export default function App() {
       stopProgress()
     }
   }
+
+  const listPdfPrinters = useCallback(
+    () => window.pdfApi.printLayout.listPrinters?.() ?? Promise.resolve([]),
+    [],
+  )
 
   const printLabelSpecStore = useMemo<PrintLabelSpecStore>(
     () => ({
@@ -14275,6 +14298,7 @@ export default function App() {
                 pickedPages={printPickedPages}
                 includeAnnotations={printAnnots}
                 onIncludeAnnotationsChange={setPrintAnnots}
+                listPrinters={listPdfPrinters}
                 pageSizes={printPageSizes}
                 onPrint={confirmPrint}
                 onSavePdf={(pages, options) => void runArrangedJob('save', options, pages ?? null)}

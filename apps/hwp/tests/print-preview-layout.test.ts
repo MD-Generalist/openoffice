@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { LANGS } from '@genoffice/i18n'
+import { SYSTEM_DIALOG } from '@genoffice/ui'
 import { LocaleProvider } from '../src/renderer/i18n/locale'
 import { strings } from '../src/renderer/i18n/strings'
 import { PrintPreview } from '../src/renderer/preview/PrintPreview'
@@ -176,15 +177,40 @@ async function click(element: HTMLElement): Promise<void> {
   await settle()
 }
 
+async function selectValue(selector: string, value: string): Promise<void> {
+  const el = container.querySelector<HTMLSelectElement>(selector)
+  if (!el) throw new Error(`no select ${selector}`)
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, value)
+    el.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await settle()
+}
+
+const DEFAULT_JOB = { deviceName: '', copies: 1, collate: true, duplex: 'simplex' }
+
 describe('the print preview at default layout options', () => {
-  it('prints through onPrint exactly as before', async () => {
+  it('prints through onPrint exactly as before when system dialog is chosen', async () => {
     const { onPrint, printLayout, gatherJob } = await mount()
+    await selectValue('select[data-print="printer"]', SYSTEM_DIALOG)
     await act(async () => button('Print…').click())
     await settle()
     expect(onPrint).toHaveBeenCalledTimes(1)
     expect(onPrint).toHaveBeenCalledWith('print', expect.any(Function))
     expect(gatherJob).not.toHaveBeenCalled()
     expect(printLayout.print).not.toHaveBeenCalled()
+  })
+
+  it('prints silently with duplex via printLayout when an in-app printer is chosen', async () => {
+    const { onPrint, printLayout } = await mount()
+    await selectValue('select[data-print="duplex"]', 'longEdge')
+    await click(button('Print…'))
+    expect(onPrint).not.toHaveBeenCalled()
+    expect(printLayout.print).toHaveBeenCalledWith({
+      options: expect.objectContaining({ mode: 'single' }),
+      editor: JOB,
+      job: { ...DEFAULT_JOB, duplex: 'longEdge' },
+    })
   })
 
   it('exports a PDF through onPrint exactly as before', async () => {
@@ -195,8 +221,9 @@ describe('the print preview at default layout options', () => {
     expect(onPrint).toHaveBeenCalledWith('pdf', expect.any(Function))
   })
 
-  it('prints through onPrint on a File > Print that arrives while it is open', async () => {
+  it('prints through onPrint on a File > Print that arrives while it is open with system dialog', async () => {
     const { onPrint, render } = await mount()
+    await selectValue('select[data-print="printer"]', SYSTEM_DIALOG)
     await render({ printSignal: 1 })
     expect(onPrint).toHaveBeenCalledTimes(1)
     expect(onPrint).toHaveBeenCalledWith('print', expect.any(Function))
@@ -225,6 +252,7 @@ describe('the print preview with a layout option on', () => {
     expect(printLayout.print).toHaveBeenCalledWith({
       options: expect.objectContaining({ reverse: true, mode: 'single' }),
       editor: JOB,
+      job: DEFAULT_JOB,
     })
   })
 
@@ -236,6 +264,7 @@ describe('the print preview with a layout option on', () => {
     expect(printLayout.print).toHaveBeenCalledWith({
       options: expect.objectContaining({ grayscale: true }),
       editor: JOB,
+      job: DEFAULT_JOB,
     })
   })
 

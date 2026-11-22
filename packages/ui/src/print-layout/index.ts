@@ -27,12 +27,19 @@ export {
   type SchematicView,
 } from './model'
 export {
+  DEFAULT_PRINTER,
+  SYSTEM_DIALOG,
   useArrangedPreview,
   useDuplexCoupling,
+  usePrintJob,
   usePrintLayoutOptions,
   type ArrangedPreviewState,
+  type PrintJobSelection,
+  type PrintJobState,
   type PrintLayoutPreviewRequest,
+  type PrintPrinterInfo,
 } from './hooks'
+export { PrintJobFields, type PrintJobFieldsProps } from './PrintJobFields'
 export {
   PrintLayoutPanel,
   type PrintLabelSpecStore,

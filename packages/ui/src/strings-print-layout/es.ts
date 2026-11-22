@@ -97,4 +97,13 @@ export const es = {
   rangeCurrentPage: 'Página actual',
   print: 'Imprimir',
   rangeInvalid: 'Escriba el intervalo de páginas como «1-3, 5».',
+  printer: 'Impresora',
+  defaultPrinter: 'Impresora predeterminada',
+  systemDialog: 'Diálogo de impresión del sistema…',
+  copies: 'Copias',
+  collate: 'Intercalar',
+  duplex: 'Doble cara',
+  duplexOff: 'Desactivado',
+  duplexLong: 'Voltear por el borde largo',
+  duplexShort: 'Voltear por el borde corto',
 } satisfies Record<keyof typeof zh, string>

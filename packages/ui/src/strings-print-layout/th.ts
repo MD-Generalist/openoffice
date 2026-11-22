@@ -94,4 +94,13 @@ export const th = {
   rangeCurrentPage: 'หน้าปัจจุบัน',
   print: 'พิมพ์',
   rangeInvalid: 'เขียนช่วงหน้าแบบ "1-3, 5"',
+  printer: 'เครื่องพิมพ์',
+  defaultPrinter: 'เครื่องพิมพ์เริ่มต้น',
+  systemDialog: 'กล่องโต้ตอบการพิมพ์ของระบบ…',
+  copies: 'จำนวนชุด',
+  collate: 'เรียงชุด',
+  duplex: 'พิมพ์สองหน้า',
+  duplexOff: 'ปิด',
+  duplexLong: 'พลิกด้านยาว',
+  duplexShort: 'พลิกด้านสั้น',
 } satisfies Record<keyof typeof zh, string>

@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Lang } from '@genoffice/i18n'
-import { printLayoutText } from '@genoffice/ui'
+import { printLayoutText, SYSTEM_DIALOG } from '@genoffice/ui'
 import { createDefaultOptions, paperSizePt } from '@genoffice/print-layout/plan'
 import App from '../src/renderer/App'
 import { LocaleProvider } from '../src/renderer/i18n/locale'
@@ -171,10 +171,22 @@ async function click(selector: string): Promise<void> {
   await settle()
 }
 
+async function selectValue(selector: string, value: string): Promise<void> {
+  const element = document.querySelector<HTMLSelectElement>(selector)
+  if (!element) throw new Error(`nothing matches ${selector}`)
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(element, value)
+    element.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await settle()
+}
+
+const DEFAULT_JOB = { deviceName: '', copies: 1, collate: true, duplex: 'simplex' }
+
 const status = (): string => container.querySelector('.mm-save-status')!.textContent ?? ''
 
 describe('Print with nothing changed in the dialog', () => {
-  it('opens the dialog first, then hands the print exactly the page it was handed before', async () => {
+  it('opens the dialog first, then hands the print exactly the page it was handed before when system dialog is chosen', async () => {
     const fake = await mount()
     await openPrint(fake)
     // the page is made when Print is asked for; nothing is printed until the dialog says so
@@ -183,12 +195,31 @@ describe('Print with nothing changed in the dialog', () => {
     // one page: no range to choose
     expect(document.querySelector('[data-pl="range"]')).toBeNull()
 
+    await selectValue('select[data-print="printer"]', SYSTEM_DIALOG)
     await click('button[data-pl="print"]')
     await until(() => fake.prints.length === 1, 'the print')
     // the same call as before the dialog: `{ html: snapshotPage(snapshot) }` and nothing else
     expect(fake.prints).toEqual([{ html: snapshotPage(fakeSnapshot()) }])
     expect(Object.keys(fake.prints[0] as object)).toEqual(['html'])
     expect(fake.layout).toEqual([])
+    expect(dialog()).toBeNull()
+  })
+
+  it('sends duplex job via printLayout when an in-app printer is chosen', async () => {
+    const fake = await mount()
+    await openPrint(fake)
+    await selectValue('select[data-print="duplex"]', 'longEdge')
+    await click('button[data-pl="print"]')
+    await until(() => fake.layout.length === 1, 'the duplex print')
+    expect(fake.layout[0]).toEqual({
+      kind: 'print',
+      request: {
+        options: createDefaultOptions(),
+        editor: { html: snapshotPage(fakeSnapshot()), suggestedName: 'test' },
+        job: { ...DEFAULT_JOB, duplex: 'longEdge' },
+      },
+    })
+    expect(fake.prints).toEqual([])
     expect(dialog()).toBeNull()
   })
 
@@ -227,6 +258,7 @@ describe('Print with a page layout option on', () => {
         options: expected,
         // the page the plain print would have printed: the map in its own colours
         editor: { html: snapshotPage(fakeSnapshot()), suggestedName: 'test' },
+        job: DEFAULT_JOB,
       },
     })
     expect(fake.prints).toEqual([])

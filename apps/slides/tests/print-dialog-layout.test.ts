@@ -9,6 +9,7 @@ import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type { RenderSlide } from '@genoffice/pptx-render'
 import { LANGS } from '@genoffice/i18n'
+import { SYSTEM_DIALOG } from '@genoffice/ui'
 
 vi.mock('../src/renderer/export-render', () => ({
   renderSlidesToPngBase64: vi.fn(async (slides: unknown[]) =>
@@ -132,10 +133,12 @@ async function choose(el: Element | null, value: string) {
 }
 
 const printButton = (c: HTMLElement) => q<HTMLButtonElement>(c, '.modal-actions button.primary')
+const DEFAULT_JOB = { deviceName: '', copies: 1, collate: true, duplex: 'simplex' }
 
 describe('slides print dialog, default options', () => {
-  it('prints full slides through slides:print with today’s arguments', async () => {
+  it('prints full slides through slides:print with today’s arguments when system dialog is chosen', async () => {
     const { container, onClose } = await mount()
+    await choose(q(container, 'select[data-print="printer"]'), SYSTEM_DIALOG)
     await click(printButton(container))
     expect(api.printLayout.print).not.toHaveBeenCalled()
     expect(api.printSlides).toHaveBeenCalledTimes(1)
@@ -148,8 +151,22 @@ describe('slides print dialog, default options', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('prints silently with duplex through printLayout when an in-app printer is chosen', async () => {
+    const { container, onClose } = await mount()
+    await choose(q(container, 'select[data-print="duplex"]'), 'longEdge')
+    await click(printButton(container))
+    expect(api.printSlides).not.toHaveBeenCalled()
+    expect(api.printLayout.print).toHaveBeenCalledTimes(1)
+    expect(api.printLayout.print.mock.calls[0]![0].job).toEqual({
+      ...DEFAULT_JOB,
+      duplex: 'longEdge',
+    })
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it('keeps handouts, notes, orientation, frame and hidden slides as before', async () => {
     const { container } = await mount({ hidden: [1] })
+    await choose(q(container, 'select[data-print="printer"]'), SYSTEM_DIALOG)
     await click(q(container, 'input[data-layout="notes"]'))
     await click(q(container, 'input[name="print-orientation"][value="landscape"]'))
     await click(printButton(container))
@@ -163,6 +180,7 @@ describe('slides print dialog, default options', () => {
     })
 
     const second = await mount()
+    await choose(q(second.container, 'select[data-print="printer"]'), SYSTEM_DIALOG)
     await click(q(second.container, 'input[name="print-frame"]'))
     await click(printButton(second.container))
     expect(api.printSlides.mock.calls[1]![0]).toStrictEqual({
@@ -184,8 +202,9 @@ describe('"selected slides" range', () => {
     expect(q(two.container, 'input[data-range="selected"]')!.disabled).toBe(false)
   })
 
-  it('prints the chosen slides through slides:print as a range', async () => {
+  it('prints the chosen slides through slides:print as a range when system dialog is chosen', async () => {
     const { container } = await mount({ selectedSlides: [1, 3], current: 1 })
+    await choose(q(container, 'select[data-print="printer"]'), SYSTEM_DIALOG)
     await click(q(container, 'input[data-range="selected"]'))
     await click(printButton(container))
     expect(api.printLayout.print).not.toHaveBeenCalled()
@@ -217,7 +236,8 @@ describe('layout modes follow the slide print layout', () => {
     expect(q(container, 'input[data-pl="grayscale"]')!.disabled).toBe(false)
     expect(q<HTMLSelectElement>(container, 'select[data-pl="dpi"]')!.disabled).toBe(false)
 
-    // the forced mode means defaults again: the current print path
+    // the forced mode means defaults again: the current print path with system dialog
+    await choose(q(container, 'select[data-print="printer"]'), SYSTEM_DIALOG)
     await click(printButton(container))
     expect(api.printLayout.print).not.toHaveBeenCalled()
     expect(api.printSlides.mock.calls[0]![0]).toMatchObject({ layout: 'handout3' })
@@ -267,8 +287,7 @@ describe('options on', () => {
       layout: 'full',
       frame: true,
     })
-    // no in-app printer: the system dialog
-    expect(req.job).toBeUndefined()
+    expect(req.job).toEqual(DEFAULT_JOB)
     expect(onClose).toHaveBeenCalled()
   })
 

@@ -14,6 +14,7 @@ export function printOptionsFor(request: WorkbookExportPdfRequest): WebContentsP
     ...(request.deviceName === undefined ? {} : { deviceName: request.deviceName }),
     ...(request.copies === undefined ? {} : { copies: request.copies }),
     ...(request.collate === undefined ? {} : { collate: request.collate }),
+    ...(request.duplex === undefined ? {} : { duplexMode: request.duplex }),
     printBackground: true,
     landscape: request.landscape,
     pageSize:

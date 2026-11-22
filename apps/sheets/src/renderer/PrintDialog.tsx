@@ -12,9 +12,12 @@ import {
   PrintLayoutPanel,
   PrintLayoutSchematic,
   printLayoutProblem,
+  printLayoutText,
   showsLayoutSchematic,
   takesNewPrintRoute,
+  useDuplexCoupling,
   usePrintLayoutOptions,
+  type PrintLayoutDuplex,
   type PrintLayoutPreviewRequest,
   type PrintLayoutProgress,
 } from '@genoffice/ui'
@@ -148,6 +151,7 @@ export function PrintDialog({
   const modal = useModalDialog(onClose)
   // Mounted per open, so every print starts from the defaults (spec 4).
   const [layout, setLayout] = usePrintLayoutOptions(true)
+  const { duplex, setDuplex } = useDuplexCoupling(layout, 'simplex')
   const [layoutProgress, setLayoutProgress] = useState<PrintLayoutProgress | null>(null)
   const layoutRunning = useRef(false)
 
@@ -316,10 +320,12 @@ export function PrintDialog({
   }
 
   const print = (): void => {
+    const systemDialog = deviceName === SYSTEM_DIALOG
     const output = {
-      deviceName: deviceName === SYSTEM_DIALOG ? null : deviceName,
+      deviceName: systemDialog ? null : deviceName,
       copies,
       collate,
+      ...(systemDialog ? {} : { duplex }),
       pages,
     }
     void (arranged
@@ -373,6 +379,7 @@ export function PrintDialog({
                   min={1}
                   max={999}
                   value={copies}
+                  disabled={deviceName === SYSTEM_DIALOG}
                   onChange={(event) =>
                     setCopies(Math.min(999, Math.max(1, Number(event.target.value) || 1)))
                   }
@@ -382,10 +389,23 @@ export function PrintDialog({
                 <input
                   type="checkbox"
                   checked={effectiveCollate(layout, collate)}
-                  disabled={isCollateLocked(layout)}
+                  disabled={deviceName === SYSTEM_DIALOG || isCollateLocked(layout)}
                   onChange={(event) => setCollate(event.target.checked)}
                 />
                 {t('dlgPrintCollate')}
+              </label>
+              <label className="dialog-span">
+                {printLayoutText(lang, 'duplex')}
+                <select
+                  data-print="duplex"
+                  value={duplex}
+                  disabled={deviceName === SYSTEM_DIALOG}
+                  onChange={(event) => setDuplex(event.target.value as PrintLayoutDuplex)}
+                >
+                  <option value="simplex">{printLayoutText(lang, 'duplexOff')}</option>
+                  <option value="longEdge">{printLayoutText(lang, 'duplexLong')}</option>
+                  <option value="shortEdge">{printLayoutText(lang, 'duplexShort')}</option>
+                </select>
               </label>
               <label className="dialog-span">
                 {t('dlgPrintRange')}

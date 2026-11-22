@@ -94,4 +94,13 @@ export const he = {
   rangeCurrentPage: 'העמוד הנוכחי',
   print: 'הדפסה',
   rangeInvalid: 'כתבו את טווח העמודים בצורה "1-3, 5".',
+  printer: 'מדפסת',
+  defaultPrinter: 'מדפסת ברירת מחדל',
+  systemDialog: 'תיבת הדפסה של המערכת…',
+  copies: 'עותקים',
+  collate: 'איסוף עותקים',
+  duplex: 'הדפסה דו-צדדית',
+  duplexOff: 'כבוי',
+  duplexLong: 'הפיכה בצד הארוך',
+  duplexShort: 'הפיכה בצד הקצר',
 } satisfies Record<keyof typeof zh, string>

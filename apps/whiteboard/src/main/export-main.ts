@@ -9,6 +9,8 @@ import { BrowserWindow, app, dialog, ipcMain, type WebContents } from 'electron'
 import { configuredDefaultSaveDir, showSaveDialogWithMemory } from '@genoffice/electron-utils'
 import { atomicWriteFile } from '@genoffice/electron-utils/atomic-write'
 import {
+  ensurePrintLayoutIpc,
+  LABEL_SPEC_FILE_NAME,
   registerPrintLayoutIpc,
   type PrintLayoutInvokeEvent,
 } from '@genoffice/electron-utils/print-arranged'
@@ -250,6 +252,11 @@ export function registerWhiteboardExportIpc(
       }
     },
   )
+
+  ensurePrintLayoutIpc({
+    ipcMain,
+    labelSpecPath: () => join(app.getPath('userData'), LABEL_SPEC_FILE_NAME),
+  })
 
   registerPrintLayoutIpc<WhiteboardPrintJob>('whiteboard', {
     ipcMain,

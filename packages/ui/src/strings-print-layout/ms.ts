@@ -94,4 +94,13 @@ export const ms = {
   rangeCurrentPage: 'Halaman semasa',
   print: 'Cetak',
   rangeInvalid: 'Tulis julat halaman seperti "1-3, 5".',
+  printer: 'Pencetak',
+  defaultPrinter: 'Pencetak lalai',
+  systemDialog: 'Dialog cetak sistem…',
+  copies: 'Salinan',
+  collate: 'Susun',
+  duplex: 'Dua muka',
+  duplexOff: 'Mati',
+  duplexLong: 'Balik pada tepi panjang',
+  duplexShort: 'Balik pada tepi pendek',
 } satisfies Record<keyof typeof zh, string>

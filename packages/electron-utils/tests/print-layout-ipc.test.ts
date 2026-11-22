@@ -314,8 +314,20 @@ describe('shared label grid store', () => {
     expect(ipc.registrations).toEqual([
       PRINT_LAYOUT_SHARED_CHANNELS.labelSpecGet,
       PRINT_LAYOUT_SHARED_CHANNELS.labelSpecSet,
+      PRINT_LAYOUT_SHARED_CHANNELS.listPrinters,
     ])
     const event = sender(1).event
+    expect(await ipc.invoke(PRINT_LAYOUT_SHARED_CHANNELS.listPrinters, event)).toEqual([])
+    const withPrinters = {
+      sender: {
+        ...event.sender,
+        getPrintersAsync: async () => [{ name: 'HP', displayName: 'HP Office' }, { name: 'Raw' }],
+      },
+    }
+    expect(await ipc.invoke(PRINT_LAYOUT_SHARED_CHANNELS.listPrinters, withPrinters)).toEqual([
+      { name: 'HP', displayName: 'HP Office' },
+      { name: 'Raw', displayName: 'Raw' },
+    ])
     expect(await ipc.invoke(PRINT_LAYOUT_SHARED_CHANNELS.labelSpecGet, event)).toBeNull()
     expect(await ipc.invoke(PRINT_LAYOUT_SHARED_CHANNELS.labelSpecSet, event, spec)).toEqual({
       ok: true,

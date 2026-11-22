@@ -91,6 +91,37 @@ describe('routePrint at default options (regression guard)', () => {
     expect(r.current.mock.calls).toEqual([[[3, 8]]])
     expect(r.arranged).not.toHaveBeenCalled()
   })
+
+  it('system dialog with default options keeps the current path', () => {
+    const r = routes()
+    expect(routePrint(createDefaultOptions(), undefined, r, { deviceName: null })).toBe('current')
+    expect(r.current).toHaveBeenCalledTimes(1)
+    expect(r.arranged).not.toHaveBeenCalled()
+  })
+})
+
+describe('routePrint with an in-app printer selected', () => {
+  it('takes the arranged route even at default layout options so duplex and copies apply', () => {
+    const r = routes()
+    expect(
+      routePrint(createDefaultOptions(), undefined, r, {
+        deviceName: '',
+        copies: 1,
+        collate: true,
+        duplex: 'longEdge',
+      }),
+    ).toBe('arranged')
+    expect(
+      routePrint(createDefaultOptions(), [2, 4], r, {
+        deviceName: 'Office',
+        copies: 2,
+        collate: false,
+        duplex: 'shortEdge',
+      }),
+    ).toBe('arranged')
+    expect(r.arranged.mock.calls).toEqual([[null], [[2, 4]]])
+    expect(r.current).not.toHaveBeenCalled()
+  })
 })
 
 describe('routePrint with a layout option on', () => {

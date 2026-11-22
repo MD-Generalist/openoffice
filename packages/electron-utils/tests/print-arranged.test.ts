@@ -221,6 +221,40 @@ describe('printing arranged faces', () => {
     expect(win.calls).not.toContain('show')
   })
 
+  it('honors collate: false for an unarranged silent print job', async () => {
+    const win = new FakeWindow()
+    const { outcome } = await print(win, {
+      options: opts(),
+      job: { deviceName: 'Office', copies: 2, collate: false, duplex: 'longEdge' },
+    })
+    expect(outcome).toEqual({ ok: true })
+    expect(win.printOptions).toMatchObject({
+      silent: true,
+      deviceName: 'Office',
+      copies: 2,
+      collate: false,
+      duplexMode: 'longEdge',
+    })
+
+    const sent: unknown[] = []
+    const mac = await print(new FakeWindow(), {
+      platform: 'darwin',
+      options: opts(),
+      job: { deviceName: 'Queue', copies: 2, collate: false, duplex: 'longEdge' },
+      sendCups: async (_pdf, job) => {
+        sent.push(job)
+        return { ok: true }
+      },
+    })
+    expect(mac.outcome).toEqual({ ok: true })
+    expect(sent[0]).toEqual({
+      deviceName: 'Queue',
+      copies: 2,
+      collate: false,
+      duplexMode: 'longEdge',
+    })
+  })
+
   it('sends a macOS in-app printer job to the queue as a PDF with landscape faces turned', async () => {
     const win = new FakeWindow()
     const created = vi.fn(() => win)

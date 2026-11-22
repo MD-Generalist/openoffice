@@ -438,6 +438,7 @@ export interface PrintOutputSettings {
   readonly deviceName: string | null
   readonly copies: number
   readonly collate: boolean
+  readonly duplex?: 'simplex' | 'longEdge' | 'shortEdge' | undefined
   /// 1-based inclusive job page range; null prints every page.
   readonly pages: { readonly from: number; readonly to: number } | null
 }
@@ -587,6 +588,9 @@ export function createPrintPreviewHost(ctx: PageLayoutContext): PrintPreviewHost
         ...(output.deviceName === null ? {} : { deviceName: output.deviceName }),
         copies: output.copies,
         collate: output.collate,
+        ...(output.deviceName === null || output.duplex === undefined
+          ? {}
+          : { duplex: output.duplex }),
       })
       if (result.ok) return t('appPrintSent')
       return result.error === undefined ? t('appPrintCanceled') : t('appPrintFailed')
@@ -603,7 +607,14 @@ export function createPrintPreviewHost(ctx: PageLayoutContext): PrintPreviewHost
       const result = await window.desktopApi.printLayout.print({
         options,
         editor: printRequest(job.documents, job.fileName, include(output.pages)),
-        job: { deviceName: output.deviceName, copies: output.copies, collate: true },
+        job: {
+          deviceName: output.deviceName,
+          copies: output.copies,
+          collate: true,
+          ...(output.deviceName === null || output.duplex === undefined
+            ? {}
+            : { duplex: output.duplex }),
+        },
       })
       if (result.ok) return result.canceled ? t('appPrintCanceled') : t('appPrintSent')
       if (isAborted(result)) return null

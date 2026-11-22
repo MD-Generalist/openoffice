@@ -94,4 +94,13 @@ export const ko = {
   rangeCurrentPage: '현재 쪽',
   print: '인쇄',
   rangeInvalid: '쪽 범위를 "1-3, 5"처럼 적으세요.',
+  printer: '프린터',
+  defaultPrinter: '기본 프린터',
+  systemDialog: '시스템 인쇄 대화 상자…',
+  copies: '매수',
+  collate: '한 부씩 인쇄',
+  duplex: '양면 인쇄',
+  duplexOff: '끄기',
+  duplexLong: '긴 쪽으로 넘김',
+  duplexShort: '짧은 쪽으로 넘김',
 } satisfies Record<keyof typeof zh, string>

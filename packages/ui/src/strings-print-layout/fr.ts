@@ -96,4 +96,13 @@ export const fr = {
   rangeCurrentPage: 'Page actuelle',
   print: 'Imprimer',
   rangeInvalid: 'Écrivez la plage de pages sous la forme « 1-3, 5 ».',
+  printer: 'Imprimante',
+  defaultPrinter: 'Imprimante par défaut',
+  systemDialog: 'Boîte de dialogue d’impression système…',
+  copies: 'Copies',
+  collate: 'Assembler',
+  duplex: 'Recto verso',
+  duplexOff: 'Désactivé',
+  duplexLong: 'Retourner sur le bord long',
+  duplexShort: 'Retourner sur le bord court',
 } satisfies Record<keyof typeof zh, string>

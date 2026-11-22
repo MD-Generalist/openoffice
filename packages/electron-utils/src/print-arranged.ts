@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import {
+  isDefaultOptions,
   PrintLayoutError,
   pdfiumWasmPath,
   RASTER_WORKER_DATA,
@@ -329,6 +330,9 @@ ${body}
 export async function printArranged(req: PrintArrangedRequest): Promise<PrintLayoutPrintResult> {
   const platform = req.platform ?? process.platform
   const jobOpts = printJobOptions(req.job)
+  // Arranged jobs (n-up, booklet, odd/even, reverse, etc.) always stay collated
+  // as whole sets; plain single-page silent jobs honor the caller's collate choice.
+  const collate = isDefaultOptions(req.options) ? (jobOpts.collate ?? true) : true
   const signal = req.signal
   let tempDir: string | null = null
   try {
@@ -350,7 +354,7 @@ export async function printArranged(req: PrintArrangedRequest): Promise<PrintLay
       const sent = await send(result.pdf, {
         ...(jobOpts.deviceName !== undefined ? { deviceName: jobOpts.deviceName } : {}),
         ...(jobOpts.copies !== undefined ? { copies: jobOpts.copies } : {}),
-        collate: true,
+        collate,
         ...(jobOpts.duplexMode !== undefined ? { duplexMode: jobOpts.duplexMode } : {}),
       })
       return sent.ok ? { ok: true } : { ok: false, error: sent.error ?? 'the print job failed' }
@@ -397,7 +401,7 @@ export async function printArranged(req: PrintArrangedRequest): Promise<PrintLay
         silent: jobOpts.silent,
         printBackground: true,
         margins: { marginType: 'none' },
-        collate: true,
+        collate,
         ...(jobOpts.silent
           ? {
               ...(jobOpts.deviceName !== undefined ? { deviceName: jobOpts.deviceName } : {}),
@@ -436,11 +440,12 @@ export interface PrintLayoutIpcMain {
   removeHandler?(channel: string): void
 }
 
-/** The part of the invoking `webContents` used: who asked, and where progress goes. */
+/** The part of the invoking `webContents` used: who asked, where progress goes, and OS printers. */
 export interface PrintLayoutSender {
   id: number
   send(channel: string, ...args: unknown[]): void
   isDestroyed(): boolean
+  getPrintersAsync?(): Promise<Array<{ name: string; displayName?: string }>>
 }
 
 export interface PrintLayoutInvokeEvent {
@@ -668,6 +673,13 @@ export function ensurePrintLayoutIpc(setup: PrintLayoutSharedSetup): LabelSpecSt
   setup.ipcMain.handle(PRINT_LAYOUT_SHARED_CHANNELS.labelSpecGet, () => store.get())
   setup.ipcMain.handle(PRINT_LAYOUT_SHARED_CHANNELS.labelSpecSet, (_event, spec: unknown) =>
     store.set(spec),
+  )
+  setup.ipcMain.handle(
+    PRINT_LAYOUT_SHARED_CHANNELS.listPrinters,
+    async (event: PrintLayoutInvokeEvent) => {
+      const printers = (await event?.sender?.getPrintersAsync?.()) ?? []
+      return printers.map((p) => ({ name: p.name, displayName: p.displayName || p.name }))
+    },
   )
   host[SHARED_STORE] = store
   return store

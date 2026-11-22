@@ -2,14 +2,17 @@ import { useMemo, useState } from 'react'
 import type { Lang } from '@genoffice/i18n'
 import type { PageSize, PrintLayoutOptions } from '@genoffice/print-layout/plan'
 import {
+  PrintJobFields,
   PrintLayoutPanel,
   printLayoutProblem,
   takesNewPrintRoute,
+  usePrintJob,
   usePrintLayoutOptions,
   type PrintLabelSpecStore,
   type PrintLayoutJob,
   type PrintLayoutPreviewRequest,
 } from '@genoffice/ui'
+import type { PrintJobOptions, PrinterInfo } from '../shared/ipc'
 import type { TFunc } from './i18n/locale'
 import { formatPageRanges } from './page-selection'
 import { canPrintPicked, printTargets, type PrintRangeMode } from './print-route'
@@ -27,10 +30,12 @@ export interface PrintDialogProps {
   pickedPages: readonly number[]
   includeAnnotations: boolean
   onIncludeAnnotationsChange: (include: boolean) => void
+  /** installed OS printers; when absent the list offers Default printer and System print dialog */
+  listPrinters?: () => Promise<PrinterInfo[]>
   /** the job's page sizes for these pages (undefined: all), null when unknown */
   pageSizes: (pages: number[] | undefined) => PageSize[] | null
   /** Print pressed with a valid range; `pages` undefined is the whole document */
-  onPrint: (pages: number[] | undefined, options: PrintLayoutOptions) => void
+  onPrint: (pages: number[] | undefined, options: PrintLayoutOptions, job: PrintJobOptions) => void
   onSavePdf?: (pages: number[] | undefined, options: PrintLayoutOptions) => void
   /** the document has permission restrictions: its arranged result is not
       saved as a PDF (that copy would carry none of them); printing still is */
@@ -46,17 +51,18 @@ export interface PrintDialogProps {
 }
 
 /**
- * The PDF print dialog: page range, "include annotations", and the shared
- * page layout panel. Mounted per open, so every open starts from the default
- * range and layout options. A document with permission restrictions gets no
- * "save the arranged result as PDF", with a line saying why.
+ * The PDF print dialog: printer/copies/duplex, page range, "include annotations",
+ * and the shared page layout panel. Mounted per open, so every open starts from
+ * the default range, duplex and layout options. A document with permission
+ * restrictions gets no "save the arranged result as PDF", with a line saying why.
  */
 export function PrintDialog(props: PrintDialogProps) {
-  const { lang, t, pageCount, currentPage, pickedPages, pageSizes, job } = props
+  const { lang, t, pageCount, currentPage, pickedPages, pageSizes, job, listPrinters } = props
   const [mode, setMode] = useState<PrintRangeMode>('all')
   const [customText, setCustomText] = useState(String(currentPage))
   const [invalid, setInvalid] = useState(false)
   const [options, setOptions] = usePrintLayoutOptions(true)
+  const printJob = usePrintJob(options, listPrinters)
 
   const targets = printTargets({ mode, customText, pageCount, currentPage, pickedPages })
   const targetKey = targets.ok ? (targets.pages?.join(',') ?? 'all') : null
@@ -74,7 +80,7 @@ export function PrintDialog(props: PrintDialogProps) {
       if (mode === 'custom') setInvalid(true)
       return
     }
-    props.onPrint(targets.pages, options)
+    props.onPrint(targets.pages, options, printJob.job)
   }
 
   const rangeRow = (value: PrintRangeMode, label: string, disabled = false) => (
@@ -95,6 +101,7 @@ export function PrintDialog(props: PrintDialogProps) {
     <div className="pdf-modal-mask" onClick={props.onCancel}>
       <div className="pdf-modal pdf-print-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="pdf-modal-title">{t('print')}</div>
+        <PrintJobFields lang={lang} state={printJob} disabled={running} />
         {rangeRow('all', t('printRangeAll'))}
         {rangeRow('current', `${t('printRangeCurrent')} (${currentPage})`)}
         {rangeRow(
@@ -108,6 +115,7 @@ export function PrintDialog(props: PrintDialogProps) {
         {mode === 'custom' && (
           <input
             className={`pdf-modal-input${invalid ? ' invalid' : ''}`}
+            data-print="range-custom"
             value={customText}
             placeholder={t('printRangeHint')}
             autoFocus

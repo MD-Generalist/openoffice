@@ -3,6 +3,8 @@ import type { Lang } from '@genoffice/i18n'
 import type { AiSettings, AiStreamChunk, AiStreamRequest } from '@genoffice/ai-provider'
 import type { SubscriptionApi } from './subscription-api'
 import type { PrintLayoutBridge } from '@genoffice/electron-utils/print-layout-bridge'
+import type { PrintDuplex, PrintJobOptions, PrinterInfo } from '@genoffice/electron-utils/print-job'
+export type { PrintDuplex, PrintJobOptions, PrinterInfo }
 import type { DocumentTree, InlineRun } from '../../../../packages/pdf-structure/src/tree/types'
 import type { PageFingerprint } from '../../../../packages/pdf-structure/src/tree/extract'
 import type { MarkdownWarning } from '../../../../packages/pdf-structure/src/markdown/write'

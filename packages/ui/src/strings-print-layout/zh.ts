@@ -91,4 +91,13 @@ export const zh = {
   rangeCurrentPage: '当前页',
   print: '打印',
   rangeInvalid: '请按“1-3, 5”的格式填写页面范围。',
+  printer: '打印机',
+  defaultPrinter: '默认打印机',
+  systemDialog: '系统打印对话框…',
+  copies: '份数',
+  collate: '逐份打印',
+  duplex: '双面打印',
+  duplexOff: '单面',
+  duplexLong: '双面（长边翻转）',
+  duplexShort: '双面（短边翻转）',
 }

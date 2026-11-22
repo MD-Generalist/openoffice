@@ -12,8 +12,10 @@ const KEYS = Object.keys(PRINT_LAYOUT_STRINGS.zh) as PrintLayoutStringKey[]
 const TECHNICAL = new Set<PrintLayoutStringKey>(['dpiValue', 'paperLetter', 'paperLegal'])
 /** Words a language shares with English for real */
 const COGNATES: Partial<Record<Lang, readonly PrintLayoutStringKey[]>> = {
-  id: ['modePoster'],
+  fr: ['copies'],
+  id: ['modePoster', 'printer'],
   ms: ['modePoster'],
+  nl: ['printer'],
 }
 
 const placeholders = (text: string): string[] =>
@@ -72,5 +74,8 @@ describe('PRINT_LAYOUT_STRINGS', () => {
     expect(printLayoutText('ko', 'fitToPaper')).toBe('용지에 맞춰 줄이기')
     expect(printLayoutText('ko', 'savePdf')).toBe('배치한 결과를 PDF로 저장')
     expect(printLayoutText('ko', 'progress', { done: 3, total: 10 })).toBe('10쪽 중 3쪽')
+    expect(printLayoutText('ko', 'duplex')).toBe('양면 인쇄')
+    expect(printLayoutText('ko', 'duplexLong')).toBe('긴 쪽으로 넘김')
+    expect(printLayoutText('ko', 'duplexShort')).toBe('짧은 쪽으로 넘김')
   })
 })

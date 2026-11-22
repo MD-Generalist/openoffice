@@ -94,4 +94,13 @@ export const id = {
   rangeCurrentPage: 'Halaman ini',
   print: 'Cetak',
   rangeInvalid: 'Tulis rentang halaman seperti "1-3, 5".',
+  printer: 'Printer',
+  defaultPrinter: 'Printer default',
+  systemDialog: 'Dialog cetak sistem…',
+  copies: 'Salinan',
+  collate: 'Susun',
+  duplex: 'Dua sisi',
+  duplexOff: 'Nonaktif',
+  duplexLong: 'Balik pada tepi panjang',
+  duplexShort: 'Balik pada tepi pendek',
 } satisfies Record<keyof typeof zh, string>

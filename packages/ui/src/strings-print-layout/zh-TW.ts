@@ -93,4 +93,13 @@ export const zhTW = {
   rangeCurrentPage: '目前頁面',
   print: '列印',
   rangeInvalid: '請依「1-3, 5」的格式填寫頁面範圍。',
+  printer: '印表機',
+  defaultPrinter: '預設印表機',
+  systemDialog: '系統列印對話方塊…',
+  copies: '份數',
+  collate: '逐份列印',
+  duplex: '雙面列印',
+  duplexOff: '單面',
+  duplexLong: '雙面（長邊翻頁）',
+  duplexShort: '雙面（短邊翻頁）',
 } satisfies Record<keyof typeof zh, string>
