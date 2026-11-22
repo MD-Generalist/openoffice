@@ -1,14 +1,18 @@
 /**
- * Interactive whiteboard canvas editor in warm paper-craft style:
- * - Warm paper workspace chrome (clean header, left miniature page rail, floating vertical
+ * Interactive whiteboard canvas editor inspired by Miro, Allo, and Claude Artifacts:
+ * - Refined workspace chrome (clean header, left miniature page rail, floating vertical
  *   icon tool rail, bottom-left undo/zoom capsules, dark floating contextual format bar)
- * - Warm paper-craft canvas objects:
- *   - Ivory paper (#FFFDF8) with warm 32px dot grid on freeform pages
- *   - Borderless square sticky notes (rx=3, layered paper shadow, warm paper fills, rich text)
- *   - Editorial typography text objects (font size, bold/italic/underline/strike, ink color, align)
- *   - Soft warm-fill geometric shapes with shape-aware inner text boxes and solid/dashed borders
- *   - Geometric pulled-back arrowheads with drag-to-draw, object-edge snapping, and endpoint handles
- *   - Die-cut paper stickers, warm parchment tables, link cards, and multiply highlighters
+ * - Modern tactile canvas objects:
+ *   - Warm ivory paper (#FFFDF8) with crisp subtle 24px dot matrix on freeform pages
+ *   - Miro/Allo tactile sticky notes (curved paper-lift shadow, top sheen, hairline rim,
+ *     luminous pastel palette, centered medium typography, instant typing on placement)
+ *   - Clean editorial typography text objects with CJK/Latin auto-sizing, seamless transparent
+ *     inline editing, size stepper, and optional pill/card background fills
+ *   - Harmonized diagram shapes (clean white/tinted cards, soft elevation, rounded corners)
+ *   - Straight, smooth curved (cubic Bezier), and rounded-elbow connectors with sleek open
+ *     chevron, stealth dart, and ringed-dot arrowheads, snap ports, quick-connect dots,
+ *     and midpoint pill label editing
+ *   - Clipped rounded tables, clean link cards, die-cut stickers, and multiply highlighters
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent, PointerEvent as ReactPointerEvent, ReactElement } from 'react'
@@ -16,7 +20,9 @@ import {
   computeStrokeOutline,
   type BoardObject,
   type ConnectorEnd,
+  type ConnectorHead,
   type ConnectorProps,
+  type ConnectorRouting,
   type ImageProps,
   type LineStyle,
   type LinkProps,
@@ -36,7 +42,10 @@ import {
 import { openableLink } from '../../shared/links'
 import type { ExportFormat } from '../../shared/ipc'
 import {
+  BOARD_FONT_STACK,
   computeConnectorGeometry,
+  CONNECTOR_WIDTH_PRESETS,
+  estimateTextBoxSize,
   findAttachTarget,
   FONT_SIZE_PRESETS,
   LINE_WIDTH_PRESETS,
@@ -46,10 +55,22 @@ import {
   PAPER_INK_SWATCHES,
   plainRichText,
   resolveConnectorEnd,
+  resolveConnectorEndpoint,
   richTextFormatState,
   setRichTextColor,
+  SHAPE_DEFAULT_FONT_SIZE,
+  SHAPE_STYLE_PRESETS,
+  SIDE_ANCHORS,
+  STICKY_DEFAULT_FONT_SIZE,
+  STICKY_DEFAULT_SIZE,
+  stickyLiftShadowPath,
+  strokeLineAttrs,
+  TEXT_BG_PRESETS,
+  TEXT_DEFAULT_FONT_SIZE,
   toggleRichTextMark,
+  typographyMetrics,
   updateRichTextPreservingStyle,
+  type ConnectorHeadShape,
   type RichMark,
   type SnapAttachTarget,
 } from '../canvas/paper-style'
@@ -71,9 +92,14 @@ import {
   ArrowEndIcon,
   ArrowStartIcon,
   BackIcon,
+  CircleEndIcon,
+  CircleStartIcon,
   ConnectorIcon,
+  CurvedRouteIcon,
   DashedLineIcon,
+  DottedLineIcon,
   DuplicateIcon,
+  ElbowRouteIcon,
   EraserIcon,
   ExportIcon,
   FitIcon,
@@ -93,9 +119,13 @@ import {
   ShapeIcon,
   ShapeKindGlyph,
   SolidLineIcon,
+  StealthEndIcon,
+  StealthStartIcon,
   StickerToolIcon,
   StickyIcon,
+  StraightRouteIcon,
   TableIcon,
+  TextBgIcon,
   TextIcon,
   TrashIcon,
   UndoIcon,
@@ -166,15 +196,74 @@ function thumbnailSwatch(obj: BoardObject): string {
   return PAPER_COLORS.lineStrong
 }
 
+const CONNECTOR_HEAD_CYCLE: readonly ConnectorHead[] = ['none', 'arrow', 'triangle', 'circle']
+const LINE_STYLE_CYCLE: readonly LineStyle[] = ['solid', 'dashed', 'dotted']
+
 function nextCycleValue<T>(list: readonly T[], current: T): T {
   const idx = list.indexOf(current)
   return list[(idx + 1) % list.length]!
 }
 
-function dashPattern(style: LineStyle | undefined, strokeWidth: number): string | undefined {
-  if (style === 'dashed') return `${strokeWidth * 3} ${strokeWidth * 2.4}`
-  if (style === 'dotted') return `${strokeWidth} ${strokeWidth * 2.2}`
-  return undefined
+function estimateLabelPillWidth(label: string): number {
+  let units = 0
+  for (const ch of label) {
+    const code = ch.codePointAt(0) ?? 0
+    const isWide =
+      (code >= 0x1100 && code <= 0x11ff) ||
+      (code >= 0x3000 && code <= 0x9fff) ||
+      (code >= 0xac00 && code <= 0xd7af) ||
+      (code >= 0xff00 && code <= 0xffef)
+    units += isWide ? 12.5 : 7.5
+  }
+  return Math.max(44, Math.ceil(units + 20))
+}
+
+function renderConnectorHead(
+  head: ConnectorHeadShape | null,
+  ink: string,
+  strokeWidth: number,
+  key: string,
+): ReactElement | null {
+  if (!head) return null
+  if (head.kind === 'chevron' && head.path) {
+    return (
+      <path
+        key={key}
+        d={head.path}
+        fill="none"
+        stroke={ink}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    )
+  }
+  if (head.kind === 'stealth' && head.path) {
+    return <path key={key} d={head.path} fill={ink} />
+  }
+  if (head.kind === 'circle' && head.point) {
+    return (
+      <circle
+        key={key}
+        cx={head.point.x}
+        cy={head.point.y}
+        r={head.radius ?? Math.max(3.6, strokeWidth * 1.65)}
+        fill={PAPER_COLORS.paper}
+        stroke={ink}
+        strokeWidth={Math.max(1.75, strokeWidth)}
+      />
+    )
+  }
+  return null
+}
+
+function anchorNormalFromTarget(target: SnapAttachTarget | null | undefined): Point | null {
+  if (!target) return null
+  if (target.anchorY <= 0.05) return { x: 0, y: -1 }
+  if (target.anchorY >= 0.95) return { x: 0, y: 1 }
+  if (target.anchorX <= 0.05) return { x: -1, y: 0 }
+  if (target.anchorX >= 0.95) return { x: 1, y: 0 }
+  return null
 }
 
 export type WhiteboardEditorMenuAction = 'import-pdf' | 'zoom-in' | 'zoom-out' | 'zoom-fit'
@@ -217,12 +306,16 @@ export function WhiteboardEditor({
   const [shapePopoverOpen, setShapePopoverOpen] = useState(false)
   const [activeColor, setActiveColor] = useState<string>(PAPER_FILL_SWATCHES[0])
   const [penColor, setPenColor] = useState<string>(PAPER_COLORS.ink)
+  const [connectorColor, setConnectorColor] = useState<string>(PAPER_COLORS.connectorDefault)
+  const [connectorRouting, setConnectorRouting] = useState<ConnectorRouting>('curved')
   const [penWidth, setPenWidth] = useState<number>(4)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 96, y: 48 })
   const [stickerOpen, setStickerOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingText, setEditingText] = useState('')
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [connectorHoverObjId, setConnectorHoverObjId] = useState<string | null>(null)
   const [exportScope, setExportScope] = useState<'all' | 'current'>('all')
 
   // Link card modal state (opt-in preview off by default, remembered per preference).
@@ -269,6 +362,9 @@ export function WhiteboardEditor({
     end: Point
     startTargetId: string | null
     endTargetId: string | null
+    startNormal: Point | null
+    endNormal: Point | null
+    routing: ConnectorRouting
   } | null>(null)
   const [endpointPreview, setEndpointPreview] = useState<{
     id: string
@@ -478,35 +574,52 @@ export function WhiteboardEditor({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [activePageId, doc.pages, onSetPresenting, presenting, selectTool, session])
 
-  // Inline text commit (preserves existing bold/italic/underline/strike/color marks).
+  // Inline text commit (preserves existing marks and skips no-op commits to keep undo clean).
   const commitInlineEdit = useCallback(() => {
     if (!editingId) return
     const obj = objectsById.get(editingId)
     const text = editingText
     setEditingId(null)
     if (!obj) return
+    if (obj.kind === 'connector') {
+      const existing = (obj.props as unknown as ConnectorProps).label
+      const trimmed = text.trim()
+      if (trimmed === richTextPlain(existing).trim()) return
+      session.updateObject(obj.id, {
+        props: {
+          label: trimmed ? plainRichText(trimmed, { color: PAPER_COLORS.ink }) : null,
+        },
+      })
+      return
+    }
     if (obj.kind === 'sticky' || obj.kind === 'text' || obj.kind === 'shape') {
       const existing = (obj.props as unknown as StickyProps | TextProps | ShapeProps).text
+      if (text === richTextPlain(existing)) return
       const defaultAlign =
         (obj.props as unknown as StickyProps | TextProps | ShapeProps).align ??
-        (obj.kind === 'shape' ? 'center' : 'left')
+        (obj.kind === 'text' ? 'left' : 'center')
       const patch: Record<string, unknown> = {
         text: updateRichTextPreservingStyle(existing, text, defaultAlign),
       }
       if (obj.kind === 'text') {
-        const fs = (obj.props as unknown as TextProps).fontSize ?? 24
-        const lines = text.split('\n')
-        const longest = Math.max(...lines.map((l) => l.length), 1)
-        const neededW = Math.ceil(longest * fs * 0.92 + 28)
-        const neededH = Math.ceil(lines.length * fs * 1.45 + 16)
-        if (neededW > obj.width) patch.width = Math.min(960, neededW)
-        if (neededH > obj.height) patch.height = neededH
+        const tp = obj.props as unknown as TextProps
+        const fs = tp.fontSize ?? TEXT_DEFAULT_FONT_SIZE
+        const hasBox = Boolean((tp.background && tp.background !== 'transparent') || tp.borderColor)
+        const sized = estimateTextBoxSize(text, fs, hasBox ? 14 : 6, hasBox ? 10 : 4)
+        if (sized.width > obj.width) patch.width = sized.width
+        if (sized.height > obj.height) patch.height = sized.height
       }
       session.updateObject(obj.id, patch)
     }
   }, [editingId, editingText, objectsById, session])
 
   const startInlineEdit = useCallback((obj: BoardObject) => {
+    if (obj.kind === 'connector') {
+      const cp = obj.props as unknown as ConnectorProps
+      setEditingId(obj.id)
+      setEditingText(richTextPlain(cp.label))
+      return
+    }
     if (obj.kind !== 'sticky' && obj.kind !== 'text' && obj.kind !== 'shape') return
     const p = obj.props as unknown as StickyProps | TextProps | ShapeProps
     setEditingId(obj.id)
@@ -738,45 +851,54 @@ export function WhiteboardEditor({
       }
 
       if (tool === 'sticky') {
-        session.addObject({
+        const created = session.addObject({
           kind: 'sticky',
-          x: Math.round(pt.x - 100),
-          y: Math.round(pt.y - 100),
-          width: 200,
-          height: 200,
+          x: Math.round(pt.x - STICKY_DEFAULT_SIZE / 2),
+          y: Math.round(pt.y - STICKY_DEFAULT_SIZE / 2),
+          width: STICKY_DEFAULT_SIZE,
+          height: STICKY_DEFAULT_SIZE,
           color: activeColor,
-          fontSize: 18,
-          text: plainRichText(t('defaultStickyText'), { color: PAPER_COLORS.ink }),
+          fontSize: STICKY_DEFAULT_FONT_SIZE,
+          align: 'center',
+          text: plainRichText('', { color: PAPER_COLORS.ink, align: 'center' }),
         })
         setTool('select')
+        if (created) {
+          setEditingId(created.id)
+          setEditingText('')
+        }
         return
       }
       if (tool === 'text') {
-        session.addObject({
+        const created = session.addObject({
           kind: 'text',
-          x: Math.round(pt.x - 160),
-          y: Math.round(pt.y - 26),
-          width: 340,
-          height: 56,
-          fontSize: 24,
+          x: Math.round(pt.x - 110),
+          y: Math.round(pt.y - 20),
+          width: 220,
+          height: 44,
+          fontSize: TEXT_DEFAULT_FONT_SIZE,
           color: PAPER_COLORS.ink,
-          text: plainRichText(t('defaultText'), { color: PAPER_COLORS.ink }),
+          text: plainRichText('', { color: PAPER_COLORS.ink }),
         })
         setTool('select')
+        if (created) {
+          setEditingId(created.id)
+          setEditingText('')
+        }
         return
       }
       if (tool === 'shape') {
         session.addObject({
           kind: 'shape',
           shape: shapeKind,
-          x: Math.round(pt.x - 95),
-          y: Math.round(pt.y - 60),
-          width: 190,
-          height: 120,
-          fill: PAPER_COLORS.zoneFill,
-          stroke: penColor,
-          strokeWidth: 2.5,
-          fontSize: 18,
+          x: Math.round(pt.x - 98),
+          y: Math.round(pt.y - 58),
+          width: 196,
+          height: 116,
+          fill: PAPER_COLORS.shapeDefaultFill,
+          stroke: PAPER_COLORS.shapeDefaultStroke,
+          strokeWidth: 1.75,
+          fontSize: SHAPE_DEFAULT_FONT_SIZE,
           align: 'center',
           text: plainRichText('', { color: PAPER_COLORS.ink, align: 'center' }),
         })
@@ -784,7 +906,7 @@ export function WhiteboardEditor({
         return
       }
       if (tool === 'connector') {
-        const hit = findAttachTarget(pageObjects, pt, 12 / zoom)
+        const hit = findAttachTarget(pageObjects, pt, 14 / zoom)
         const startPt = hit ? { x: hit.x, y: hit.y } : pt
         dragRef.current = {
           kind: 'connector-draw',
@@ -800,6 +922,9 @@ export function WhiteboardEditor({
           end: startPt,
           startTargetId: hit?.objectId ?? null,
           endTargetId: null,
+          startNormal: anchorNormalFromTarget(hit),
+          endNormal: null,
+          routing: hit ? connectorRouting : connectorRouting === 'elbow' ? 'elbow' : 'straight',
         })
         return
       }
@@ -825,14 +950,13 @@ export function WhiteboardEditor({
       activeColor,
       clientToBoard,
       commitInlineEdit,
+      connectorRouting,
       editingId,
       pageObjects,
       pan.x,
       pan.y,
-      penColor,
       session,
       shapeKind,
-      t,
       tool,
       zoom,
     ],
@@ -911,10 +1035,55 @@ export function WhiteboardEditor({
     [pan.x, pan.y],
   )
 
+  const handleQuickPortPointerDown = useCallback(
+    (e: ReactPointerEvent, obj: BoardObject, anchorX: number, anchorY: number) => {
+      e.stopPropagation()
+      const startPt = {
+        x: Math.round((obj.x + obj.width * anchorX) * 100) / 100,
+        y: Math.round((obj.y + obj.height * anchorY) * 100) / 100,
+      }
+      const startAttach: SnapAttachTarget = {
+        objectId: obj.id,
+        anchorX,
+        anchorY,
+        x: startPt.x,
+        y: startPt.y,
+      }
+      dragRef.current = {
+        kind: 'connector-draw',
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startPanX: pan.x,
+        startPanY: pan.y,
+        startPoint: startPt,
+        startAttach,
+      }
+      setLiveConnector({
+        start: startPt,
+        end: startPt,
+        startTargetId: obj.id,
+        endTargetId: null,
+        startNormal: anchorNormalFromTarget(startAttach),
+        endNormal: null,
+        routing: connectorRouting,
+      })
+    },
+    [connectorRouting, pan.x, pan.y],
+  )
+
   const handleStagePointerMove = useCallback(
     (e: ReactPointerEvent<SVGSVGElement>) => {
       const drag = dragRef.current
-      if (!drag) return
+      if (!drag) {
+        if (tool === 'connector') {
+          const pt = clientToBoard(e.clientX, e.clientY)
+          const hit = findAttachTarget(pageObjects, pt, 14 / zoom)
+          setConnectorHoverObjId(hit?.objectId ?? null)
+        } else if (connectorHoverObjId !== null) {
+          setConnectorHoverObjId(null)
+        }
+        return
+      }
       if (drag.kind === 'pan') {
         setPan({
           x: drag.startPanX + (e.clientX - drag.startClientX),
@@ -935,18 +1104,30 @@ export function WhiteboardEditor({
         const endHit = findAttachTarget(pageObjects, pt, 14 / zoom, exclude, drag.startPoint)
         const endPt = endHit ? { x: endHit.x, y: endHit.y } : pt
         let startPt = drag.startPoint
+        let startAttach = drag.startAttach ?? null
         if (drag.startAttach) {
           const startObj = pageObjects.find((o) => o.id === drag.startAttach!.objectId)
           if (startObj) {
             const refaced = findAttachTarget([startObj], startPt, 9999, new Set(), endPt)
-            if (refaced) startPt = { x: refaced.x, y: refaced.y }
+            if (refaced) {
+              startPt = { x: refaced.x, y: refaced.y }
+              startAttach = refaced
+            }
           }
         }
+        const attached = Boolean(startAttach || endHit)
         setLiveConnector({
           start: startPt,
           end: endPt,
-          startTargetId: drag.startAttach?.objectId ?? null,
+          startTargetId: startAttach?.objectId ?? null,
           endTargetId: endHit?.objectId ?? null,
+          startNormal: anchorNormalFromTarget(startAttach),
+          endNormal: anchorNormalFromTarget(endHit),
+          routing: attached
+            ? connectorRouting
+            : connectorRouting === 'elbow'
+              ? 'elbow'
+              : 'straight',
         })
         return
       }
@@ -1004,7 +1185,7 @@ export function WhiteboardEditor({
         setDragDelta({ id: drag.objectId, dx, dy, dw, dh })
       }
     },
-    [clientToBoard, pageObjects, zoom],
+    [clientToBoard, connectorHoverObjId, connectorRouting, pageObjects, tool, zoom],
   )
 
   const handleStagePointerUp = useCallback(
@@ -1024,15 +1205,20 @@ export function WhiteboardEditor({
             }
           : { x: Math.round(drag.startPoint.x), y: Math.round(drag.startPoint.y) }
         let endEnd: ConnectorEnd
+        let hasEndAttach = false
 
         if (distScreen < 10) {
+          const n = anchorNormalFromTarget(drag.startAttach)
+          const dx = n ? n.x * 180 : 180
+          const dy = n ? n.y * 180 : 0
           endEnd = {
-            x: Math.round(drag.startPoint.x + 220),
-            y: Math.round(drag.startPoint.y),
+            x: Math.round(drag.startPoint.x + dx),
+            y: Math.round(drag.startPoint.y + dy),
           }
         } else {
           const exclude = new Set(drag.startAttach ? [drag.startAttach.objectId] : [])
           const endHit = findAttachTarget(pageObjects, pt, 14 / zoom, exclude, drag.startPoint)
+          hasEndAttach = Boolean(endHit)
           endEnd = endHit
             ? { objectId: endHit.objectId, anchorX: endHit.anchorX, anchorY: endHit.anchorY }
             : { x: Math.round(pt.x), y: Math.round(pt.y) }
@@ -1052,13 +1238,23 @@ export function WhiteboardEditor({
           }
         }
 
+        const isAttached = Boolean(drag.startAttach || hasEndAttach)
+        const resolvedRouting: ConnectorRouting = isAttached
+          ? connectorRouting
+          : connectorRouting === 'elbow'
+            ? 'elbow'
+            : 'straight'
+
         setLiveConnector(null)
+        setConnectorHoverObjId(null)
         session.addObject({
           kind: 'connector',
           start: startEnd,
           end: endEnd,
-          color: penColor,
-          strokeWidth: 4,
+          routing: resolvedRouting,
+          color: connectorColor,
+          strokeWidth: 2,
+          startHead: 'none',
           endHead: 'arrow',
           lineStyle: 'solid',
         })
@@ -1129,6 +1325,8 @@ export function WhiteboardEditor({
     },
     [
       clientToBoard,
+      connectorColor,
+      connectorRouting,
       dragDelta,
       endpointPreview,
       pageObjects,
@@ -1191,6 +1389,66 @@ export function WhiteboardEditor({
     [selectedObj, session],
   )
 
+  const applyFontSize = useCallback(
+    (nextSize: number) => {
+      if (
+        !selectedObj ||
+        (selectedObj.kind !== 'sticky' &&
+          selectedObj.kind !== 'text' &&
+          selectedObj.kind !== 'shape')
+      ) {
+        return
+      }
+      const p = selectedObj.props as unknown as StickyProps | TextProps | ShapeProps
+      const clamped = Math.max(12, Math.min(72, Math.round(nextSize)))
+      const patch: Record<string, unknown> = { fontSize: clamped }
+      if (selectedObj.kind === 'text') {
+        const tp = selectedObj.props as unknown as TextProps
+        const hasBox = Boolean((tp.background && tp.background !== 'transparent') || tp.borderColor)
+        const sized = estimateTextBoxSize(
+          richTextPlain(p.text),
+          clamped,
+          hasBox ? 14 : 6,
+          hasBox ? 10 : 4,
+        )
+        if (sized.width > selectedObj.width) patch.width = sized.width
+        if (sized.height > selectedObj.height) patch.height = sized.height
+      }
+      session.updateObject(selectedObj.id, patch)
+    },
+    [selectedObj, session],
+  )
+
+  const handleStepFontSize = useCallback(
+    (delta: -1 | 1) => {
+      if (
+        !selectedObj ||
+        (selectedObj.kind !== 'sticky' &&
+          selectedObj.kind !== 'text' &&
+          selectedObj.kind !== 'shape')
+      ) {
+        return
+      }
+      const p = selectedObj.props as unknown as StickyProps | TextProps | ShapeProps
+      const fallback =
+        selectedObj.kind === 'text'
+          ? TEXT_DEFAULT_FONT_SIZE
+          : selectedObj.kind === 'shape'
+            ? SHAPE_DEFAULT_FONT_SIZE
+            : STICKY_DEFAULT_FONT_SIZE
+      const current = p.fontSize ?? fallback
+      if (delta > 0) {
+        const next = FONT_SIZE_PRESETS.find((s) => s > current) ?? Math.min(72, current + 4)
+        applyFontSize(next)
+      } else {
+        const prev =
+          [...FONT_SIZE_PRESETS].reverse().find((s) => s < current) ?? Math.max(12, current - 4)
+        applyFontSize(prev)
+      }
+    },
+    [applyFontSize, selectedObj],
+  )
+
   const handleCycleFontSize = useCallback(() => {
     if (
       !selectedObj ||
@@ -1199,23 +1457,36 @@ export function WhiteboardEditor({
       return
     }
     const p = selectedObj.props as unknown as StickyProps | TextProps | ShapeProps
-    const fallback = selectedObj.kind === 'text' ? 24 : 18
+    const fallback =
+      selectedObj.kind === 'text'
+        ? TEXT_DEFAULT_FONT_SIZE
+        : selectedObj.kind === 'shape'
+          ? SHAPE_DEFAULT_FONT_SIZE
+          : STICKY_DEFAULT_FONT_SIZE
     const current = p.fontSize ?? fallback
     const nearest =
       FONT_SIZE_PRESETS.find((s) => s >= current) ??
       FONT_SIZE_PRESETS[FONT_SIZE_PRESETS.length - 1]!
-    const nextSize = nextCycleValue(FONT_SIZE_PRESETS, nearest)
-    const patch: Record<string, unknown> = { fontSize: nextSize }
-    if (selectedObj.kind === 'text') {
-      const plain = richTextPlain(p.text)
-      const lines = plain.split('\n')
-      const longest = Math.max(...lines.map((l) => l.length), 1)
-      const neededW = Math.ceil(longest * nextSize * 0.92 + 28)
-      const neededH = Math.ceil(lines.length * nextSize * 1.45 + 16)
-      if (neededW > selectedObj.width) patch.width = Math.min(1100, neededW)
-      if (neededH > selectedObj.height) patch.height = neededH
-    }
-    session.updateObject(selectedObj.id, patch)
+    applyFontSize(nextCycleValue(FONT_SIZE_PRESETS, nearest))
+  }, [applyFontSize, selectedObj])
+
+  const handleCycleTextBackground = useCallback(() => {
+    if (!selectedObj || selectedObj.kind !== 'text') return
+    const tp = selectedObj.props as unknown as TextProps
+    const curBg = (tp.background || 'transparent').toUpperCase()
+    const idx = TEXT_BG_PRESETS.findIndex((p) => p.bg.toUpperCase() === curBg)
+    const next = TEXT_BG_PRESETS[(idx + 1) % TEXT_BG_PRESETS.length]!
+    const hasBox = next.bg !== 'transparent'
+    const fs = tp.fontSize ?? TEXT_DEFAULT_FONT_SIZE
+    const sized = estimateTextBoxSize(richTextPlain(tp.text), fs, hasBox ? 14 : 6, hasBox ? 10 : 4)
+    session.updateObject(selectedObj.id, {
+      props: {
+        background: hasBox ? next.bg : null,
+        borderColor: next.border ?? null,
+      },
+      ...(sized.width > selectedObj.width ? { width: sized.width } : {}),
+      ...(sized.height > selectedObj.height ? { height: sized.height } : {}),
+    })
   }, [selectedObj, session])
 
   const handleCycleAlign = useCallback(() => {
@@ -1226,7 +1497,7 @@ export function WhiteboardEditor({
       return
     }
     const p = selectedObj.props as unknown as StickyProps | TextProps | ShapeProps
-    const current: TextAlign = p.align ?? (selectedObj.kind === 'shape' ? 'center' : 'left')
+    const current: TextAlign = p.align ?? (selectedObj.kind === 'text' ? 'left' : 'center')
     const nextAlign = nextCycleValue(['left', 'center', 'right'] as const, current)
     session.updateObject(selectedObj.id, { align: nextAlign })
   }, [selectedObj, session])
@@ -1256,29 +1527,36 @@ export function WhiteboardEditor({
     : null
   const selectedTextAlign: TextAlign = isTextEditableSelected
     ? ((selectedObj.props as unknown as StickyProps | TextProps | ShapeProps).align ??
-      (selectedObj.kind === 'shape' ? 'center' : 'left'))
+      (selectedObj.kind === 'text' ? 'left' : 'center'))
     : 'left'
   const selectedFontSize: number = isTextEditableSelected
     ? ((selectedObj.props as unknown as StickyProps | TextProps | ShapeProps).fontSize ??
-      (selectedObj.kind === 'text' ? 24 : 18))
-    : 18
+      (selectedObj.kind === 'text'
+        ? TEXT_DEFAULT_FONT_SIZE
+        : selectedObj.kind === 'shape'
+          ? SHAPE_DEFAULT_FONT_SIZE
+          : STICKY_DEFAULT_FONT_SIZE))
+    : STICKY_DEFAULT_FONT_SIZE
 
   // Compute floating dark format bar anchor above selected object (never shifts stage layout).
   const showFormatBar = Boolean(
-    (tool === 'select' && selectedObj) || tool === 'sticky' || tool === 'pen',
+    (tool === 'select' && selectedObj) ||
+    tool === 'sticky' ||
+    tool === 'pen' ||
+    tool === 'connector',
   )
   const formatBarPos = useMemo(() => {
     if (!showFormatBar) return null
-    const stageW = stageRef.current?.clientWidth ?? 900
+    const stageW = stageRef.current?.clientWidth ?? 960
     if (tool === 'select' && selectedObj) {
       const box = objectBounds(selectedObj, objectsById)
       const cx = pan.x + (box.x + box.width / 2) * zoom
-      const topY = pan.y + box.y * zoom - 60
-      const fallbackY = pan.y + (box.y + box.height) * zoom + 16
-      const clampedLeft = Math.max(TOOLBAR_LEFT_CLEARANCE, Math.min(cx - 210, stageW - 440))
+      const topY = pan.y + box.y * zoom - 62
+      const fallbackY = pan.y + (box.y + box.height) * zoom + 18
+      const clampedLeft = Math.max(TOOLBAR_LEFT_CLEARANCE, Math.min(cx - 250, stageW - 520))
       return { left: Math.round(clampedLeft), top: Math.round(topY < 10 ? fallbackY : topY) }
     }
-    return { left: Math.max(TOOLBAR_LEFT_CLEARANCE, Math.round(stageW / 2 - 140)), top: 14 }
+    return { left: Math.max(TOOLBAR_LEFT_CLEARANCE, Math.round(stageW / 2 - 180)), top: 14 }
   }, [objectsById, pan.x, pan.y, selectedObj, showFormatBar, tool, zoom])
 
   const snapHighlightIds = useMemo(() => {
@@ -1286,8 +1564,9 @@ export function WhiteboardEditor({
     if (liveConnector?.startTargetId) ids.add(liveConnector.startTargetId)
     if (liveConnector?.endTargetId) ids.add(liveConnector.endTargetId)
     if (endpointPreview?.targetId) ids.add(endpointPreview.targetId)
+    if (tool === 'connector' && connectorHoverObjId) ids.add(connectorHoverObjId)
     return ids
-  }, [endpointPreview, liveConnector])
+  }, [connectorHoverObjId, endpointPreview, liveConnector, tool])
 
   const paperFill = livePaperColor(
     activePage?.background?.kind === 'solid' || activePage?.background?.kind === 'grid'
@@ -1642,17 +1921,13 @@ export function WhiteboardEditor({
               style={{ left: formatBarPos.left, top: formatBarPos.top }}
               onPointerDown={(e) => e.stopPropagation()}
             >
-              {/* Warm paper fills for sticky notes & shapes */}
-              {(tool === 'sticky' ||
-                (tool === 'select' &&
-                  (selectedObj?.kind === 'sticky' || selectedObj?.kind === 'shape'))) &&
-                PAPER_FILL_SWATCHES.slice(0, 6).map((c) => {
+              {/* Curated Miro/Allo pastel fills for sticky notes */}
+              {(tool === 'sticky' || (tool === 'select' && selectedObj?.kind === 'sticky')) &&
+                PAPER_FILL_SWATCHES.map((c) => {
                   const currentFill =
                     tool === 'select' && selectedObj?.kind === 'sticky'
                       ? (selectedObj.props as unknown as StickyProps).color
-                      : tool === 'select' && selectedObj?.kind === 'shape'
-                        ? (selectedObj.props as unknown as ShapeProps).fill
-                        : activeColor
+                      : activeColor
                   return (
                     <button
                       key={c}
@@ -1663,21 +1938,45 @@ export function WhiteboardEditor({
                         setActiveColor(c)
                         if (tool === 'select' && selectedObj?.kind === 'sticky') {
                           session.updateObject(selectedObj.id, { color: c })
-                        } else if (tool === 'select' && selectedObj?.kind === 'shape') {
-                          session.updateObject(selectedObj.id, { fill: c })
                         }
                       }}
                     />
                   )
                 })}
 
-              {/* Warm ink colors for pen, connector, stroke, and text */}
+              {/* Harmonized fill + border presets for shapes */}
+              {tool === 'select' &&
+                selectedObj?.kind === 'shape' &&
+                SHAPE_STYLE_PRESETS.map((preset) => {
+                  const curFill = (selectedObj.props as unknown as ShapeProps).fill
+                  const isNone = preset.fill === 'transparent'
+                  const isActive =
+                    curFill?.toLowerCase() === preset.fill.toLowerCase() ||
+                    (isNone && curFill === 'none')
+                  return (
+                    <button
+                      key={preset.fill}
+                      type="button"
+                      className={`wb-swatch${isNone ? ' wb-swatch-none' : ''}${isActive ? ' active' : ''}`}
+                      style={isNone ? undefined : { backgroundColor: preset.fill }}
+                      onClick={() => {
+                        session.updateObject(selectedObj.id, {
+                          fill: preset.fill,
+                          stroke: preset.stroke,
+                        })
+                      }}
+                    />
+                  )
+                })}
+
+              {/* Crisp ink colors for pen, connector, stroke, and text */}
               {(tool === 'pen' ||
+                tool === 'connector' ||
                 (tool === 'select' &&
                   (selectedObj?.kind === 'connector' ||
                     selectedObj?.kind === 'stroke' ||
                     selectedObj?.kind === 'text'))) &&
-                PAPER_INK_SWATCHES.slice(0, 6).map((c) => {
+                PAPER_INK_SWATCHES.map((c) => {
                   const currentInk =
                     tool === 'select' && selectedObj?.kind === 'connector'
                       ? (selectedObj.props as unknown as ConnectorProps).color
@@ -1687,7 +1986,9 @@ export function WhiteboardEditor({
                           ? (selectedTextFormat?.color ??
                             (selectedObj.props as unknown as TextProps).color ??
                             PAPER_COLORS.ink)
-                          : penColor
+                          : tool === 'connector'
+                            ? connectorColor
+                            : penColor
                   return (
                     <button
                       key={c}
@@ -1695,7 +1996,11 @@ export function WhiteboardEditor({
                       className={`wb-swatch${currentInk?.toUpperCase() === c ? ' active' : ''}`}
                       style={{ backgroundColor: c }}
                       onClick={() => {
-                        setPenColor(c)
+                        if (tool === 'connector' || selectedObj?.kind === 'connector') {
+                          setConnectorColor(c)
+                        } else {
+                          setPenColor(c)
+                        }
                         if (
                           tool === 'select' &&
                           (selectedObj?.kind === 'connector' || selectedObj?.kind === 'stroke')
@@ -1713,13 +2018,48 @@ export function WhiteboardEditor({
                   )
                 })}
 
-              {/* Rich text controls (size, B/I/U/S, align) for sticky, text, shape */}
+              {/* Optional text box background pill/card toggle */}
+              {tool === 'select' && selectedObj?.kind === 'text' && (
+                <>
+                  <span className="wb-format-sep" />
+                  <button
+                    type="button"
+                    className={`wb-format-btn${
+                      (selectedObj.props as unknown as TextProps).background &&
+                      (selectedObj.props as unknown as TextProps).background !== 'transparent'
+                        ? ' active'
+                        : ''
+                    }`}
+                    onClick={handleCycleTextBackground}
+                  >
+                    <TextBgIcon size={16} />
+                  </button>
+                </>
+              )}
+
+              {/* Rich text controls (size stepper, B/I/U/S, align) for sticky, text, shape */}
               {tool === 'select' && isTextEditableSelected && selectedTextFormat && (
                 <>
                   <span className="wb-format-sep" />
-                  <button type="button" className="wb-format-btn" onClick={handleCycleFontSize}>
-                    {selectedFontSize}
-                  </button>
+                  <div className="wb-size-stepper">
+                    <button
+                      type="button"
+                      className="wb-format-btn"
+                      onClick={() => handleStepFontSize(-1)}
+                    >
+                      <MinusIcon size={13} />
+                    </button>
+                    <button type="button" className="wb-size-val" onClick={handleCycleFontSize}>
+                      {selectedFontSize}
+                    </button>
+                    <button
+                      type="button"
+                      className="wb-format-btn"
+                      onClick={() => handleStepFontSize(1)}
+                    >
+                      <PlusIcon size={13} />
+                    </button>
+                  </div>
                   <button
                     type="button"
                     className={`wb-format-btn${selectedTextFormat.bold ? ' active' : ''}`}
@@ -1764,26 +2104,29 @@ export function WhiteboardEditor({
                 </>
               )}
 
-              {/* Shape solid/dashed border toggle */}
+              {/* Shape border width & solid/dashed/dotted cycle */}
               {tool === 'select' && selectedObj?.kind === 'shape' && (
                 <>
                   <span className="wb-format-sep" />
                   <button
                     type="button"
                     className={`wb-format-btn${
-                      (selectedObj.props as unknown as ShapeProps).lineStyle === 'dashed'
+                      ((selectedObj.props as unknown as ShapeProps).lineStyle ?? 'solid') !==
+                      'solid'
                         ? ' active'
                         : ''
                     }`}
                     onClick={() => {
                       const cur = (selectedObj.props as unknown as ShapeProps).lineStyle ?? 'solid'
                       session.updateObject(selectedObj.id, {
-                        lineStyle: cur === 'dashed' ? 'solid' : 'dashed',
+                        lineStyle: nextCycleValue(LINE_STYLE_CYCLE, cur),
                       })
                     }}
                   >
                     {(selectedObj.props as unknown as ShapeProps).lineStyle === 'dashed' ? (
                       <DashedLineIcon size={17} />
+                    ) : (selectedObj.props as unknown as ShapeProps).lineStyle === 'dotted' ? (
+                      <DottedLineIcon size={17} />
                     ) : (
                       <SolidLineIcon size={17} />
                     )}
@@ -1791,16 +2134,53 @@ export function WhiteboardEditor({
                 </>
               )}
 
-              {/* Connector width, arrowhead caps, and solid/dashed toggle */}
+              {/* Connector routing (Straight / Curved / Elbow) when tool active or connector selected */}
+              {(tool === 'connector' ||
+                (tool === 'select' && selectedObj?.kind === 'connector')) && (
+                <>
+                  <span className="wb-format-sep" />
+                  <div className="wb-format-seg" role="group">
+                    {(
+                      [
+                        ['straight', StraightRouteIcon],
+                        ['curved', CurvedRouteIcon],
+                        ['elbow', ElbowRouteIcon],
+                      ] as const
+                    ).map(([route, Icon]) => {
+                      const curRoute: ConnectorRouting =
+                        tool === 'select' && selectedObj?.kind === 'connector'
+                          ? ((selectedObj.props as unknown as ConnectorProps).routing ?? 'straight')
+                          : connectorRouting
+                      return (
+                        <button
+                          key={route}
+                          type="button"
+                          className={`wb-format-btn${curRoute === route ? ' active' : ''}`}
+                          onClick={() => {
+                            setConnectorRouting(route)
+                            if (tool === 'select' && selectedObj?.kind === 'connector') {
+                              session.updateObject(selectedObj.id, { props: { routing: route } })
+                            }
+                          }}
+                        >
+                          <Icon size={16} />
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Connector width, 4-way arrowhead caps, and solid/dashed/dotted toggle */}
               {tool === 'select' && selectedObj?.kind === 'connector' && (
                 <>
                   <span className="wb-format-sep" />
-                  {LINE_WIDTH_PRESETS.map((w) => {
-                    const curW = (selectedObj.props as unknown as ConnectorProps).strokeWidth ?? 4
-                    const nearestW = LINE_WIDTH_PRESETS.reduce((best, cand) =>
+                  {CONNECTOR_WIDTH_PRESETS.map((w) => {
+                    const curW = (selectedObj.props as unknown as ConnectorProps).strokeWidth ?? 2
+                    const nearestW = CONNECTOR_WIDTH_PRESETS.reduce((best, cand) =>
                       Math.abs(cand - curW) < Math.abs(best - curW) ? cand : best,
                     )
-                    const dotPx = w === 2 ? 5 : w === 4 ? 8 : 12
+                    const dotPx = w === 1.5 ? 4 : w === 2.5 ? 7 : 10
                     return (
                       <button
                         key={w}
@@ -1815,47 +2195,56 @@ export function WhiteboardEditor({
                   <button
                     type="button"
                     className={`wb-format-btn${
-                      (selectedObj.props as unknown as ConnectorProps).startHead === 'arrow'
+                      ((selectedObj.props as unknown as ConnectorProps).startHead ?? 'none') !==
+                      'none'
                         ? ' active'
                         : ''
                     }`}
                     onClick={() => {
-                      const cur = (selectedObj.props as unknown as ConnectorProps).startHead
+                      const cur =
+                        (selectedObj.props as unknown as ConnectorProps).startHead ?? 'none'
                       session.updateObject(selectedObj.id, {
-                        props: { startHead: cur === 'arrow' ? 'none' : 'arrow' },
+                        props: { startHead: nextCycleValue(CONNECTOR_HEAD_CYCLE, cur) },
                       })
                     }}
                   >
-                    {(selectedObj.props as unknown as ConnectorProps).startHead === 'arrow' ? (
-                      <ArrowStartIcon size={17} />
-                    ) : (
-                      <LineEndIcon size={17} />
-                    )}
+                    {(() => {
+                      const h = (selectedObj.props as unknown as ConnectorProps).startHead ?? 'none'
+                      if (h === 'arrow') return <ArrowStartIcon size={17} />
+                      if (h === 'triangle') return <StealthStartIcon size={17} />
+                      if (h === 'circle') return <CircleStartIcon size={17} />
+                      return <LineEndIcon size={17} />
+                    })()}
                   </button>
                   <button
                     type="button"
                     className={`wb-format-btn${
-                      (selectedObj.props as unknown as ConnectorProps).endHead !== 'none'
+                      ((selectedObj.props as unknown as ConnectorProps).endHead ?? 'arrow') !==
+                      'none'
                         ? ' active'
                         : ''
                     }`}
                     onClick={() => {
-                      const cur = (selectedObj.props as unknown as ConnectorProps).endHead
+                      const cur =
+                        (selectedObj.props as unknown as ConnectorProps).endHead ?? 'arrow'
                       session.updateObject(selectedObj.id, {
-                        props: { endHead: cur === 'none' ? 'arrow' : 'none' },
+                        props: { endHead: nextCycleValue(CONNECTOR_HEAD_CYCLE, cur) },
                       })
                     }}
                   >
-                    {(selectedObj.props as unknown as ConnectorProps).endHead === 'none' ? (
-                      <LineEndIcon size={17} />
-                    ) : (
-                      <ArrowEndIcon size={17} />
-                    )}
+                    {(() => {
+                      const h = (selectedObj.props as unknown as ConnectorProps).endHead ?? 'arrow'
+                      if (h === 'arrow') return <ArrowEndIcon size={17} />
+                      if (h === 'triangle') return <StealthEndIcon size={17} />
+                      if (h === 'circle') return <CircleEndIcon size={17} />
+                      return <LineEndIcon size={17} />
+                    })()}
                   </button>
                   <button
                     type="button"
                     className={`wb-format-btn${
-                      (selectedObj.props as unknown as ConnectorProps).lineStyle === 'dashed'
+                      ((selectedObj.props as unknown as ConnectorProps).lineStyle ?? 'solid') !==
+                      'solid'
                         ? ' active'
                         : ''
                     }`}
@@ -1863,12 +2252,14 @@ export function WhiteboardEditor({
                       const cur =
                         (selectedObj.props as unknown as ConnectorProps).lineStyle ?? 'solid'
                       session.updateObject(selectedObj.id, {
-                        lineStyle: cur === 'dashed' ? 'solid' : 'dashed',
+                        lineStyle: nextCycleValue(LINE_STYLE_CYCLE, cur),
                       })
                     }}
                   >
                     {(selectedObj.props as unknown as ConnectorProps).lineStyle === 'dashed' ? (
                       <DashedLineIcon size={17} />
+                    ) : (selectedObj.props as unknown as ConnectorProps).lineStyle === 'dotted' ? (
+                      <DottedLineIcon size={17} />
                     ) : (
                       <SolidLineIcon size={17} />
                     )}
@@ -2030,23 +2421,46 @@ export function WhiteboardEditor({
             }}
           >
             <defs>
-              <pattern id="wb-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-                <circle cx="16" cy="16" r="1.5" fill="#221D17" fillOpacity="0.15" />
+              <pattern id="wb-dot-grid" width="24" height="24" patternUnits="userSpaceOnUse">
+                <circle cx="12" cy="12" r="1.05" fill="#1F1D1A" fillOpacity="0.14" />
               </pattern>
-              <filter id="wb-paper-card-shadow" x="-12%" y="-10%" width="124%" height="128%">
+              <filter id="wb-sticky-shadow" x="-16%" y="-14%" width="132%" height="138%">
                 <feDropShadow
                   dx="0"
                   dy="1"
                   stdDeviation="1.2"
-                  floodColor="#221D17"
-                  floodOpacity="0.12"
+                  floodColor="#1F1D1A"
+                  floodOpacity="0.07"
                 />
                 <feDropShadow
                   dx="0"
-                  dy="3.5"
-                  stdDeviation="4"
-                  floodColor="#221D17"
-                  floodOpacity="0.08"
+                  dy="5"
+                  stdDeviation="6"
+                  floodColor="#1F1D1A"
+                  floodOpacity="0.09"
+                />
+              </filter>
+              <filter id="wb-sticky-lift" x="-18%" y="-40%" width="136%" height="220%">
+                <feGaussianBlur stdDeviation="3.4" />
+              </filter>
+              <linearGradient id="wb-sticky-sheen" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.24" />
+                <stop offset="22%" stopColor="#FFFFFF" stopOpacity="0" />
+              </linearGradient>
+              <filter id="wb-paper-card-shadow" x="-12%" y="-10%" width="124%" height="130%">
+                <feDropShadow
+                  dx="0"
+                  dy="1"
+                  stdDeviation="1.4"
+                  floodColor="#1F1D1A"
+                  floodOpacity="0.06"
+                />
+                <feDropShadow
+                  dx="0"
+                  dy="3"
+                  stdDeviation="5"
+                  floodColor="#1F1D1A"
+                  floodOpacity="0.06"
                 />
               </filter>
             </defs>
@@ -2096,10 +2510,11 @@ export function WhiteboardEditor({
               {/* Board objects */}
               {displayedObjects.map((obj) => {
                 const isSelected = selectedIds.includes(obj.id)
+                const isHovered = tool === 'select' && hoveredId === obj.id && !isSelected
                 const isHighlighted = highlightSet.has(obj.id)
                 const isSnapTarget = snapHighlightIds.has(obj.id)
                 const invZ = 1 / zoom
-                const handleSize = 9 * invZ
+                const handleR = 4.6 * invZ
 
                 return (
                   <g
@@ -2111,6 +2526,8 @@ export function WhiteboardEditor({
                         ? `rotate(${obj.rotation} ${obj.x + obj.width / 2} ${obj.y + obj.height / 2})`
                         : undefined
                     }
+                    onPointerEnter={() => setHoveredId(obj.id)}
+                    onPointerLeave={() => setHoveredId((prev) => (prev === obj.id ? null : prev))}
                     onPointerDown={(e) => handleObjectPointerDown(e, obj)}
                     onDoubleClick={() => startInlineEdit(obj)}
                     style={{
@@ -2131,20 +2548,49 @@ export function WhiteboardEditor({
                       handleOpenLinkCard,
                       isSelected,
                       editingId === obj.id,
+                      t('defaultStickyText'),
+                      t('defaultText'),
                     )}
 
-                    {/* Teal dashed outline when dragging a connector end near this object */}
-                    {isSnapTarget && (
+                    {/* Subtle Miro/Allo hover outline on unselected boxes */}
+                    {isHovered && obj.kind !== 'connector' && obj.kind !== 'stroke' && (
                       <rect
-                        className="wb-attach-rect"
-                        x={obj.x - 3 * invZ}
-                        y={obj.y - 3 * invZ}
-                        width={obj.width + 6 * invZ}
-                        height={obj.height + 6 * invZ}
+                        className="wb-hover-rect"
+                        x={obj.x - 1 * invZ}
+                        y={obj.y - 1 * invZ}
+                        width={obj.width + 2 * invZ}
+                        height={obj.height + 2 * invZ}
                         rx={4 * invZ}
-                        strokeWidth={2 * invZ}
-                        strokeDasharray={`${5 * invZ} ${4 * invZ}`}
+                        strokeWidth={1.5 * invZ}
                       />
+                    )}
+
+                    {/* Teal snap outline + 4 edge anchor dots when hovering/snapping a connector */}
+                    {isSnapTarget && obj.kind !== 'connector' && obj.kind !== 'stroke' && (
+                      <>
+                        <rect
+                          className="wb-attach-rect"
+                          x={obj.x - 3 * invZ}
+                          y={obj.y - 3 * invZ}
+                          width={obj.width + 6 * invZ}
+                          height={obj.height + 6 * invZ}
+                          rx={6 * invZ}
+                          strokeWidth={1.6 * invZ}
+                          strokeDasharray={`${4 * invZ} ${3 * invZ}`}
+                        />
+                        {SIDE_ANCHORS.map((side, si) => (
+                          <circle
+                            key={si}
+                            cx={obj.x + obj.width * side.anchorX}
+                            cy={obj.y + obj.height * side.anchorY}
+                            r={4.2 * invZ}
+                            fill={PAPER_COLORS.paper}
+                            stroke={PAPER_COLORS.live}
+                            strokeWidth={1.8 * invZ}
+                            style={{ pointerEvents: 'none' }}
+                          />
+                        ))}
+                      </>
                     )}
 
                     {/* Amber AI change highlight */}
@@ -2163,7 +2609,7 @@ export function WhiteboardEditor({
                         )
                       })()}
 
-                    {/* Selection frame: 4 corner paper handles for boxes, circular endpoint handles for connectors */}
+                    {/* Selection frame: crisp outline + circular handles + Miro quick-connect side dots */}
                     {isSelected && obj.kind !== 'connector' && (
                       <>
                         <rect
@@ -2172,7 +2618,8 @@ export function WhiteboardEditor({
                           y={obj.y}
                           width={obj.width}
                           height={obj.height}
-                          strokeWidth={2 * invZ}
+                          rx={2 * invZ}
+                          strokeWidth={1.6 * invZ}
                         />
                         {(
                           [
@@ -2182,19 +2629,38 @@ export function WhiteboardEditor({
                             ['se', obj.x + obj.width, obj.y + obj.height, 'nwse-resize'],
                           ] as const
                         ).map(([corner, hx, hy, cursor]) => (
-                          <rect
+                          <circle
                             key={corner}
-                            x={hx - handleSize / 2}
-                            y={hy - handleSize / 2}
-                            width={handleSize}
-                            height={handleSize}
-                            fill={PAPER_COLORS.paper}
+                            className="wb-resize-handle"
+                            cx={hx}
+                            cy={hy}
+                            r={handleR}
+                            fill={PAPER_COLORS.cardBg}
                             stroke={PAPER_COLORS.accent}
                             strokeWidth={1.6 * invZ}
                             style={{ cursor }}
                             onPointerDown={(e) => handleResizePointerDown(e, obj, corner)}
                           />
                         ))}
+                        {obj.kind !== 'stroke' &&
+                          selectedIds.length === 1 &&
+                          editingId !== obj.id &&
+                          SIDE_ANCHORS.map((side, si) => {
+                            const portOffset = 15 * invZ
+                            return (
+                              <circle
+                                key={`qp-${si}`}
+                                className="wb-quick-port"
+                                cx={obj.x + obj.width * side.anchorX + side.nx * portOffset}
+                                cy={obj.y + obj.height * side.anchorY + side.ny * portOffset}
+                                r={4.2 * invZ}
+                                strokeWidth={1.4 * invZ}
+                                onPointerDown={(e) =>
+                                  handleQuickPortPointerDown(e, obj, side.anchorX, side.anchorY)
+                                }
+                              />
+                            )
+                          })}
                       </>
                     )}
 
@@ -2204,24 +2670,26 @@ export function WhiteboardEditor({
                         const cp = obj.props as unknown as ConnectorProps
                         const sp = resolveConnectorEnd(cp.start, objectsById)
                         const ep = resolveConnectorEnd(cp.end, objectsById)
-                        const r = 5.5 * invZ
+                        const r = 5 * invZ
                         return (
                           <>
                             <circle
+                              className="wb-resize-handle"
                               cx={sp.x}
                               cy={sp.y}
                               r={r}
-                              fill={PAPER_COLORS.paper}
+                              fill={PAPER_COLORS.cardBg}
                               stroke={PAPER_COLORS.accent}
                               strokeWidth={1.8 * invZ}
                               style={{ cursor: 'move' }}
                               onPointerDown={(e) => handleEndpointPointerDown(e, obj, 'start')}
                             />
                             <circle
+                              className="wb-resize-handle"
                               cx={ep.x}
                               cy={ep.y}
                               r={r}
-                              fill={PAPER_COLORS.paper}
+                              fill={PAPER_COLORS.cardBg}
                               stroke={PAPER_COLORS.accent}
                               strokeWidth={1.8 * invZ}
                               style={{ cursor: 'move' }}
@@ -2241,20 +2709,24 @@ export function WhiteboardEditor({
                     liveConnector.start,
                     liveConnector.end,
                     undefined,
-                    3,
+                    2,
                     'none',
                     'arrow',
+                    liveConnector.routing,
+                    liveConnector.startNormal,
+                    liveConnector.endNormal,
                   )
                   return (
                     <g style={{ pointerEvents: 'none' }}>
                       <path
                         d={geom.shaftPath}
                         fill="none"
-                        stroke={penColor}
-                        strokeWidth={3}
+                        stroke={connectorColor}
+                        strokeWidth={2}
                         strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
-                      {geom.endArrowPath && <path d={geom.endArrowPath} fill={penColor} />}
+                      {renderConnectorHead(geom.endHead, connectorColor, 2, 'live-end')}
                     </g>
                   )
                 })()}
@@ -2275,25 +2747,62 @@ export function WhiteboardEditor({
             </g>
           </svg>
 
-          {/* Inline plain-text editor overlay styled to match the paper object */}
+          {/* Inline plain-text editor overlay styled seamlessly to match the board object */}
           {editingObj &&
+            editingObj.kind !== 'connector' &&
             (() => {
               const p = editingObj.props as unknown as StickyProps | TextProps | ShapeProps
               const fmt = richTextFormatState(p.text)
-              const fontSize = (p.fontSize ?? (editingObj.kind === 'text' ? 24 : 18)) * zoom
-              const align = p.align ?? (editingObj.kind === 'shape' ? 'center' : 'left')
+              const rawFontSize =
+                p.fontSize ??
+                (editingObj.kind === 'text'
+                  ? TEXT_DEFAULT_FONT_SIZE
+                  : editingObj.kind === 'shape'
+                    ? SHAPE_DEFAULT_FONT_SIZE
+                    : STICKY_DEFAULT_FONT_SIZE)
+              const fontSize = rawFontSize * zoom
+              const metrics = typographyMetrics(rawFontSize)
+              const align = p.align ?? (editingObj.kind === 'text' ? 'left' : 'center')
+              const textBg = editingObj.kind === 'text' ? (p as TextProps).background : undefined
+              const hasTextBox =
+                editingObj.kind === 'text' &&
+                Boolean((textBg && textBg !== 'transparent') || (p as TextProps).borderColor)
               const bg =
                 editingObj.kind === 'sticky'
                   ? (p as StickyProps).color || PAPER_FILL_SWATCHES[0]
                   : editingObj.kind === 'shape'
-                    ? (p as ShapeProps).fill || PAPER_COLORS.zoneFill
-                    : (p as TextProps).background || PAPER_COLORS.paper
-              const pad = editingObj.kind === 'sticky' ? 16 * zoom : 6 * zoom
+                    ? (p as ShapeProps).fill && (p as ShapeProps).fill !== 'transparent'
+                      ? (p as ShapeProps).fill
+                      : PAPER_COLORS.paper
+                    : hasTextBox
+                      ? textBg || PAPER_COLORS.cardBg
+                      : 'transparent'
+              const padY =
+                editingObj.kind === 'sticky'
+                  ? 18 * zoom
+                  : editingObj.kind === 'text'
+                    ? (hasTextBox ? 10 : 4) * zoom
+                    : 12 * zoom
+              const padX =
+                editingObj.kind === 'sticky'
+                  ? 20 * zoom
+                  : editingObj.kind === 'text'
+                    ? (hasTextBox ? 14 : 6) * zoom
+                    : 14 * zoom
+              const isTransparentText = editingObj.kind === 'text' && !hasTextBox
+              const defaultWeight = editingObj.kind === 'text' ? 400 : 500
               return (
                 <textarea
-                  className="wb-inline-editor"
+                  className={`wb-inline-editor${isTransparentText ? ' wb-inline-text-transparent' : ' wb-inline-card'}`}
                   autoFocus
                   value={editingText}
+                  placeholder={
+                    editingObj.kind === 'sticky'
+                      ? t('defaultStickyText')
+                      : editingObj.kind === 'text'
+                        ? t('defaultText')
+                        : ''
+                  }
                   onChange={(e) => setEditingText(e.target.value)}
                   onBlur={commitInlineEdit}
                   onKeyDown={(e) => {
@@ -2308,17 +2817,62 @@ export function WhiteboardEditor({
                     left: pan.x + editingObj.x * zoom,
                     top: pan.y + editingObj.y * zoom,
                     width: Math.max(120, editingObj.width * zoom),
-                    height: Math.max(48, editingObj.height * zoom),
-                    padding: pad,
+                    height: Math.max(40, editingObj.height * zoom),
+                    padding: `${padY}px ${padX}px`,
                     background: bg,
                     color:
                       fmt.color ||
                       (editingObj.kind === 'text' ? (p as TextProps).color : undefined) ||
                       PAPER_COLORS.ink,
                     fontSize,
-                    fontWeight: fmt.bold ? 700 : 400,
+                    lineHeight: metrics.lineHeight,
+                    letterSpacing: metrics.letterSpacing,
+                    fontWeight: fmt.bold ? 700 : defaultWeight,
                     fontStyle: fmt.italic ? 'italic' : 'normal',
                     textAlign: align,
+                  }}
+                />
+              )
+            })()}
+
+          {/* Midpoint floating pill editor for connector labels */}
+          {editingObj &&
+            editingObj.kind === 'connector' &&
+            (() => {
+              const cp = editingObj.props as unknown as ConnectorProps
+              const a = resolveConnectorEndpoint(cp.start, objectsById)
+              const b = resolveConnectorEndpoint(cp.end, objectsById)
+              const geom = computeConnectorGeometry(
+                a.point,
+                b.point,
+                cp.waypoints,
+                cp.strokeWidth ?? 2,
+                cp.startHead,
+                cp.endHead,
+                cp.routing ?? 'straight',
+                a.normal,
+                b.normal,
+              )
+              return (
+                <input
+                  type="text"
+                  className="wb-label-editor"
+                  autoFocus
+                  value={editingText}
+                  onChange={(e) => setEditingText(e.target.value)}
+                  onBlur={commitInlineEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === 'Escape') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      e.nativeEvent.stopImmediatePropagation()
+                      commitInlineEdit()
+                    }
+                  }}
+                  style={{
+                    left: pan.x + geom.midpoint.x * zoom,
+                    top: pan.y + geom.midpoint.y * zoom,
+                    width: Math.max(96, estimateLabelPillWidth(editingText) + 18),
                   }}
                 />
               )
@@ -2598,24 +3152,29 @@ function PageThumbnail({
   )
 }
 
-/** Renders a RichText block cleanly with per-run marks and paragraph alignment. */
+/** Renders a RichText block cleanly with editorial typography, per-run marks, and alignment. */
 function RichTextBlock({
   richText,
   fontSize,
   defaultColor = PAPER_COLORS.ink,
   defaultAlign = 'left',
+  defaultWeight = 400,
 }: {
   readonly richText: RichText | undefined
   readonly fontSize: number
   readonly defaultColor?: string
   readonly defaultAlign?: TextAlign
+  readonly defaultWeight?: 400 | 500 | 600
 }): ReactElement {
   const paragraphs = richText?.paragraphs ?? []
+  const metrics = typographyMetrics(fontSize)
   return (
     <div
       style={{
+        fontFamily: BOARD_FONT_STACK,
         fontSize,
-        lineHeight: 1.38,
+        lineHeight: metrics.lineHeight,
+        letterSpacing: metrics.letterSpacing,
         color: defaultColor,
         wordBreak: 'keep-all',
         overflowWrap: 'anywhere',
@@ -2638,7 +3197,7 @@ function RichTextBlock({
                   <span
                     key={ri}
                     style={{
-                      fontWeight: r.bold ? 700 : 400,
+                      fontWeight: r.bold ? 700 : defaultWeight,
                       fontStyle: r.italic ? 'italic' : 'normal',
                       textDecorationLine: decos || 'none',
                       color: r.color || defaultColor,
@@ -2663,57 +3222,118 @@ function renderObjectElement(
   onOpenLink: (url: string) => void,
   isSelected: boolean,
   isEditing: boolean,
+  stickyPlaceholder: string,
+  textPlaceholder: string,
 ): ReactElement | null {
   const { x, y, width, height } = obj
   switch (obj.kind) {
     case 'sticky': {
       const p = obj.props as unknown as StickyProps
+      const isEmpty = !richTextPlain(p.text).trim()
+      const fontSize = p.fontSize ?? STICKY_DEFAULT_FONT_SIZE
+      const align = p.align ?? 'center'
+      const liftPath = stickyLiftShadowPath(x, y, width, height)
       return (
-        <g filter="url(#wb-paper-card-shadow)">
-          <rect
-            x={x}
-            y={y}
-            width={width}
-            height={height}
-            rx={3}
-            fill={p.color || PAPER_FILL_SWATCHES[0]}
+        <g>
+          {/* Miro-inspired curved bottom-edge paper-lift shadow */}
+          <path
+            d={liftPath}
+            fill={PAPER_COLORS.ink}
+            fillOpacity={0.11}
+            filter="url(#wb-sticky-lift)"
           />
-          {!isEditing && (
-            <foreignObject
-              x={x + 16}
-              y={y + 16}
-              width={Math.max(10, width - 32)}
-              height={Math.max(10, height - 32)}
-            >
-              <RichTextBlock
-                richText={p.text}
-                fontSize={p.fontSize ?? 18}
-                defaultColor={PAPER_COLORS.ink}
-                defaultAlign={p.align ?? 'left'}
-              />
-            </foreignObject>
-          )}
+          <g filter="url(#wb-sticky-shadow)">
+            <rect
+              x={x}
+              y={y}
+              width={width}
+              height={height}
+              rx={4}
+              fill={p.color || PAPER_FILL_SWATCHES[0]}
+              stroke={PAPER_COLORS.stickyBorder}
+              strokeWidth={1}
+            />
+            {/* Subtle top adhesive strip light sheen */}
+            <rect
+              x={x}
+              y={y}
+              width={width}
+              height={height}
+              rx={4}
+              fill="url(#wb-sticky-sheen)"
+              style={{ pointerEvents: 'none' }}
+            />
+            {!isEditing && (
+              <foreignObject
+                x={x + 20}
+                y={y + 18}
+                width={Math.max(10, width - 40)}
+                height={Math.max(10, height - 36)}
+              >
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ margin: 'auto 0', width: '100%' }}>
+                    {isEmpty ? (
+                      <div
+                        style={{
+                          fontFamily: BOARD_FONT_STACK,
+                          fontSize,
+                          lineHeight: typographyMetrics(fontSize).lineHeight,
+                          letterSpacing: typographyMetrics(fontSize).letterSpacing,
+                          fontWeight: 500,
+                          textAlign: align,
+                          color: PAPER_COLORS.inkPlaceholder,
+                        }}
+                      >
+                        {stickyPlaceholder}
+                      </div>
+                    ) : (
+                      <RichTextBlock
+                        richText={p.text}
+                        fontSize={fontSize}
+                        defaultColor={PAPER_COLORS.ink}
+                        defaultAlign={align}
+                        defaultWeight={500}
+                      />
+                    )}
+                  </div>
+                </div>
+              </foreignObject>
+            )}
+          </g>
         </g>
       )
     }
     case 'text': {
       const p = obj.props as unknown as TextProps
       const isEmpty = !richTextPlain(p.text).trim()
+      const hasBox = Boolean((p.background && p.background !== 'transparent') || p.borderColor)
+      const padX = hasBox ? 14 : 6
+      const padY = hasBox ? 10 : 4
+      const fontSize = p.fontSize ?? TEXT_DEFAULT_FONT_SIZE
+      const align = p.align ?? 'left'
       return (
         <g>
-          {(p.background || p.borderColor) && (
+          {hasBox && (
             <rect
               x={x}
               y={y}
               width={width}
               height={height}
-              rx={6}
-              fill={p.background || 'none'}
+              rx={8}
+              fill={p.background && p.background !== 'transparent' ? p.background : 'none'}
               stroke={p.borderColor || 'none'}
               strokeWidth={1}
             />
           )}
-          {isEmpty && !isEditing && (
+          {!hasBox && (
             <rect
               x={x}
               y={y}
@@ -2721,24 +3341,40 @@ function renderObjectElement(
               height={height}
               rx={4}
               fill="transparent"
-              stroke={PAPER_COLORS.lineDashed}
+              stroke={isEmpty && !isEditing ? PAPER_COLORS.lineDashed : 'none'}
               strokeWidth={1}
               strokeDasharray="4 4"
             />
           )}
           {!isEditing && (
             <foreignObject
-              x={x + 6}
-              y={y + 4}
-              width={Math.max(10, width - 12)}
-              height={Math.max(10, height - 8)}
+              x={x + padX}
+              y={y + padY}
+              width={Math.max(10, width - padX * 2)}
+              height={Math.max(10, height - padY * 2)}
             >
-              <RichTextBlock
-                richText={p.text}
-                fontSize={p.fontSize ?? 24}
-                defaultColor={p.color || PAPER_COLORS.ink}
-                defaultAlign={p.align ?? 'left'}
-              />
+              {isEmpty ? (
+                <div
+                  style={{
+                    fontFamily: BOARD_FONT_STACK,
+                    fontSize,
+                    lineHeight: typographyMetrics(fontSize).lineHeight,
+                    letterSpacing: typographyMetrics(fontSize).letterSpacing,
+                    textAlign: align,
+                    color: PAPER_COLORS.inkPlaceholder,
+                  }}
+                >
+                  {textPlaceholder}
+                </div>
+              ) : (
+                <RichTextBlock
+                  richText={p.text}
+                  fontSize={fontSize}
+                  defaultColor={p.color || PAPER_COLORS.ink}
+                  defaultAlign={align}
+                  defaultWeight={400}
+                />
+              )}
             </foreignObject>
           )}
         </g>
@@ -2746,20 +3382,27 @@ function renderObjectElement(
     }
     case 'shape': {
       const p = obj.props as unknown as ShapeProps
-      const sw = p.strokeWidth ?? 2.5
+      const sw = p.strokeWidth ?? 1.75
       const kind = p.shape || 'rounded_rectangle'
       const d = shapePath(kind, width, height, sw / 2)
       const box = shapeTextBox(kind, width, height)
       const hasText = richTextPlain(p.text).length > 0
+      const fill = p.fill || PAPER_COLORS.shapeDefaultFill
+      const isTransparent = fill === 'transparent' || fill === 'none'
+      const lineAttrs = strokeLineAttrs(p.lineStyle, sw)
       return (
-        <g transform={`translate(${x}, ${y})`}>
+        <g
+          transform={`translate(${x}, ${y})`}
+          filter={isTransparent ? undefined : 'url(#wb-paper-card-shadow)'}
+        >
           <path
             d={d}
-            fill={p.fill || PAPER_COLORS.zoneFill}
-            stroke={p.stroke || PAPER_COLORS.ink}
+            fill={fill}
+            stroke={p.stroke || PAPER_COLORS.shapeDefaultStroke}
             strokeWidth={sw}
+            strokeLinecap={lineAttrs.linecap}
             strokeLinejoin="round"
-            strokeDasharray={dashPattern(p.lineStyle, sw)}
+            strokeDasharray={lineAttrs.dasharray}
           />
           {hasText && !isEditing && (
             <foreignObject
@@ -2774,15 +3417,18 @@ function renderObjectElement(
                   height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
-                  justifyContent: 'center',
+                  overflow: 'hidden',
                 }}
               >
-                <RichTextBlock
-                  richText={p.text}
-                  fontSize={p.fontSize ?? 18}
-                  defaultColor={PAPER_COLORS.ink}
-                  defaultAlign={p.align ?? 'center'}
-                />
+                <div style={{ margin: 'auto 0', width: '100%' }}>
+                  <RichTextBlock
+                    richText={p.text}
+                    fontSize={p.fontSize ?? SHAPE_DEFAULT_FONT_SIZE}
+                    defaultColor={PAPER_COLORS.ink}
+                    defaultAlign={p.align ?? 'center'}
+                    defaultWeight={500}
+                  />
+                </div>
               </div>
             </foreignObject>
           )}
@@ -2791,24 +3437,34 @@ function renderObjectElement(
     }
     case 'connector': {
       const p = obj.props as unknown as ConnectorProps
-      const s = resolveConnectorEnd(p.start, byId)
-      const e = resolveConnectorEnd(p.end, byId)
-      const sw = p.strokeWidth ?? 3
-      const ink = p.color || PAPER_COLORS.ink
-      const geom = computeConnectorGeometry(s, e, p.waypoints, sw, p.startHead, p.endHead)
-      const lineCap = p.lineStyle === 'dashed' || p.lineStyle === 'dotted' ? 'butt' : 'round'
-      const labelText = richTextPlain(p.label)
-      const pillW = labelText ? Math.max(48, labelText.length * 10 + 18) : 0
+      const s = resolveConnectorEndpoint(p.start, byId)
+      const e = resolveConnectorEndpoint(p.end, byId)
+      const sw = p.strokeWidth ?? 2
+      const ink = p.color || PAPER_COLORS.connectorDefault
+      const geom = computeConnectorGeometry(
+        s.point,
+        e.point,
+        p.waypoints,
+        sw,
+        p.startHead,
+        p.endHead,
+        p.routing ?? 'straight',
+        s.normal,
+        e.normal,
+      )
+      const lineAttrs = strokeLineAttrs(p.lineStyle, sw)
+      const labelText = richTextPlain(p.label).trim()
+      const pillW = labelText ? estimateLabelPillWidth(labelText) : 0
       return (
         <g>
-          {/* Warm terracotta glow highlight when selected (no ugly bounding rectangle) */}
+          {/* Soft accent selection halo along the routed path */}
           {isSelected && (
             <path
               d={geom.fullPath}
               fill="none"
               stroke={PAPER_COLORS.accent}
-              strokeOpacity={0.32}
-              strokeWidth={sw + 10}
+              strokeOpacity={0.24}
+              strokeWidth={sw + 9}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -2822,53 +3478,38 @@ function renderObjectElement(
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-          {/* Pulled-back editorial shaft */}
+          {/* Routed shaft (straight, smooth cubic Bezier, or rounded-corner elbow) */}
           <path
             d={geom.shaftPath}
             fill="none"
             stroke={ink}
             strokeWidth={sw}
-            strokeLinecap={lineCap}
+            strokeLinecap={lineAttrs.linecap}
             strokeLinejoin="round"
-            strokeDasharray={dashPattern(p.lineStyle, sw)}
+            strokeDasharray={lineAttrs.dasharray}
           />
-          {/* Crisp geometric filled arrowheads */}
-          {geom.startArrowPath && <path d={geom.startArrowPath} fill={ink} />}
-          {geom.endArrowPath && <path d={geom.endArrowPath} fill={ink} />}
-          {geom.startCircle && (
-            <circle
-              cx={geom.startCircle.x}
-              cy={geom.startCircle.y}
-              r={Math.max(4, sw * 1.5)}
-              fill={ink}
-            />
-          )}
-          {geom.endCircle && (
-            <circle
-              cx={geom.endCircle.x}
-              cy={geom.endCircle.y}
-              r={Math.max(4, sw * 1.5)}
-              fill={ink}
-            />
-          )}
-          {/* Clean warm-paper pill label */}
-          {labelText && (
-            <g>
+          {/* Refined open chevron, stealth filled dart, or ringed dot endpoints */}
+          {renderConnectorHead(geom.startHead, ink, sw, 'start')}
+          {renderConnectorHead(geom.endHead, ink, sw, 'end')}
+          {/* Crisp midpoint-centered pill label */}
+          {labelText && !isEditing && (
+            <g filter="url(#wb-paper-card-shadow)">
               <rect
                 x={geom.midpoint.x - pillW / 2}
-                y={geom.midpoint.y - 22}
+                y={geom.midpoint.y - 12}
                 width={pillW}
                 height={24}
-                rx={6}
-                fill={PAPER_COLORS.paper}
+                rx={12}
+                fill={PAPER_COLORS.cardBg}
                 stroke={PAPER_COLORS.line}
                 strokeWidth={1}
               />
               <text
                 x={geom.midpoint.x}
-                y={geom.midpoint.y - 6}
+                y={geom.midpoint.y + 4.5}
                 textAnchor="middle"
-                fontSize={13}
+                fontFamily={BOARD_FONT_STACK}
+                fontSize={12.5}
                 fontWeight={500}
                 fill={PAPER_COLORS.ink}
               >
@@ -2911,6 +3552,7 @@ function renderObjectElement(
           y={y}
           width={width}
           height={height}
+          rx={8}
           fill={PAPER_COLORS.zoneFill}
           stroke={PAPER_COLORS.lineDashed}
           strokeDasharray="4 4"
@@ -2923,45 +3565,71 @@ function renderObjectElement(
       const colIds = p.colIds?.length ? p.colIds : ['c1']
       const cw = width / colIds.length
       const ch = height / rowIds.length
+      const clipId = `wb-live-tbl-${obj.id}`
       return (
         <g filter="url(#wb-paper-card-shadow)">
+          <defs>
+            <clipPath id={clipId}>
+              <rect x={x} y={y} width={width} height={height} rx={10} />
+            </clipPath>
+          </defs>
+          <g clipPath={`url(#${clipId})`}>
+            <rect x={x} y={y} width={width} height={height} fill={PAPER_COLORS.cardBg} />
+            {rowIds.map((rid, r) =>
+              colIds.map((cid, c) => {
+                const cell = p.cells?.[`${rid}:${cid}`]
+                const cx0 = x + c * cw
+                const cy0 = y + r * ch
+                return (
+                  <g key={`${rid}-${cid}`}>
+                    {r === 0 && p.headerRow && (
+                      <rect x={cx0} y={cy0} width={cw} height={ch} fill={PAPER_COLORS.zoneFill} />
+                    )}
+                    {c > 0 && (
+                      <line
+                        x1={cx0}
+                        y1={cy0}
+                        x2={cx0}
+                        y2={cy0 + ch}
+                        stroke={PAPER_COLORS.line}
+                        strokeWidth={1}
+                      />
+                    )}
+                    {r > 0 && (
+                      <line
+                        x1={cx0}
+                        y1={cy0}
+                        x2={cx0 + cw}
+                        y2={cy0}
+                        stroke={PAPER_COLORS.line}
+                        strokeWidth={1}
+                      />
+                    )}
+                    <text
+                      x={cx0 + 12}
+                      y={cy0 + ch / 2 + 5}
+                      fontFamily={BOARD_FONT_STACK}
+                      fontSize={p.fontSize ?? 14}
+                      fontWeight={r === 0 && p.headerRow ? 600 : 400}
+                      fill={PAPER_COLORS.ink}
+                    >
+                      {richTextPlain(cell)}
+                    </text>
+                  </g>
+                )
+              }),
+            )}
+          </g>
           <rect
             x={x}
             y={y}
             width={width}
             height={height}
-            rx={4}
-            fill={PAPER_COLORS.paper}
-            stroke={PAPER_COLORS.lineDashed}
-            strokeWidth={1.5}
+            rx={10}
+            fill="none"
+            stroke={PAPER_COLORS.lineStrong}
+            strokeWidth={1.2}
           />
-          {rowIds.map((rid, r) =>
-            colIds.map((cid, c) => {
-              const cell = p.cells?.[`${rid}:${cid}`]
-              return (
-                <g key={`${rid}-${cid}`}>
-                  <rect
-                    x={x + c * cw}
-                    y={y + r * ch}
-                    width={cw}
-                    height={ch}
-                    fill={r === 0 && p.headerRow ? PAPER_COLORS.zoneFill : PAPER_COLORS.paper}
-                    stroke={PAPER_COLORS.lineStrong}
-                    strokeWidth={1}
-                  />
-                  <text
-                    x={x + c * cw + 12}
-                    y={y + r * ch + ch / 2 + 5}
-                    fontSize={p.fontSize ?? 14}
-                    fontWeight={r === 0 && p.headerRow ? 600 : 400}
-                    fill={PAPER_COLORS.ink}
-                  >
-                    {richTextPlain(cell)}
-                  </text>
-                </g>
-              )
-            }),
-          )}
         </g>
       )
     }
@@ -2987,10 +3655,10 @@ function renderObjectElement(
             y={y}
             width={width}
             height={height}
-            rx={10}
-            fill={PAPER_COLORS.paper}
+            rx={12}
+            fill={PAPER_COLORS.cardBg}
             stroke={PAPER_COLORS.line}
-            strokeWidth={1.5}
+            strokeWidth={1.2}
           />
           {previewHref && (
             <image
@@ -3003,12 +3671,19 @@ function renderObjectElement(
             />
           )}
           <foreignObject
-            x={x + 16}
+            x={x + 18}
             y={previewHref ? y + Math.min(84, height * 0.5) + 12 : y + 16}
-            width={Math.max(20, width - 32)}
+            width={Math.max(20, width - 36)}
             height={Math.max(24, height - (previewHref ? Math.min(84, height * 0.5) + 20 : 28))}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+                fontFamily: BOARD_FONT_STACK,
+              }}
+            >
               <a
                 href={p.url}
                 onClick={(ev) => {
@@ -3017,10 +3692,11 @@ function renderObjectElement(
                   onOpenLink(p.url)
                 }}
                 style={{
-                  color: PAPER_COLORS.accent,
-                  fontSize: 15,
+                  color: PAPER_COLORS.ink,
+                  fontSize: 14.5,
                   fontWeight: 600,
-                  textDecoration: 'underline',
+                  letterSpacing: '-0.015em',
+                  textDecoration: 'none',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -3030,8 +3706,8 @@ function renderObjectElement(
               </a>
               <span
                 style={{
-                  color: PAPER_COLORS.inkMuted,
-                  fontSize: 12,
+                  color: PAPER_COLORS.accent,
+                  fontSize: 11.5,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',

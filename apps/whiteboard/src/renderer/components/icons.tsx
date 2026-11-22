@@ -203,8 +203,19 @@ export const AlignRightIcon = makeIcon(
     <path d="M6 18h14" />
   </>,
 )
-export const SolidLineIcon = makeIcon(<path d="M4 12h16" />, 2.2)
-export const DashedLineIcon = makeIcon(<path d="M4 12h4M10.5 12h3M16 12h4" />, 2.2)
+export const SolidLineIcon = makeIcon(<path d="M4 12h16" />, 2)
+export const DashedLineIcon = makeIcon(<path d="M4 12h4M10.5 12h3M16 12h4" />, 2)
+export const DottedLineIcon = makeIcon(
+  <>
+    <circle cx="5.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="10" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="14.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="12" r="1.2" fill="currentColor" stroke="none" />
+  </>,
+)
+export const StraightRouteIcon = makeIcon(<path d="M5 18L19 6" />, 1.9)
+export const CurvedRouteIcon = makeIcon(<path d="M5 18C11 18 13 6 19 6" />, 1.9)
+export const ElbowRouteIcon = makeIcon(<path d="M5 18h5a2 2 0 0 0 2-2V8a2 2 0 0 1 2-2h5" />, 1.9)
 export const ArrowStartIcon = makeIcon(
   <>
     <path d="M20 12H6" />
@@ -217,7 +228,37 @@ export const ArrowEndIcon = makeIcon(
     <path d="M13 7l5 5-5 5" />
   </>,
 )
+export const StealthStartIcon = makeIcon(
+  <>
+    <path d="M20 12H9" />
+    <path d="M4.5 12L12 7.5L10.3 12L12 16.5Z" fill="currentColor" stroke="none" />
+  </>,
+)
+export const StealthEndIcon = makeIcon(
+  <>
+    <path d="M4 12h11" />
+    <path d="M19.5 12L12 7.5L13.7 12L12 16.5Z" fill="currentColor" stroke="none" />
+  </>,
+)
+export const CircleStartIcon = makeIcon(
+  <>
+    <path d="M20 12H10" />
+    <circle cx="7" cy="12" r="3" />
+  </>,
+)
+export const CircleEndIcon = makeIcon(
+  <>
+    <path d="M4 12h10" />
+    <circle cx="17" cy="12" r="3" />
+  </>,
+)
 export const LineEndIcon = makeIcon(<path d="M5 12h14" />, 2)
+export const TextBgIcon = makeIcon(
+  <>
+    <rect x="3.5" y="5" width="17" height="14" rx="3" />
+    <path d="M8 9.5h8M12 9.5v5.5" />
+  </>,
+)
 
 export function ShapeKindGlyph({
   kind,

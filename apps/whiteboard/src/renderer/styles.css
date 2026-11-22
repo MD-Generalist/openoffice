@@ -30,7 +30,13 @@
   --wb-format-swatch-ring: rgb(255 253 248 / 38%);
   --wb-paper-shadow: rgb(34 29 23 / 12%);
   --wb-float-shadow: rgb(34 29 23 / 14%);
-  --wb-selection: #b4462a;
+  --wb-selection: #c45234;
+  --wb-hover-outline: rgb(196 82 52 / 36%);
+  --wb-quick-port: rgb(196 82 52 / 55%);
+  --wb-quick-port-hover: #c45234;
+  --wb-handle-shadow: rgb(31 29 26 / 20%);
+  --wb-swatch-none-bg: #f3f0ea;
+  --wb-swatch-none-slash: #c45234;
   --wb-ai-highlight: #d97706;
   --wb-ai-highlight-glow: rgb(217 119 6 / 26%);
   --wb-banner-bg: #f5ead8;
@@ -70,6 +76,12 @@
   --wb-paper-shadow: rgb(0 0 0 / 48%);
   --wb-float-shadow: rgb(0 0 0 / 50%);
   --wb-selection: #e07a5f;
+  --wb-hover-outline: rgb(224 122 95 / 42%);
+  --wb-quick-port: rgb(224 122 95 / 62%);
+  --wb-quick-port-hover: #e07a5f;
+  --wb-handle-shadow: rgb(0 0 0 / 35%);
+  --wb-swatch-none-bg: #2c2824;
+  --wb-swatch-none-slash: #e07a5f;
   --wb-ai-highlight: #fbbf24;
   --wb-ai-highlight-glow: rgb(251 191 36 / 30%);
   --wb-banner-bg: rgb(251 191 36 / 14%);
@@ -103,6 +115,12 @@
     --wb-paper-shadow: rgb(0 0 0 / 48%);
     --wb-float-shadow: rgb(0 0 0 / 50%);
     --wb-selection: #e07a5f;
+    --wb-hover-outline: rgb(224 122 95 / 42%);
+    --wb-quick-port: rgb(224 122 95 / 62%);
+    --wb-quick-port-hover: #e07a5f;
+    --wb-handle-shadow: rgb(0 0 0 / 35%);
+    --wb-swatch-none-bg: #2c2824;
+    --wb-swatch-none-slash: #e07a5f;
     --wb-ai-highlight: #fbbf24;
     --wb-ai-highlight-glow: rgb(251 191 36 / 30%);
     --wb-banner-bg: rgb(251 191 36 / 14%);
@@ -714,6 +732,62 @@ body,
     0 0 0 3.5px var(--wb-format-fg);
 }
 
+.wb-swatch.wb-swatch-none {
+  background: linear-gradient(
+    -45deg,
+    var(--wb-swatch-none-bg) 44%,
+    var(--wb-swatch-none-slash) 45%,
+    var(--wb-swatch-none-slash) 55%,
+    var(--wb-swatch-none-bg) 56%
+  );
+}
+
+.wb-size-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.wb-size-val {
+  min-width: 28px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--wb-format-fg);
+  padding: 0 2px;
+  cursor: pointer;
+  border: 0;
+  border-radius: 6px;
+  height: 30px;
+  background: transparent;
+}
+
+.wb-size-val:hover {
+  background: var(--wb-format-hover);
+}
+
+.wb-format-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--wb-format-hover);
+}
+
+.wb-format-seg .wb-format-btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 5px;
+  border-radius: 7px;
+}
+
+.wb-format-seg .wb-format-btn.active {
+  background: var(--wb-format-fg);
+  color: var(--wb-format-bg);
+}
+
 .wb-format-btn {
   min-width: 32px;
   height: 34px;
@@ -766,6 +840,29 @@ body,
   pointer-events: none;
 }
 
+.wb-hover-rect {
+  fill: none;
+  stroke: var(--wb-hover-outline);
+  pointer-events: none;
+}
+
+.wb-resize-handle {
+  filter: drop-shadow(0 1px 2px var(--wb-handle-shadow));
+}
+
+.wb-quick-port {
+  fill: var(--wb-quick-port);
+  stroke: var(--wb-float-bg);
+  cursor: crosshair;
+  transition:
+    fill 120ms ease,
+    transform 120ms ease;
+}
+
+.wb-quick-port:hover {
+  fill: var(--wb-quick-port-hover);
+}
+
 .wb-attach-rect {
   fill: var(--wb-attach-fill);
   stroke: var(--wb-attach);
@@ -775,14 +872,51 @@ body,
 .wb-inline-editor {
   position: absolute;
   box-sizing: border-box;
-  border: 2px solid var(--accent);
-  border-radius: 3px;
-  font-family: inherit;
-  line-height: 1.38;
+  border: 1.5px solid var(--wb-selection);
+  border-radius: 4px;
+  font-family:
+    'Pretendard Variable',
+    'Pretendard',
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Apple SD Gothic Neo',
+    'Malgun Gothic',
+    system-ui,
+    sans-serif;
   resize: none;
   outline: none;
-  box-shadow: 0 4px 16px var(--wb-float-shadow);
+  overflow: hidden;
   z-index: 35;
+}
+
+.wb-inline-editor.wb-inline-text-transparent {
+  background: transparent;
+  box-shadow: none;
+}
+
+.wb-inline-editor.wb-inline-card {
+  box-shadow: 0 6px 20px var(--wb-float-shadow);
+}
+
+.wb-label-editor {
+  position: absolute;
+  box-sizing: border-box;
+  height: 28px;
+  min-width: 88px;
+  padding: 0 10px;
+  border: 1.5px solid var(--wb-selection);
+  border-radius: 14px;
+  background: var(--wb-float-bg);
+  color: var(--wb-ink);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: center;
+  outline: none;
+  box-shadow: 0 4px 12px var(--wb-float-shadow);
+  z-index: 36;
+  transform: translate(-50%, -50%);
 }
 
 /* ── Generic buttons, modals, toasts, presentation ── */
