@@ -3,12 +3,14 @@ import type { ReactElement } from 'react'
 import {
   AiMark,
   aiPanelInitiallyOpen,
+  aiSubscriptionText,
   effectiveAiPanelOpen,
   onAiRailClick,
   rememberAiPanelOpen,
   useSplitPaneRole,
 } from '@genoffice/ui'
 import '@genoffice/ui/ai-model-picker.css'
+import '@genoffice/ui/ai-queue-strip.css'
 import '@genoffice/ui/ai-usage.css'
 import '@genoffice/ui/ai-panel-prefs.css'
 import './ai-panel.css'
@@ -43,7 +45,7 @@ export function WhiteboardAiDock({
   handoff,
   onHandoffConsumed,
 }: WhiteboardAiDockProps): ReactElement {
-  const { t } = useI18n()
+  const { lang, t } = useI18n()
   const { role, requestFocus } = useSplitPaneRole()
   const open = effectiveAiPanelOpen(prefOpen, role)
 
@@ -52,9 +54,9 @@ export function WhiteboardAiDock({
       {!open && (
         <button
           type="button"
-          className="ai-rail"
+          className="ai-rail ai-entry"
           data-tip={t('aiOpenAssistant')}
-          aria-label={t('aiOpenAssistant')}
+          aria-label={aiSubscriptionText(lang, 'aiAssistant')}
           onClick={() => onAiRailClick(role, prefOpen, setOpen, requestFocus)}
         >
           <AiMark size={18} />

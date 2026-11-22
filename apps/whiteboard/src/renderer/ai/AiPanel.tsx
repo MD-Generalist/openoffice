@@ -1,22 +1,38 @@
 /**
- * Whiteboard AI panel wired to `@genoffice/ui` shared send-gate, model picker,
- * composer (`/` skills, `@` doc mentions), Drive & MCP tools (`composeWithDrive`,
- * `McpPermissionCard`, `McpServerButton`), `AiAttachMenu`, `AiChangesCard`, and
- * `AgentLoop`. Automatically attaches a theme-invariant light PNG snapshot of
+ * Whiteboard AI panel aligned with the shared `@genoffice/ui` AI assistant design
+ * system used across all editors: slim `AiPanelHeader` (with side swap, new chat,
+ * collapse, and project chat switcher), horizontal resizer, centered empty state
+ * with starter cards and shortcut hints, streaming progress/work-steps/reply-footer,
+ * `AiScrollToBottom`, `AiQueueStrip`, `AiChangesCard`, attachment thumbnails/cards,
+ * `AiAttachMenu`, `McpServerButton`, `AiModelPicker`, `useProjectPanel`, and
+ * `useAiSendGate`. Automatically attaches a theme-invariant light PNG snapshot of
  * the current page alongside `<whiteboard_page>` text when the active model
  * supports vision, and falls back silently to text-only otherwise.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
+import type {
+  DragEvent as ReactDragEvent,
+  PointerEvent as ReactPointerEvent,
+  ReactElement,
+  ReactNode,
+} from 'react'
 import {
   AgentLoop,
   composeWithDrive,
+  toolStepLabel,
+  windowMcpState,
   windowMcpUsableServers,
   type AgentImage,
   type IpcStreamError,
 } from '@genoffice/agent-core'
-import type { AiSettings, AiSubscriptionUsage } from '@genoffice/ai-provider/browser'
 import {
+  localModelCapabilities,
+  type AiSettings,
+  type AiSubscriptionProviderId,
+  type AiSubscriptionUsage,
+} from '@genoffice/ai-provider/browser'
+import {
+  AI_QUEUE_LABELS,
   AiAttachMenu,
   AiBlockedNotice,
   AiChangesCard,
@@ -27,13 +43,21 @@ import {
   AiEmptyHints,
   AiFirstConnectionNotice,
   AiInputTruncatedNotice,
+  AiMark,
   AiModelPicker,
   type AiModelPickerBridge,
   AiPanelHeader,
   AiPanelSideButton,
+  AiQueueStrip,
+  AiReplyFooter,
+  AiReplyProgress,
+  AiScrollToBottom,
   AiSubscriptionUsageLine,
+  AiToolsUnsupportedNotice,
+  AiUsageChip,
   AiWorkSteps,
   type AiWorkStep,
+  type AiTokenUsageView,
   type DocMentionAddResult,
   type DriveAttachPicked,
   IconArrowUp,
@@ -46,17 +70,30 @@ import {
   type SkillChipRef,
   type SkillUse,
   SkillUsedNotes,
+  addTokenUsage,
+  aiPanelWidthAtPointer,
+  aiSubscriptionText,
   docMentionActions,
+  panelProjectSkill,
   panelUserSkills,
+  placeRemoteEntries,
+  skillChipRefsOf,
   useAiSendGate,
+  useChatRunQueue,
   useComposerSkills,
   useMcpWindow,
+  useProjectPanel,
+  type ProjectChatEntry,
+  type ProjectChatOpened,
+  type ProjectMemoryLine,
+  type ProjectPanel,
+  useScrollToBottom,
   useSkillProposals,
   useSubscriptionUsageUpdates,
 } from '@genoffice/ui'
 import type { WhiteboardAiHost } from '../../shared/ai-host'
 import type { AttachmentAddResult, AttachmentMeta, WhiteboardHandoff } from '../../shared/ipc'
-import { useI18n } from '../i18n/locale'
+import { t as tGlobal, useI18n } from '../i18n/locale'
 import { blockedRunFor, mergeSubscriptionUsage, type BlockedRun } from './connection'
 import { createFilesSkill } from './files-skill'
 import { aiLangDirective } from './lang-directive'
@@ -65,6 +102,45 @@ import { useSubscriptionConnection } from './subscription-client'
 import { createElectronTransport } from './transport'
 import { modelSupportsVision } from './vision-capability'
 import { createWhiteboardSkill, whiteboardContext } from './whiteboard-skill'
+import fileDocumentIcon from './assets/file-document.png'
+import fileExcelIcon from './assets/file-excel.png'
+import fileGeneralIcon from './assets/file-general.png'
+import fileImageIcon from './assets/file-image.png'
+import filePdfIcon from './assets/file-pdf.png'
+import filePptIcon from './assets/file-ppt.png'
+import fileWordIcon from './assets/file-word.png'
+
+const STARTERS = [
+  ['aiStarterBrainstorm', 'aiStarterBrainstormPrompt'],
+  ['aiStarterKanban', 'aiStarterKanbanPrompt'],
+  ['aiStarterOrganize', 'aiStarterOrganizePrompt'],
+  ['aiStarterSummarize', 'aiStarterSummarizePrompt'],
+] as const
+
+const ATTACHMENT_CARD_ICONS: Record<string, string> = Object.fromEntries(
+  (
+    [
+      [fileWordIcon, ['doc', 'docx', 'odt']],
+      [fileExcelIcon, ['xls', 'xlsx', 'xlsm', 'csv', 'tsv']],
+      [filePptIcon, ['ppt', 'pptx']],
+      [filePdfIcon, ['pdf']],
+      [fileImageIcon, ['png', 'jpg', 'jpeg', 'gif', 'webp']],
+    ] as [string, string[]][]
+  ).flatMap(([icon, exts]) => exts.map((ext) => [ext, icon])),
+)
+
+const MAX_IMAGES_PER_MESSAGE = 20
+const PANEL_WIDTH_KEY = 'whiteboard-ai-panel-width'
+const PANEL_WIDTH_DEFAULT = 360
+const PANEL_WIDTH_MIN = 280
+const TOOL_OUTPUT_MAX_CHARS = 2000
+
+const MODEL_BRIDGE: AiModelPickerBridge = {
+  getSettings: () => window.whiteboardApi.ai.getSettings() as Promise<AiSettings>,
+  setSettings: (settings) => window.whiteboardApi.ai.setSettings(settings),
+  onSettingsChanged: (handler) => window.whiteboardApi.ai.onSettingsChanged(handler),
+  openModelSettings: () => window.whiteboardApi.ai.openModelSettings(),
+}
 
 interface TurnChanges {
   batchCount: number
@@ -72,19 +148,27 @@ interface TurnChanges {
   state: AiChangesState
 }
 
-interface TrackedWorkStep extends AiWorkStep {
-  readonly callId: string
+interface ToolActivity extends AiWorkStep {
+  readonly callId?: string
 }
 
-interface UiMessage {
+interface ChatEntry {
   id: string
   role: 'user' | 'assistant'
   text: string
+  streaming?: boolean
+  isError?: boolean
+  blocked?: BlockedRun
+  undelivered?: boolean
+  attachments?: AttachmentMeta[]
   skills?: SkillChipRef[]
+  skillText?: string
   skillProposals?: string[]
-  steps?: TrackedWorkStep[]
-  error?: string
+  tools?: ToolActivity[]
+  usage?: AiTokenUsageView
   changes?: TurnChanges
+  memory?: readonly ProjectMemoryLine[]
+  otherEditorTools?: ProjectChatEntry['otherEditorTools']
 }
 
 export interface WhiteboardAiPanelProps {
@@ -95,18 +179,28 @@ export interface WhiteboardAiPanelProps {
   onHandoffConsumed?(): void
 }
 
-const STARTERS = [
-  ['aiStarterBrainstorm', 'aiStarterBrainstormPrompt'],
-  ['aiStarterKanban', 'aiStarterKanbanPrompt'],
-  ['aiStarterOrganize', 'aiStarterOrganizePrompt'],
-  ['aiStarterSummarize', 'aiStarterSummarizePrompt'],
-] as const
+function clampPanelWidth(w: number): number {
+  const max = Math.max(PANEL_WIDTH_MIN, Math.min(720, Math.round(window.innerWidth * 0.6)))
+  return Math.min(Math.max(w, PANEL_WIDTH_MIN), max)
+}
 
-const MODEL_BRIDGE: AiModelPickerBridge = {
-  getSettings: () => window.whiteboardApi.ai.getSettings() as Promise<AiSettings>,
-  setSettings: (settings) => window.whiteboardApi.ai.setSettings(settings),
-  onSettingsChanged: (handler) => window.whiteboardApi.ai.onSettingsChanged(handler),
-  openModelSettings: () => window.whiteboardApi.ai.openModelSettings(),
+function loadPanelWidth(): number {
+  const saved = Number(localStorage.getItem(PANEL_WIDTH_KEY))
+  return Number.isFinite(saved) && saved > 0
+    ? Math.min(Math.max(saved, PANEL_WIDTH_MIN), 720)
+    : PANEL_WIDTH_DEFAULT
+}
+
+function formatAttachmentSize(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+    : `${(bytes / 1024).toFixed(2)} KB`
+}
+
+function nameFromRequest(text: string): string {
+  const line = text.split(/\r?\n/).find((each) => each.trim() !== '') ?? ''
+  const clean = line.replace(/\s+/g, ' ').trim()
+  return clean.length > 40 ? `${clean.slice(0, 40).trimEnd()}…` : clean
 }
 
 function toDocAddResult(
@@ -119,8 +213,100 @@ function toDocAddResult(
   }
 }
 
+let entrySeq = 0
+function nextEntryId(prefix: 'u' | 'a'): string {
+  return `${prefix}-${Date.now()}-${++entrySeq}`
+}
+
+function chatEntryOf(entry: ProjectChatEntry): ChatEntry {
+  return {
+    id: nextEntryId(entry.role === 'user' ? 'u' : 'a'),
+    role: entry.role,
+    text: entry.text,
+    ...(entry.tools && entry.tools.length > 0
+      ? {
+          tools: entry.tools.map((tl) => ({
+            name: tl.name,
+            summary: tl.summary,
+            isError: tl.isError,
+            output: tl.output ? tl.output.slice(0, TOOL_OUTPUT_MAX_CHARS) : undefined,
+          })),
+        }
+      : {}),
+    ...(entry.role === 'user' && skillChipRefsOf(entry.skills).length > 0
+      ? { skills: skillChipRefsOf(entry.skills) }
+      : {}),
+    ...(entry.memory ? { memory: entry.memory } : {}),
+    ...(entry.otherEditorTools ? { otherEditorTools: entry.otherEditorTools } : {}),
+  }
+}
+
+function AttachmentList({
+  atts,
+  previews,
+  onRemove,
+  removeLabel,
+}: {
+  atts: AttachmentMeta[]
+  previews: Record<string, string>
+  onRemove?: (path: string) => void
+  removeLabel?: string
+}): ReactElement {
+  const remove = (path: string) =>
+    onRemove && (
+      <button
+        type="button"
+        className="ai-attachment-thumb-remove"
+        onClick={() => onRemove(path)}
+        data-tip={removeLabel}
+        aria-label={removeLabel}
+      >
+        <svg width="16" height="16" viewBox="0 0 32 32" aria-hidden>
+          <path
+            d="M24 9.4L22.6 8L16 14.6L9.4 8L8 9.4l6.6 6.6L8 22.6L9.4 24l6.6-6.6l6.6 6.6l1.4-1.4l-6.6-6.6L24 9.4z"
+            fill="currentColor"
+          />
+        </svg>
+      </button>
+    )
+  return (
+    <>
+      {atts.map((a) =>
+        a.isImage ? (
+          <span key={a.path} className="ai-attachment-thumb" title={a.name}>
+            {previews[a.path] ? (
+              <img src={previews[a.path]} alt={a.name} />
+            ) : (
+              <span className="ai-attachment-thumb-pending" aria-hidden>
+                <img src={fileImageIcon} alt="" />
+              </span>
+            )}
+            {remove(a.path)}
+          </span>
+        ) : (
+          <span key={a.path} className="ai-attachment-card" title={a.path}>
+            <span className="ai-attachment-card-icon">
+              <img
+                src={ATTACHMENT_CARD_ICONS[a.ext] ?? fileDocumentIcon ?? fileGeneralIcon}
+                alt=""
+                aria-hidden
+              />
+            </span>
+            <span className="ai-attachment-card-meta">
+              <span className="ai-attachment-card-name">{a.name}</span>
+              <span className="ai-attachment-card-size">{formatAttachmentSize(a.size)}</span>
+            </span>
+            {remove(a.path)}
+          </span>
+        ),
+      )}
+    </>
+  )
+}
+
 export function AiPanel({
   host,
+  filePath,
   handoff,
   onCollapse,
   onHandoffConsumed,
@@ -139,37 +325,66 @@ export function AiPanel({
   const skillCardsRef = useRef(skillCards)
   skillCardsRef.current = skillCards
 
-  const [settings, setSettings] = useState<AiSettings | null>(null)
-  const [messages, setMessages] = useState<UiMessage[]>([])
-  const [input, setInput] = useState('')
+  const [aiSettings, setAiSettings] = useState<AiSettings | null>(null)
+  const [chat, setChat] = useState<ChatEntry[]>([])
+  const [prompt, setPrompt] = useState('')
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
+  const [attachmentPreviews, setAttachmentPreviews] = useState<Record<string, string>>({})
   const [attachNotice, setAttachNotice] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [blockedRun, setBlockedRun] = useState<BlockedRun | null>(null)
   const [inputTruncated, setInputTruncated] = useState(false)
-  const [usage, setUsage] = useState<AiSubscriptionUsage[]>([])
-  const [activeHighlights, setActiveHighlights] = useState<string[]>([])
-  const [undoNotice, setUndoNotice] = useState<string | null>(null)
+  const [subscriptionUsage, setSubscriptionUsage] = useState<AiSubscriptionUsage[]>([])
+  const [sessionUsage, setSessionUsage] = useState<AiTokenUsageView | undefined>(undefined)
+  const [markedMsgId, setMarkedMsgId] = useState<string | null>(null)
 
+  const preferredWidthRef = useRef(loadPanelWidth())
+  const [panelWidth, setPanelWidth] = useState(() => clampPanelWidth(preferredWidthRef.current))
+  const [resizing, setResizing] = useState(false)
+
+  const asideRef = useRef<HTMLElement>(null)
+  const chatRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const stickToBottomRef = useRef(true)
+  const mountedRef = useRef(true)
+
+  const {
+    showButton: showScrollBottom,
+    onScroll: onScrollBottom,
+    scrollToBottom,
+  } = useScrollToBottom(chatRef)
+
+  const hostRef = useRef(host)
+  hostRef.current = host
+  const filePathRef = useRef(filePath)
+  filePathRef.current = filePath
+  const langRef = useRef(lang)
+  langRef.current = lang
   const settingsRef = useRef<AiSettings | null>(null)
-  settingsRef.current = settings
+  settingsRef.current = aiSettings
   const attachmentsRef = useRef<AttachmentMeta[]>([])
   attachmentsRef.current = attachments
   const sentAttachmentsRef = useRef<AttachmentMeta[]>([])
+  const previewRequestedRef = useRef(new Set<string>())
   const contextRef = useRef('')
   const lastStreamErrorRef = useRef<IpcStreamError | null>(null)
-  const loopRef = useRef<AgentLoop | null>(null)
-  const activeAsstIdRef = useRef<string | null>(null)
   const turnBatchesRef = useRef(0)
   const turnChangedIdsRef = useRef<string[]>([])
+  const runToolsRef = useRef<ToolActivity[]>([])
+  const runUsageRef = useRef<AiTokenUsageView | undefined>(undefined)
+  const runInstructionRef = useRef('')
   const lastSentRef = useRef<{
     text: string
     attachments: AttachmentMeta[]
     skillUse: SkillUse
   } | null>(null)
-  const langRef = useRef(lang)
-  langRef.current = lang
+  const sendSeqRef = useRef(0)
+  const namedRef = useRef(false)
+  const chatNowRef = useRef(chat)
+  chatNowRef.current = chat
+  const activeAsstIdRef = useRef<string | null>(null)
+  const projectRef = useRef<ProjectPanel | null>(null)
+  const loopRef = useRef<AgentLoop | null>(null)
 
   const availableAttachments = useCallback((): AttachmentMeta[] => {
     const seen = new Set<string>()
@@ -217,6 +432,12 @@ export function AiPanel({
     [mergeAttachments],
   )
 
+  const removeAttachment = useCallback((path: string) => {
+    const next = attachmentsRef.current.filter((a) => a.path !== path)
+    attachmentsRef.current = next
+    setAttachments(next)
+  }, [])
+
   const docMention: AiComposerDocs = useMemo(
     () => ({
       lang,
@@ -257,264 +478,634 @@ export function AiPanel({
     [mergeAttachments],
   )
 
-  const refreshSettings = useCallback(() => {
-    void window.whiteboardApi.ai
-      .getSettings()
-      .then((s: unknown) => setSettings(s as AiSettings))
-      .catch(() => {})
-  }, [])
+  const onDrop = useCallback(
+    async (e: ReactDragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setDragOver(false)
+      const paths = Array.from(e.dataTransfer.files)
+        .map((f) => window.whiteboardApi.ai.resolveFilePath(f))
+        .filter(Boolean)
+      if (paths.length > 0) {
+        mergeAttachments(toDocAddResult(await window.whiteboardApi.ai.addAttachmentPaths(paths)))
+      }
+    },
+    [mergeAttachments],
+  )
 
   useEffect(() => {
-    refreshSettings()
-    return window.whiteboardApi.ai.onSettingsChanged(refreshSettings)
-  }, [refreshSettings])
+    const wanted = [...attachments, ...chat.flatMap((e) => e.attachments ?? [])]
+    const alive = new Set(wanted.map((a) => a.path))
+    setAttachmentPreviews((prev) => {
+      const stale = Object.keys(prev).filter((path) => !alive.has(path))
+      if (stale.length === 0) return prev
+      const next = { ...prev }
+      for (const path of stale) delete next[path]
+      return next
+    })
+    for (const path of previewRequestedRef.current) {
+      if (!alive.has(path)) previewRequestedRef.current.delete(path)
+    }
+    for (const a of wanted) {
+      if (!a.isImage || previewRequestedRef.current.has(a.path)) continue
+      previewRequestedRef.current.add(a.path)
+      void window.whiteboardApi.ai
+        .readAttachmentImage(a.path)
+        .then((r) => {
+          if (!previewRequestedRef.current.has(a.path)) return
+          if (r.ok && r.base64 && r.mime) {
+            setAttachmentPreviews((prev) => ({
+              ...prev,
+              [a.path]: `data:${r.mime};base64,${r.base64}`,
+            }))
+          }
+        })
+        .catch(() => previewRequestedRef.current.delete(a.path))
+    }
+  }, [attachments, chat])
+
+  useEffect(() => {
+    const dock = asideRef.current?.closest('.ai-dock') as HTMLElement | null
+    dock?.style.setProperty('--ai-panel-width', `${panelWidth}px`)
+  }, [panelWidth])
+
+  useEffect(() => {
+    const onResize = (): void => setPanelWidth(clampPanelWidth(preferredWidthRef.current))
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const resizeCleanupRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => resizeCleanupRef.current?.(), [])
+
+  const startResize = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    e.preventDefault()
+    const resizer = e.currentTarget
+    setResizing(true)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    const onMove = (ev: PointerEvent): void => {
+      const w = clampPanelWidth(aiPanelWidthAtPointer(ev.clientX))
+      preferredWidthRef.current = w
+      setPanelWidth(w)
+    }
+    let done = false
+    const cleanup = (): void => {
+      if (done) return
+      done = true
+      resizeCleanupRef.current = null
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', cleanup)
+      window.removeEventListener('pointercancel', cleanup)
+      resizer.removeEventListener('lostpointercapture', cleanup)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      setResizing(false)
+      localStorage.setItem(PANEL_WIDTH_KEY, String(Math.round(preferredWidthRef.current)))
+    }
+    resizeCleanupRef.current = cleanup
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', cleanup)
+    window.addEventListener('pointercancel', cleanup)
+    resizer.addEventListener('lostpointercapture', cleanup)
+    resizer.setPointerCapture(e.pointerId)
+  }
+
+  useEffect(() => {
+    let alive = true
+    const refresh = () => {
+      void window.whiteboardApi.ai
+        .getSettings()
+        .then((s: unknown) => {
+          if (alive) setAiSettings(s as AiSettings)
+        })
+        .catch(() => {})
+    }
+    refresh()
+    const off = window.whiteboardApi.ai.onSettingsChanged(refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      alive = false
+      off()
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
 
   useSubscriptionUsageUpdates(
     () => window.whiteboardApi?.subscription,
-    setUsage,
+    setSubscriptionUsage,
     mergeSubscriptionUsage,
   )
 
-  const finalizeRun = useCallback(() => {
-    const asstId = activeAsstIdRef.current
-    const batches = turnBatchesRef.current
-    const changedIds = [...new Set(turnChangedIdsRef.current)]
-    if (asstId && batches > 0) {
-      host.setHighlights(changedIds)
-      setActiveHighlights(changedIds)
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === asstId
-            ? {
-                ...m,
-                changes: {
-                  batchCount: batches,
-                  changedIds,
-                  state: 'applied',
-                },
-              }
-            : m,
-        ),
-      )
-    }
-    setBusy(false)
-  }, [host])
-
-  const runTurn = useCallback(
-    async (text: string, sendAttachments: AttachmentMeta[], skillUse: SkillUse = NO_SKILL_USE) => {
-      const currentSettings = settingsRef.current
-      if (!currentSettings) return
-      setBusy(true)
-      setBlockedRun(null)
-      setInputTruncated(false)
-      setUndoNotice(null)
-      lastStreamErrorRef.current = null
-      turnBatchesRef.current = 0
-      turnChangedIdsRef.current = []
-      lastSentRef.current = { text, attachments: sendAttachments, skillUse }
-      if (sendAttachments.length > 0) {
-        const seen = new Set(sentAttachmentsRef.current.map((a) => a.path))
-        sentAttachmentsRef.current = [
-          ...sentAttachmentsRef.current,
-          ...sendAttachments.filter((a) => !seen.has(a.path)),
-        ]
-      }
-      skillsRef.current.consume(skillUse)
-
-      const userId = `u-${Date.now()}`
-      const asstId = `a-${Date.now()}`
-      activeAsstIdRef.current = asstId
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: userId,
-          role: 'user',
-          text,
-          ...(skillUse.chips.length > 0 ? { skills: skillUse.chips } : {}),
-        },
-        { id: asstId, role: 'assistant', text: '', steps: [] },
-      ])
-
-      const pageTable = await host.readPage()
-      contextRef.current = whiteboardContext(pageTable)
-
-      const images: AgentImage[] = []
-      if (modelSupportsVision(currentSettings)) {
-        const png = await host.captureCurrentPagePng(1600)
-        if (png) {
-          images.push({ base64: png.base64, mime: png.mime })
+  const patchLast = useCallback(
+    (patch: Partial<ChatEntry> | ((last: ChatEntry) => Partial<ChatEntry>)) => {
+      setChat((prev) => {
+        const next = [...prev]
+        const last = next[next.length - 1]
+        if (!last || last.role !== 'assistant') return prev
+        next[next.length - 1] = {
+          ...last,
+          ...(typeof patch === 'function' ? patch(last) : patch),
         }
-      }
-      for (const att of sendAttachments) {
-        if (!att.isImage) continue
-        const img = await window.whiteboardApi.ai.readAttachmentImage(att.path)
-        if (img.ok && img.base64 && img.mime) {
-          images.push({ base64: img.base64, mime: img.mime })
-        }
-      }
-
-      if (!loopRef.current) {
-        const transport = createElectronTransport(() => settingsRef.current!, {
-          getLang: () => langRef.current,
-          onStreamError: (err) => {
-            lastStreamErrorRef.current = err
-          },
-          onSubscriptionUsage: (reported) => {
-            setUsage((prev) => mergeSubscriptionUsage(prev, reported))
-          },
-          onInputTruncated: () => setInputTruncated(true),
-        })
-        const wbSkill = createWhiteboardSkill({
-          host: () => host,
-          context: () => contextRef.current,
-          onApplied: (ids) => {
-            turnBatchesRef.current += 1
-            turnChangedIdsRef.current.push(...ids)
-          },
-        })
-        const composed = composeWithDrive(
-          'whiteboard+search',
-          '',
-          () => loopRef.current?.messages ?? [],
-          [
-            wbSkill,
-            createSearchSkill(),
-            createFilesSkill(availableAttachments),
-            ...panelUserSkills({
-              editor: 'whiteboard',
-              lang: () => langRef.current,
-              messages: () => loopRef.current?.messages ?? [],
-              mcpServerUsable: (name) => windowMcpUsableServers().has(name),
-              onProposal: (proposal) => {
-                skillCardsRef.current.add(proposal)
-                const targetId = activeAsstIdRef.current
-                if (targetId) {
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === targetId
-                        ? { ...m, skillProposals: [...(m.skillProposals ?? []), proposal.key] }
-                        : m,
-                    ),
-                  )
-                }
-              },
-            }),
-          ],
-        )
-        loopRef.current = new AgentLoop({
-          transport,
-          skill: composed,
-          systemSuffix: () => aiLangDirective(langRef.current),
-          events: {
-            onText: (fullText) => {
-              const targetId = activeAsstIdRef.current
-              if (!targetId) return
-              setMessages((prev) =>
-                prev.map((m) => (m.id === targetId ? { ...m, text: fullText } : m)),
-              )
-            },
-            onToolStart: (call) => {
-              const targetId = activeAsstIdRef.current
-              if (!targetId) return
-              const step: TrackedWorkStep = {
-                callId: call.id,
-                name: call.name,
-                summary: call.name,
-                running: true,
-              }
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === targetId ? { ...m, steps: [...(m.steps ?? []), step] } : m,
-                ),
-              )
-            },
-            onToolExecuted: ({ call, execution }) => {
-              const targetId = activeAsstIdRef.current
-              if (!targetId) return
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === targetId
-                    ? {
-                        ...m,
-                        steps: (m.steps ?? []).map((s) =>
-                          s.callId === call.id
-                            ? {
-                                ...s,
-                                summary: execution.summary || s.summary,
-                                running: false,
-                                isError: execution.isError,
-                                output: execution.output.slice(0, 1200),
-                              }
-                            : s,
-                        ),
-                      }
-                    : m,
-                ),
-              )
-            },
-            onError: (msg) => {
-              const targetId = activeAsstIdRef.current
-              const blocked = blockedRunFor(msg, lastStreamErrorRef.current)
-              if (blocked) {
-                setBlockedRun(blocked)
-              } else if (targetId) {
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === targetId ? { ...m, error: msg } : m)),
-                )
-              }
-              finalizeRun()
-            },
-            onDone: () => {
-              finalizeRun()
-            },
-          },
-        })
-      }
-
-      loopRef.current.run(text + skillUse.text, images.length > 0 ? images : undefined)
+        return next
+      })
     },
-    [availableAttachments, finalizeRun, host],
+    [],
   )
 
-  const gate = useAiSendGate<{
+  const clearMarks = useCallback(() => {
+    hostRef.current.setHighlights([])
+    setMarkedMsgId(null)
+  }, [])
+
+  const transportRef = useRef<ReturnType<typeof createElectronTransport> | null>(null)
+  if (!transportRef.current) {
+    transportRef.current = createElectronTransport(() => settingsRef.current!, {
+      getLang: () => langRef.current,
+      onStreamError: (err) => {
+        lastStreamErrorRef.current = err
+      },
+      onSubscriptionUsage: (reported) => {
+        setSubscriptionUsage((prev) => mergeSubscriptionUsage(prev, reported))
+      },
+      onInputTruncated: () => setInputTruncated(true),
+    })
+  }
+
+  const sendRef = useRef<
+    (text: string, overrideAttachments?: AttachmentMeta[], skillUse?: SkillUse) => boolean
+  >(() => false)
+
+  const sendGate = useAiSendGate<{
     text: string
-    attachments: AttachmentMeta[]
+    attachments: AttachmentMeta[] | undefined
     skillUse: SkillUse
   }>({
-    settings,
+    settings: aiSettings,
     statuses: sub.statuses,
     store: {
       getSettings: MODEL_BRIDGE.getSettings,
       setSettings: MODEL_BRIDGE.setSettings,
     },
-    start: (req) => {
-      void runTurn(req.text, req.attachments, req.skillUse)
+    start: (held) => {
+      sendRef.current(held.text, held.attachments, held.skillUse)
     },
     onNotConnected: () => sub.refresh(),
-    onSettingsSaved: (next) => setSettings(next),
+    onSettingsSaved: setAiSettings,
   })
+  const sendGateRef = useRef(sendGate)
+  sendGateRef.current = sendGate
 
-  const sendMessage = useCallback(
-    (
-      overrideText?: string,
-      overrideAttachments?: AttachmentMeta[],
-      skillUse: SkillUse = NO_SKILL_USE,
-    ) => {
-      const text = (overrideText ?? input).trim()
-      const atts = overrideAttachments ?? attachments
-      if (!text || busy) return
-      if (!gate.admit({ text, attachments: atts, skillUse })) return
-      setInput('')
-      void runTurn(text, atts, skillUse)
+  const msgQueue = useChatRunQueue<{ atts: AttachmentMeta[]; skillUse: SkillUse }>({
+    busy,
+    submit: (text, meta) => {
+      const loop = loopRef.current
+      if (!loop || loop.busy) return false
+      if (!sendGateRef.current.admitQueued(() => msgQueueRef.current.setPaused(true))) return false
+      return sendRef.current(text, meta.atts, meta.skillUse)
     },
-    [input, attachments, busy, gate, runTurn],
-  )
+  })
+  const msgQueueRef = useRef(msgQueue)
+  msgQueueRef.current = msgQueue
 
-  const sendDraft = useCallback(() => {
-    const text = input.trim()
-    if (!text || busy) return
-    skillsRef.current.withSkills(text, (skillUse) => sendMessage(text, undefined, skillUse))
-  }, [busy, input, sendMessage])
+  const resetConversationRef = useRef<() => void>(() => {})
+  const startNewChatRef = useRef<() => void>(() => {})
+
+  const openChat = useCallback((opened: ProjectChatOpened, initial = false) => {
+    if (initial && (chatNowRef.current.length > 0 || loopRef.current?.busy)) return
+    resetConversationRef.current()
+    if (opened.kind === 'document') return
+    const entries = opened.entries.map(chatEntryOf)
+    setChat(entries)
+    skillsRef.current.restoreHistory(
+      entries.map((entry) => (entry.role === 'user' ? entry.skills : undefined)),
+    )
+    windowMcpState()?.newConversation()
+    loopRef.current?.restore(entries.map((entry) => ({ role: entry.role, text: entry.text })))
+  }, [])
+
+  const project = useProjectPanel({
+    editor: 'whiteboard',
+    lang,
+    busy,
+    loop: () => loopRef.current,
+    consolidation: () => {
+      const live = sendGateRef.current.settings
+      if (live && !loopRef.current?.busy) settingsRef.current = live
+      const transport = transportRef.current
+      return transport ? { transport, gate: () => sendGateRef.current.peek() } : null
+    },
+    onOpen: (opened, initial) => openChat(opened, initial),
+    onRemoteMessages: (entries, running) => {
+      setChat((prev) => placeRemoteEntries(prev, entries.map(chatEntryOf), running))
+    },
+    onNewChat: () => startNewChatRef.current(),
+  })
+  projectRef.current = project
+
+  if (!loopRef.current) {
+    const wbSkill = createWhiteboardSkill({
+      host: () => hostRef.current,
+      context: () => contextRef.current,
+      onApplied: (ids) => {
+        turnBatchesRef.current += 1
+        turnChangedIdsRef.current.push(...ids)
+      },
+    })
+    const composed = composeWithDrive(
+      'whiteboard+search',
+      '',
+      () => loopRef.current?.messages ?? [],
+      [
+        wbSkill,
+        createSearchSkill(),
+        createFilesSkill(availableAttachments),
+        ...panelUserSkills({
+          editor: 'whiteboard',
+          lang: () => langRef.current,
+          messages: () => loopRef.current?.messages ?? [],
+          mcpServerUsable: (name) => windowMcpUsableServers().has(name),
+          onProposal: (proposal) => {
+            skillCardsRef.current.add(proposal)
+            patchLast((last) => ({
+              skillProposals: [...(last.skillProposals ?? []), proposal.key],
+            }))
+          },
+        }),
+        ...panelProjectSkill({ run: project.chat.run, lang: () => langRef.current }),
+      ],
+    )
+    loopRef.current = new AgentLoop({
+      transport: transportRef.current,
+      toolsAllowed: () =>
+        settingsRef.current ? localModelCapabilities(settingsRef.current).tools !== false : true,
+      skill: composed,
+      systemSuffix: () => aiLangDirective(langRef.current),
+      events: {
+        onText: (fullText) => patchLast({ text: fullText }),
+        onToolStart: (call) => {
+          patchLast((last) => ({
+            tools: [
+              ...(last.tools ?? []),
+              {
+                callId: call.id,
+                name: call.name,
+                summary: toolStepLabel(call.name),
+                running: true,
+              },
+            ],
+          }))
+        },
+        onToolExecuted: ({ call, execution }) => {
+          const activity: ToolActivity = {
+            callId: call.id,
+            name: call.name,
+            summary: execution.summary || toolStepLabel(call.name),
+            running: false,
+            isError: execution.isError,
+            output: execution.output.slice(0, TOOL_OUTPUT_MAX_CHARS),
+          }
+          runToolsRef.current.push(activity)
+          patchLast((last) => {
+            const tools = [...(last.tools ?? [])]
+            const idx = tools.findIndex((s) => s.callId === call.id)
+            if (idx >= 0) tools[idx] = activity
+            else {
+              if (tools.at(-1)?.running) tools.pop()
+              tools.push(activity)
+            }
+            return { tools }
+          })
+        },
+        onTurnEnd: () => {
+          patchLast({ streaming: false, usage: undefined })
+          const nextId = nextEntryId('a')
+          activeAsstIdRef.current = nextId
+          setChat((prev) => [...prev, { id: nextId, role: 'assistant', text: '', streaming: true }])
+        },
+        onUsage: (reported) => {
+          runUsageRef.current = addTokenUsage(runUsageRef.current, reported)
+          setSessionUsage((prev) => addTokenUsage(prev, reported))
+          patchLast({ usage: runUsageRef.current })
+        },
+        onDone: ({ text, cancelled, turnLimit, truncated }) => {
+          const base = turnLimit
+            ? [text, tGlobal('aiTurnLimit')].filter(Boolean).join('\n\n')
+            : text || (cancelled ? tGlobal('aiStopped') : '')
+          const final = truncated
+            ? [base, tGlobal('aiTruncatedNote')].filter(Boolean).join('\n\n')
+            : base
+          const batches = turnBatchesRef.current
+          const changedIds = [...new Set(turnChangedIdsRef.current)]
+          let changes: TurnChanges | undefined
+          if (batches > 0) {
+            hostRef.current.setHighlights(changedIds)
+            changes = { batchCount: batches, changedIds, state: 'applied' }
+            if (activeAsstIdRef.current) setMarkedMsgId(activeAsstIdRef.current)
+          }
+          setChat((prev) => {
+            const next = [...prev]
+            const last = next[next.length - 1]
+            if (!last || last.role !== 'assistant') return prev
+            next[next.length - 1] = {
+              ...last,
+              streaming: false,
+              text: final || (last.tools?.length ? last.text : tGlobal('aiNoReply')),
+              tools: last.tools?.filter((tl) => !tl.running),
+              ...(runUsageRef.current ? { usage: runUsageRef.current } : {}),
+              ...(changes ? { changes } : {}),
+            }
+            return next
+          })
+          projectRef.current?.chat.persist({
+            role: 'assistant',
+            text: final,
+            ...(runToolsRef.current.length > 0 ? { tools: runToolsRef.current } : {}),
+          })
+          projectRef.current?.finishSend()
+          setBusy(false)
+        },
+        onError: (msg) => {
+          const blocked = blockedRunFor(msg, lastStreamErrorRef.current)
+          if (blocked) msgQueueRef.current.hold()
+          const undelivered = runToolsRef.current.length === 0
+          const batches = turnBatchesRef.current
+          const changedIds = [...new Set(turnChangedIdsRef.current)]
+          let changes: TurnChanges | undefined
+          if (batches > 0) {
+            hostRef.current.setHighlights(changedIds)
+            changes = { batchCount: batches, changedIds, state: 'applied' }
+            if (activeAsstIdRef.current) setMarkedMsgId(activeAsstIdRef.current)
+          }
+          setChat((prev) => {
+            const next = [...prev]
+            for (let i = undelivered ? next.length - 1 : -1; i >= 0; i--) {
+              const entry = next[i]!
+              if (entry.role === 'user') {
+                next[i] = { ...entry, undelivered: true }
+                break
+              }
+            }
+            const last = next.at(-1)
+            if (last?.role === 'assistant') {
+              next[next.length - 1] = {
+                ...last,
+                streaming: false,
+                text: msg,
+                isError: true,
+                ...(blocked ? { blocked } : {}),
+                ...(changes ? { changes } : {}),
+                tools: last.tools?.filter((tl) => !tl.running),
+              }
+            }
+            return next
+          })
+          projectRef.current?.finishSend()
+          setBusy(false)
+        },
+      },
+    })
+  }
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      loopRef.current?.cancel()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (filePath) void projectRef.current?.chat.documentSaved()
+  }, [filePath])
+
+  useEffect(() => {
+    if (stickToBottomRef.current) {
+      chatRef.current?.scrollTo?.({ top: chatRef.current.scrollHeight })
+    }
+  }, [chat, busy])
+
+  const onChatScroll = (): void => {
+    const el = chatRef.current
+    if (!el) return
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+    onScrollBottom()
+  }
+
+  const collectAttachedImages = async (atts: AttachmentMeta[]): Promise<AgentImage[]> => {
+    const imageAtts = atts.filter((a) => a.isImage)
+    const images: AgentImage[] = []
+    const failures: string[] = []
+    for (const att of imageAtts.slice(0, MAX_IMAGES_PER_MESSAGE)) {
+      const img = await window.whiteboardApi.ai.readAttachmentImage(att.path)
+      if (img.ok && img.base64 && img.mime) {
+        images.push({ base64: img.base64, mime: img.mime })
+      } else {
+        failures.push(img.error ?? tGlobal('aiImageReadFail', { name: att.name }))
+      }
+    }
+    if (imageAtts.length > MAX_IMAGES_PER_MESSAGE) {
+      failures.push(tGlobal('aiTooManyImages', { max: MAX_IMAGES_PER_MESSAGE }))
+    }
+    showAttachNotice(failures)
+    return images
+  }
+
+  const send = (
+    text: string,
+    overrideAttachments?: AttachmentMeta[],
+    skillUse: SkillUse = NO_SKILL_USE,
+  ): boolean => {
+    const instruction = text.trim()
+    const loop = loopRef.current
+    if (!instruction || !loop || loop.busy) return false
+    if (!sendGate.admit({ text: instruction, attachments: overrideAttachments, skillUse })) {
+      return false
+    }
+
+    lastStreamErrorRef.current = null
+    setInputTruncated(false)
+    clearMarks()
+    turnBatchesRef.current = 0
+    turnChangedIdsRef.current = []
+    runToolsRef.current = []
+    runUsageRef.current = undefined
+    runInstructionRef.current = instruction
+
+    const sentAtts = overrideAttachments ?? attachmentsRef.current
+    lastSentRef.current = { text: instruction, attachments: sentAtts, skillUse }
+    if (sentAtts.length > 0) {
+      const seen = new Set(sentAttachmentsRef.current.map((a) => a.path))
+      sentAttachmentsRef.current = [
+        ...sentAttachmentsRef.current,
+        ...sentAtts.filter((a) => !seen.has(a.path)),
+      ]
+      if (!overrideAttachments) {
+        attachmentsRef.current = []
+        setAttachments([])
+      }
+    }
+
+    if (!namedRef.current && filePathRef.current === null) {
+      const name = nameFromRequest(instruction)
+      if (name) {
+        namedRef.current = true
+        window.whiteboardApi.core.setProvisionalTitle(name)
+      }
+    }
+
+    stickToBottomRef.current = true
+    const asstId = nextEntryId('a')
+    activeAsstIdRef.current = asstId
+    setChat((prev) => [
+      ...prev,
+      {
+        id: nextEntryId('u'),
+        role: 'user',
+        text: instruction,
+        ...(sentAtts.length > 0 ? { attachments: sentAtts } : {}),
+        ...(skillUse.chips.length > 0 ? { skills: skillUse.chips, skillText: skillUse.text } : {}),
+      },
+      { id: asstId, role: 'assistant', text: '', streaming: true },
+    ])
+    setPrompt('')
+    skillsRef.current.consume(skillUse)
+    setBusy(true)
+    projectRef.current?.chat.persist({
+      role: 'user',
+      text: instruction,
+      ...(skillUse.chips.length > 0 ? { skills: skillUse.chips } : {}),
+    })
+
+    const seq = ++sendSeqRef.current
+    void (async () => {
+      try {
+        const currentSettings = (await window.whiteboardApi.ai.getSettings()) as AiSettings
+        if (!mountedRef.current || seq !== sendSeqRef.current) return
+        settingsRef.current = currentSettings
+        setAiSettings(currentSettings)
+
+        const pageTable = await hostRef.current.readPage()
+        if (!mountedRef.current || seq !== sendSeqRef.current) return
+        contextRef.current = whiteboardContext(pageTable)
+
+        const images: AgentImage[] = []
+        if (modelSupportsVision(currentSettings)) {
+          const png = await hostRef.current.captureCurrentPagePng(1600)
+          if (png) images.push({ base64: png.base64, mime: png.mime })
+        }
+        if (sentAtts.length > 0) {
+          images.push(...(await collectAttachedImages(sentAtts)))
+        }
+        if (!mountedRef.current || seq !== sendSeqRef.current) return
+
+        await projectRef.current?.prepareSend()
+        if (!mountedRef.current || seq !== sendSeqRef.current) {
+          projectRef.current?.finishSend()
+          return
+        }
+
+        await loop.run(instruction + skillUse.text, images.length > 0 ? images : undefined)
+      } catch (err) {
+        projectRef.current?.finishSend()
+        if (!mountedRef.current || seq !== sendSeqRef.current) return
+        patchLast({
+          streaming: false,
+          text: err instanceof Error ? err.message : String(err),
+          isError: true,
+        })
+        setBusy(false)
+      }
+    })()
+
+    return true
+  }
+  sendRef.current = send
+
+  const cancelPendingSend = (): void => {
+    sendSeqRef.current++
+    setChat((prev) => {
+      const last = prev.at(-1)
+      if (!last || last.role !== 'assistant' || !last.streaming || last.text) return prev
+      const rest = prev.slice(0, -1)
+      const user = rest.at(-1)
+      if (user?.role === 'user') rest[rest.length - 1] = { ...user, undelivered: true }
+      return rest
+    })
+    setBusy(false)
+  }
+
+  const stop = (): void => {
+    msgQueue.hold()
+    const loop = loopRef.current
+    if (loop?.busy) loop.cancel()
+    else cancelPendingSend()
+  }
+
+  const sendDraft = (): void => {
+    const text = prompt.trim()
+    if (!text) return
+    skills.withSkills(text, (skillUse) => send(text, undefined, skillUse))
+  }
+
+  const enqueueDraft = (): void => {
+    const text = prompt.trim()
+    if (!text) return
+    skills.withSkills(text, (skillUse) => {
+      skillsRef.current.consume(skillUse)
+      const atts = attachmentsRef.current
+      if (atts.length > 0) {
+        attachmentsRef.current = []
+        setAttachments([])
+      }
+      msgQueue.enqueue(text, { atts, skillUse })
+      setPrompt('')
+    })
+  }
+
+  const entrySkillUse = (entry: ChatEntry): SkillUse =>
+    entry.skills && entry.skillText !== undefined
+      ? { text: entry.skillText, chips: entry.skills }
+      : NO_SKILL_USE
+
+  const retry = (): void => {
+    const last = lastSentRef.current
+    if (last) send(last.text, last.attachments, last.skillUse)
+    else if (runInstructionRef.current) send(runInstructionRef.current, [], NO_SKILL_USE)
+  }
+
+  const continueWith = (provider: AiSubscriptionProviderId): void => {
+    const last = [...chat].reverse().find((entry) => entry.role === 'user')
+    sendGate.continueWith(provider, () => {
+      if (last) send(last.text, last.attachments ?? [], entrySkillUse(last))
+      else retry()
+    })
+  }
+
+  const resetConversation = (): void => {
+    msgQueue.clear()
+    sendGate.reset()
+    stop()
+    loopRef.current?.reset()
+    windowMcpState()?.newConversation()
+    setBusy(false)
+    setChat([])
+    setInputTruncated(false)
+    clearMarks()
+    skills.resetConversation()
+    skillCards.reset()
+    attachmentsRef.current = []
+    setAttachments([])
+    setAttachNotice(null)
+    sentAttachmentsRef.current = []
+  }
+  resetConversationRef.current = resetConversation
+
+  const startNewChat = (): void => {
+    resetConversation()
+    if (projectRef.current?.chat.projectId) void projectRef.current.chat.newChat()
+  }
+  startNewChatRef.current = startNewChat
 
   const consumedHandoffId = useRef<string | null>(null)
   useEffect(() => {
@@ -525,7 +1116,11 @@ export function AiPanel({
       if (handoff.sourcePaths.length > 0) {
         const res = await window.whiteboardApi.ai.addAttachmentPaths(handoff.sourcePaths)
         added = res.added
-        setAttachments((prev) => [...prev, ...added])
+        if (added.length > 0) {
+          const next = [...attachmentsRef.current, ...added]
+          attachmentsRef.current = next
+          setAttachments(next)
+        }
       }
       window.whiteboardApi.handoff.reportRunStarted({
         id: handoff.id,
@@ -533,140 +1128,122 @@ export function AiPanel({
       })
       onHandoffConsumed?.()
       if (handoff.prompt.trim()) {
-        setInput(handoff.prompt)
-        sendMessage(handoff.prompt, added)
+        if (!sendRef.current(handoff.prompt, added)) {
+          setPrompt(handoff.prompt)
+        }
       }
     })()
-  }, [handoff, onHandoffConsumed, sendMessage])
+  }, [handoff, onHandoffConsumed])
 
-  const handleNewChat = useCallback(() => {
-    loopRef.current?.cancel()
-    loopRef.current = null
-    setMessages([])
-    setBlockedRun(null)
-    setInputTruncated(false)
-    setUndoNotice(null)
-    sentAttachmentsRef.current = []
-    host.setHighlights([])
-    setActiveHighlights([])
-    gate.reset()
-  }, [gate, host])
+  const latestAppliedChangesId = useMemo(() => {
+    for (let i = chat.length - 1; i >= 0; i--) {
+      const m = chat[i]!
+      if (m.changes?.state === 'applied') return m.id
+    }
+    return null
+  }, [chat])
 
-  const handleRevertTurn = useCallback(
-    async (msgId: string, changes: TurnChanges) => {
-      const ok = await host.undoBatches(changes.batchCount)
-      if (!ok) {
-        setUndoNotice(t('aiUndoBlockedAfterEdit'))
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === msgId && m.changes ? { ...m, changes: { ...m.changes, state: 'refused' } } : m,
-          ),
-        )
-        return
-      }
-      setActiveHighlights([])
-      setMessages((prev) =>
+  const handleRevertTurn = useCallback(async (msgId: string, changes: TurnChanges) => {
+    const ok = await hostRef.current.undoBatches(changes.batchCount)
+    if (!ok) {
+      setChat((prev) =>
         prev.map((m) =>
-          m.id === msgId && m.changes ? { ...m, changes: { ...m.changes, state: 'reverted' } } : m,
+          m.id === msgId && m.changes ? { ...m, changes: { ...m.changes, state: 'refused' } } : m,
         ),
       )
-    },
-    [host, t],
-  )
-
-  const handleClearMarks = useCallback(() => {
-    host.setHighlights([])
-    setActiveHighlights([])
-  }, [host])
+      return
+    }
+    hostRef.current.setHighlights([])
+    setMarkedMsgId(null)
+    setChat((prev) =>
+      prev.map((m) =>
+        m.id === msgId && m.changes ? { ...m, changes: { ...m.changes, state: 'reverted' } } : m,
+      ),
+    )
+  }, [])
 
   const handleAddAttachments = useCallback(async () => {
     const res = toDocAddResult(await window.whiteboardApi.ai.addAttachments())
     mergeAttachments(res)
   }, [mergeAttachments])
 
-  const headerActions = useMemo(
-    () => (
-      <>
-        <AiPanelSideButton
-          lang={lang}
-          onMove={async (side) => {
-            await window.whiteboardApi.ai.setPanelPrefs({ side })
-            return window.whiteboardApi.ai.getPanelPrefs()
-          }}
-        />
-        <button
-          type="button"
-          className="wb-btn"
-          title={t('aiNewChat')}
-          onClick={handleNewChat}
-          disabled={busy}
-        >
-          +
-        </button>
-        <button type="button" className="wb-btn" title={t('aiCollapsePanel')} onClick={onCollapse}>
-          ×
-        </button>
-      </>
-    ),
-    [busy, handleNewChat, lang, onCollapse, t],
-  )
-
   return (
-    <aside className="copilot" aria-label="AI Assistant">
-      <AiPanelHeader lang={lang} actions={headerActions} />
+    <aside
+      ref={asideRef}
+      className={`copilot${resizing ? ' ai-panel-resizing' : ''}${dragOver ? ' ai-panel-dragover' : ''}`}
+      style={{ width: '100%' }}
+      dir={lang === 'ar' || lang === 'he' ? 'rtl' : undefined}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault()
+          e.stopPropagation()
+          setDragOver(true)
+        }
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false)
+      }}
+      onDrop={(e) => void onDrop(e)}
+    >
+      <div
+        className="ai-panel-resizer"
+        onPointerDown={startResize}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={aiSubscriptionText(lang, 'aiAssistant')}
+      />
+      <AiPanelHeader
+        lang={lang}
+        chatMenu={project.chatMenu}
+        actions={
+          <>
+            <AiPanelSideButton
+              lang={lang}
+              onMove={async (side) => {
+                await window.whiteboardApi.ai.setPanelPrefs({ side })
+                return window.whiteboardApi.ai.getPanelPrefs()
+              }}
+            />
+            {chat.length > 0 && (
+              <button
+                type="button"
+                className="ai-header-btn"
+                onClick={startNewChat}
+                data-tip={t('aiNewChat')}
+                aria-label={t('aiNewChat')}
+              >
+                <IconNewChat />
+              </button>
+            )}
+            <button
+              type="button"
+              className="ai-header-btn ai-panel-collapse"
+              onClick={onCollapse}
+              data-tip={t('aiCollapsePanel')}
+              aria-label={t('aiCollapsePanel')}
+            >
+              <IconCollapse />
+            </button>
+          </>
+        }
+      />
 
-      <div className="wbai-messages">
-        {gate.connectChoice && (
-          <AiConnectPrompt
-            lang={lang}
-            choice={gate.connectChoice}
-            statuses={sub.statuses}
-            onInstall={sub.install}
-            onLogin={sub.login}
-            onRecheck={sub.recheck}
-            onAcceptMetered={sub.acceptMetered}
-            onOpenInstallHelp={sub.openInstallHelp}
-            onUpdate={sub.update}
-            onCancelLogin={sub.cancelLogin}
-            attention={gate.connectAttention}
-            onOpenSettings={() => void window.whiteboardApi.ai.openModelSettings()}
-          />
-        )}
-        {gate.noticeDue && (
-          <AiFirstConnectionNotice lang={lang} onAcknowledge={gate.acknowledgeNotice} />
-        )}
-        {blockedRun && (
-          <AiBlockedNotice
-            lang={lang}
-            kind={blockedRun.kind}
-            provider={blockedRun.provider}
-            resetsAt={blockedRun.resetsAt}
-            message={blockedRun.message}
-            settings={settings ?? {}}
-            statuses={sub.statuses}
-            onContinueWith={(provider) => {
-              const last = lastSentRef.current
-              gate.continueWith(provider, () => {
-                if (last) void runTurn(last.text, last.attachments, last.skillUse)
-              })
-            }}
-          />
-        )}
-        {inputTruncated && <AiInputTruncatedNotice lang={lang} />}
-        {undoNotice && <div className="wbai-error">{undoNotice}</div>}
-
-        {messages.length === 0 ? (
-          <div>
-            <h4>{t('aiEmptyTitle')}</h4>
-            <p>{t('aiEmptyBody')}</p>
-            <div className="wbai-starters">
+      <div className="ai-chat" ref={chatRef} onScroll={onChatScroll}>
+        {chat.length === 0 && (
+          <div className="ai-chat-empty">
+            <div className="ai-chat-empty-badge" aria-hidden="true">
+              <AiMark size={24} />
+            </div>
+            <div className="ai-chat-empty-title">{t('aiEmptyTitle')}</div>
+            <div className="ai-chat-empty-body">{t('aiEmptyBody')}</div>
+            <div className="ai-starter-list">
               {STARTERS.map(([labelKey, promptKey]) => (
                 <button
                   key={labelKey}
                   type="button"
-                  className="wbai-starter"
+                  className="ai-starter"
                   onClick={() => {
-                    setInput(t(promptKey))
+                    setPrompt(t(promptKey))
                     inputRef.current?.focus()
                   }}
                 >
@@ -676,61 +1253,177 @@ export function AiPanel({
             </div>
             <AiEmptyHints lang={lang} showSkill={Boolean(skills.composer)} showDocMention />
           </div>
-        ) : (
-          messages.map((m) => (
-            <div key={m.id} className={`wbai-msg wbai-msg-${m.role}`}>
-              {m.role === 'user' ? (
-                <>
-                  <SentSkillChips lang={lang} chips={m.skills} isAvailable={skills.isAvailable} />
-                  <div>{m.text}</div>
-                </>
+        )}
+        {chat.map((entry, i) => {
+          if (entry.role === 'user') {
+            return (
+              <div key={entry.id} className="ai-msg ai-msg-user">
+                <SentSkillChips lang={lang} chips={entry.skills} isAvailable={skills.isAvailable} />
+                {entry.attachments && entry.attachments.length > 0 && (
+                  <div className="ai-msg-attachments">
+                    <AttachmentList atts={entry.attachments} previews={attachmentPreviews} />
+                  </div>
+                )}
+                <span dir="auto">{entry.text}</span>
+                {entry.undelivered && (
+                  <div className="ai-msg-undelivered">
+                    {t('aiUndelivered')}
+                    {!busy && (
+                      <button
+                        type="button"
+                        className="ai-retry-btn"
+                        onClick={() =>
+                          send(entry.text, entry.attachments ?? [], entrySkillUse(entry))
+                        }
+                      >
+                        {t('aiRetry')}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          }
+          const hasTools = (entry.tools?.length ?? 0) > 0
+          if (!entry.text && !entry.streaming && !hasTools && !entry.changes) return null
+          const isLast = i === chat.length - 1
+          const nextEntry = chat[i + 1]
+          const turnEnded = nextEntry ? nextEntry.role === 'user' : !busy
+          const showToolbar = !entry.streaming && turnEnded && !!entry.text && !entry.isError
+          return (
+            <div
+              key={entry.id}
+              className={`ai-msg ai-msg-assistant${entry.isError && !entry.blocked ? ' ai-msg-error' : ''}${entry.streaming ? ' ai-msg-streaming' : ''}`}
+            >
+              {hasTools && <AiWorkSteps lang={lang} steps={entry.tools!} />}
+              {entry.blocked ? (
+                <AiBlockedNotice
+                  kind={entry.blocked.kind}
+                  provider={entry.blocked.provider}
+                  resetsAt={entry.blocked.resetsAt}
+                  message={entry.text}
+                  settings={aiSettings ?? {}}
+                  statuses={isLast && !busy ? sub.statuses : {}}
+                  lang={lang}
+                  onContinueWith={continueWith}
+                />
               ) : (
-                <>
-                  {m.steps && m.steps.length > 0 && <AiWorkSteps lang={lang} steps={m.steps} />}
-                  {m.text && <Markdown text={m.text} />}
-                  <SkillUsedNotes tools={m.steps} />
-                  {m.skillProposals?.map((key) => skillCards.render(key))}
-                  {m.error && <div className="wbai-error">{m.error}</div>}
-                  {m.changes && (
-                    <AiChangesCard
-                      lang={lang}
-                      state={m.changes.state}
-                      count={m.changes.changedIds.length || m.changes.batchCount}
-                      canRevert={!busy && m.changes.state === 'applied'}
-                      onRevert={() => void handleRevertTurn(m.id, m.changes!)}
-                      onClearMarks={activeHighlights.length > 0 ? handleClearMarks : null}
-                    />
-                  )}
-                </>
+                entry.text && (
+                  <div dir="auto">
+                    <Markdown text={entry.text} />
+                  </div>
+                )
+              )}
+              <SkillUsedNotes tools={entry.tools} />
+              {project.messageParts(entry)}
+              {entry.skillProposals?.map((key) => skillCards.render(key))}
+              {entry.changes && (
+                <AiChangesCard
+                  lang={lang}
+                  state={entry.changes.state}
+                  count={entry.changes.changedIds.length || entry.changes.batchCount}
+                  canRevert={
+                    !busy &&
+                    entry.changes.state === 'applied' &&
+                    entry.id === latestAppliedChangesId
+                  }
+                  onRevert={() => void handleRevertTurn(entry.id, entry.changes!)}
+                  onClearMarks={markedMsgId === entry.id ? clearMarks : null}
+                />
+              )}
+              <AiReplyProgress reply={entry} thinking={t('aiThinking')} working={t('aiWorking')} />
+              {(showToolbar || (turnEnded && entry.usage)) && (
+                <AiReplyFooter
+                  lang={lang}
+                  isLast={isLast}
+                  copyText={showToolbar ? entry.text : undefined}
+                  onRetry={
+                    showToolbar && isLast && !busy && runInstructionRef.current ? retry : undefined
+                  }
+                  usage={turnEnded ? entry.usage : undefined}
+                />
               )}
             </div>
-          ))
-        )}
+          )
+        })}
         <McpPermissionCard lang={lang} />
+        {project.hint}
+        {project.notices}
       </div>
 
-      {usage.length > 0 && <AiSubscriptionUsageLine lang={lang} usage={usage} />}
+      <AiScrollToBottom
+        visible={showScrollBottom && chat.length > 0}
+        lang={lang}
+        onClick={() => {
+          stickToBottomRef.current = true
+          scrollToBottom()
+        }}
+      />
 
-      <div className="ai-composer wbai-composer-wrap">
+      {(sendGate.connectChoice || sendGate.noticeDue) && (
+        <div className="ai-composer">
+          {sendGate.connectChoice ? (
+            <AiConnectPrompt
+              choice={sendGate.connectChoice}
+              statuses={sub.statuses}
+              lang={lang}
+              disabled={sub.busy}
+              attention={sendGate.connectAttention}
+              onOpenSettings={() => void window.whiteboardApi.ai.openModelSettings()}
+              onInstall={sub.install}
+              onUpdate={sub.update}
+              onCancelLogin={sub.cancelLogin}
+              onLogin={sub.login}
+              onRecheck={sub.recheck}
+              onAcceptMetered={sub.acceptMetered}
+              onOpenInstallHelp={sub.openInstallHelp}
+              onOpenConnectHelp={sub.openConnectHelp}
+            />
+          ) : (
+            <AiFirstConnectionNotice
+              lang={lang}
+              codexKeepsHistory
+              onAcknowledge={sendGate.acknowledgeNotice}
+            />
+          )}
+        </div>
+      )}
+
+      <div className="ai-composer">
         {attachments.length > 0 && (
-          <div className="wbai-chips">
-            {attachments.map((att) => (
-              <span key={att.id} className="wbai-chip">
-                {att.name}
-                <button
-                  type="button"
-                  title={t('aiRemoveAttachmentTitle')}
-                  onClick={() => setAttachments((prev) => prev.filter((a) => a.id !== att.id))}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
+          <div className="ai-attachments">
+            <AttachmentList
+              atts={attachments}
+              previews={attachmentPreviews}
+              onRemove={removeAttachment}
+              removeLabel={t('aiRemoveAttachmentTitle')}
+            />
           </div>
         )}
         {attachNotice && <div className="ai-attach-notice">{attachNotice}</div>}
+        {inputTruncated && (
+          <AiInputTruncatedNotice lang={lang} onDismiss={() => setInputTruncated(false)} />
+        )}
+        {aiSettings !== null && localModelCapabilities(aiSettings).tools === false && (
+          <AiToolsUnsupportedNotice lang={lang} />
+        )}
+        <AiSubscriptionUsageLine usage={subscriptionUsage} lang={lang} />
         <AiComposer
-          value={input}
+          queueStrip={
+            <AiQueueStrip
+              items={msgQueue.queued}
+              labels={AI_QUEUE_LABELS[lang]}
+              onUpdate={msgQueue.update}
+              onRemove={msgQueue.remove}
+              onClear={msgQueue.clear}
+              paused={msgQueue.paused}
+              onTogglePause={msgQueue.togglePaused}
+              onMove={msgQueue.move}
+            />
+          }
+          onQueue={enqueueDraft}
+          queuePlaceholder={AI_QUEUE_LABELS[lang].queuePlaceholder}
+          value={prompt}
           busy={busy}
           placeholder={t('aiComposerPlaceholder')}
           hintIdle={t('aiHintIdle')}
@@ -744,12 +1437,14 @@ export function AiPanel({
           sendIconDisabled={<IconArrowUp size={15} />}
           stopIcon={<IconStop size={12} />}
           textareaRef={inputRef}
-          onChange={setInput}
+          onChange={setPrompt}
           onSend={sendDraft}
-          onStop={() => loopRef.current?.cancel()}
+          onStop={stop}
           skills={skills.composer}
           docs={docMention}
           onPasteFiles={(files) => void handlePasteFiles(files)}
+          footerBelow={project.picker}
+          footerBelowEnd={sessionUsage && <AiUsageChip usage={sessionUsage} session lang={lang} />}
           footerStart={
             <>
               <AiAttachMenu
@@ -772,5 +1467,42 @@ export function AiPanel({
         />
       </div>
     </aside>
+  )
+}
+
+function Svg({ children, size = 15 }: { children: ReactNode; size?: number }): ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {children}
+    </svg>
+  )
+}
+
+function IconNewChat(): ReactElement {
+  return (
+    <Svg>
+      <path d="M13.5 7.2v-3A1.7 1.7 0 0 0 11.8 2.5H4.2a1.7 1.7 0 0 0-1.7 1.7v6.1a1.7 1.7 0 0 0 1.7 1.7h1.1v2l2.6-2h1.3" />
+      <path d="M12.2 9.4v4M10.2 11.4h4" />
+    </Svg>
+  )
+}
+
+function IconCollapse(): ReactElement {
+  return (
+    <Svg>
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1" />
+      <path d="M5.5 2.5v11" />
+      <path d="M12.5 8H8.1M9.8 5.9 7.7 8l2.1 2.1" strokeWidth="1.3" />
+    </Svg>
   )
 }
