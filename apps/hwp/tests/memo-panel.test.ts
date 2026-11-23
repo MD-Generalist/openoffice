@@ -526,9 +526,10 @@ describe('the memo panel screen', () => {
     expect(card?.querySelector('.memo-card-reason')?.textContent).toContain('mixes formatting')
 
     const actions = container.querySelectorAll<HTMLButtonElement>('.memo-card-actions button')
-    expect(actions).toHaveLength(2)
+    expect(actions).toHaveLength(3)
     expect(actions[0].disabled).toBe(true)
-    expect(actions[1].disabled).toBe(false)
+    expect(actions[1].disabled).toBe(true)
+    expect(actions[2].disabled).toBe(false)
   })
 
   it('leaves the editor free while no memo modal is open', async () => {
