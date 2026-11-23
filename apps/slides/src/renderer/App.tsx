@@ -1006,6 +1006,8 @@ export function App() {
     return new SlidesTimelineAdapter(bridge, {
       docKey: path || 'slides_untitled',
       isEncrypted: () => isEncryptedRef.current,
+      formatSlideCount: (n) => versionTimelineText(lang, 'slideCount', { n }),
+      beforeRestoreLabel: () => versionTimelineText(lang, 'sourceRestore'),
       captureSnapshot: async () => {
         const cur = ctxRef.current?.slides ?? []
         const res = await window.slidesApi.templateBytes?.()
@@ -1026,7 +1028,7 @@ export function App() {
         }
       },
     })
-  }, [path])
+  }, [path, lang])
 
   const refreshSlidesTimeline = useCallback(() => {
     void slidesTimelineAdapter.list().then((items) => setTimelineEntries(items))

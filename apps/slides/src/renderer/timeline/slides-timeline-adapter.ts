@@ -24,6 +24,8 @@ export interface SlidesTimelineTarget {
   isEncrypted(): boolean
   captureSnapshot(): Promise<SlidesTimelineSnapshot> | SlidesTimelineSnapshot
   applySnapshot(bytes: Uint8Array): Promise<boolean> | boolean
+  formatSlideCount?: (count: number) => string
+  beforeRestoreLabel?: () => string
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
@@ -70,7 +72,11 @@ export class SlidesTimelineAdapter {
   ): Promise<VersionEntry | null> {
     const snap = await this.target.captureSnapshot()
     if (snap.bytes.byteLength === 0) return null
-    const summary = meta.changeSummary ?? `${snap.slideCount} slides`
+    const summary =
+      meta.changeSummary ??
+      (this.target.formatSlideCount
+        ? this.target.formatSlideCount(snap.slideCount)
+        : `${snap.slideCount} slides`)
 
     if (this.target.isEncrypted() || !this.bridge) {
       const contentHash = await sha256Hex(snap.bytes)
@@ -125,7 +131,9 @@ export class SlidesTimelineAdapter {
   async restore(entryId: string): Promise<boolean> {
     const bytes = await this.readSnapshot(entryId)
     if (!bytes) return false
-    await this.record('restore', { changeSummary: 'Before restore' })
+    await this.record('restore', {
+      changeSummary: this.target.beforeRestoreLabel?.() ?? 'Before restore',
+    })
     return this.target.applySnapshot(bytes)
   }
 
