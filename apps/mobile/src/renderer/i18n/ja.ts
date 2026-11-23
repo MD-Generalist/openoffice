@@ -39,8 +39,10 @@ export const ja = {
   unsavedDiscard: '保存しない',
   cancel: 'キャンセル',
   savedNotice: '保存しました。',
-  readonlyShareNotice: '外部共有された一時ファイルは上書きできません。「名前を付けて保存」を使用してください。',
-  hwpTrackingDroppedNotice: '変更履歴付き文書を現在の本文で開きました。保存時に履歴は保持されません。',
+  readonlyShareNotice:
+    '外部共有された一時ファイルは上書きできません。「名前を付けて保存」を使用してください。',
+  hwpTrackingDroppedNotice:
+    '変更履歴付き文書を現在の本文で開きました。保存時に履歴は保持されません。',
   hwpProtectedSaveError: 'パスワード保護または配布用の HWP 文書は保存できません。',
   hwpProtectedShareError: '保護された HWP 文書は元のファイルのままのみ共有できます。',
   hwpVerifyFailedPrompt: 'HWP の保存検証に失敗しました。HWPX で保存してください。',

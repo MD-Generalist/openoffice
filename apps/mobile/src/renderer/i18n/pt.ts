@@ -39,10 +39,14 @@ export const pt = {
   unsavedDiscard: 'Descartar',
   cancel: 'Cancelar',
   savedNotice: 'Salvo.',
-  readonlyShareNotice: 'Arquivos compartilhados temporários não podem ser sobrescritos. Use Salvar como.',
-  hwpTrackingDroppedNotice: 'Documento aberto com o texto atual. O controle de alterações não será mantido.',
-  hwpProtectedSaveError: 'Documentos HWP protegidos por senha ou de distribuição não podem ser salvos.',
-  hwpProtectedShareError: 'Documentos HWP protegidos só podem ser compartilhados no formato original.',
+  readonlyShareNotice:
+    'Arquivos compartilhados temporários não podem ser sobrescritos. Use Salvar como.',
+  hwpTrackingDroppedNotice:
+    'Documento aberto com o texto atual. O controle de alterações não será mantido.',
+  hwpProtectedSaveError:
+    'Documentos HWP protegidos por senha ou de distribuição não podem ser salvos.',
+  hwpProtectedShareError:
+    'Documentos HWP protegidos só podem ser compartilhados no formato original.',
   hwpVerifyFailedPrompt: 'Falha na verificação HWP. Salve como HWPX.',
   hwpBackupFailedError: 'Falha no backup antes de sobrescrever; salvamento cancelado.',
   imageTooLargeError: 'A imagem excede o limite de 5 MiB.',

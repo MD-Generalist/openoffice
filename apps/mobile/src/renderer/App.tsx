@@ -6,10 +6,7 @@ import {
   createMobileAgentTransport,
   createMobileAiMemoryStore,
 } from '@genoffice/mobile-bridge/ai-bridge'
-import {
-  createMobileHwpApi,
-  createMobileHwpSkill,
-} from '@genoffice/mobile-bridge/hwp'
+import { createMobileHwpApi, createMobileHwpSkill } from '@genoffice/mobile-bridge/hwp'
 import {
   base64ToUtf8,
   createMobileMarkdownApi,
@@ -158,12 +155,15 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
     setChatgptStatus(cgStatus)
   }, [client])
 
-  const requestUnsavedChoice = useCallback(async (doc: ActiveDocState): Promise<UnsavedSwitchChoice> => {
-    return new Promise((resolve) => {
-      unsavedResolverRef.current = resolve
-      setUnsavedPromptDoc(doc.session.name)
-    })
-  }, [])
+  const requestUnsavedChoice = useCallback(
+    async (doc: ActiveDocState): Promise<UnsavedSwitchChoice> => {
+      return new Promise((resolve) => {
+        unsavedResolverRef.current = resolve
+        setUnsavedPromptDoc(doc.session.name)
+      })
+    },
+    [],
+  )
 
   const resolveUnsavedChoice = useCallback((choice: UnsavedSwitchChoice) => {
     setUnsavedPromptDoc(null)
@@ -271,9 +271,13 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
   }
 
   const openLoadedSession = useCallback(
-    async (session: MobileDocSession, options?: { isUntitled?: boolean; recoveryBytesBase64?: string }) => {
+    async (
+      session: MobileDocSession,
+      options?: { isUntitled?: boolean; recoveryBytesBase64?: string },
+    ) => {
       const controller = sessionControllerRef.current!
-      const isUntitled = options?.isUntitled ?? (!session.writable && !session.ephemeral && !session.uriHint)
+      const isUntitled =
+        options?.isUntitled ?? (!session.writable && !session.ephemeral && !session.uriHint)
 
       if (session.format === 'md' || session.format === 'txt') {
         const text = options?.recoveryBytesBase64
@@ -519,7 +523,8 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
         doc.session.format === 'md' || doc.session.format === 'txt'
           ? createMobileMarkdownSkill(
               {
-                getMarkdown: () => markdownEditorRef.current?.getMarkdown() ?? markdownTextRef.current,
+                getMarkdown: () =>
+                  markdownEditorRef.current?.getMarkdown() ?? markdownTextRef.current,
                 setMarkdown: (next) => {
                   markdownEditorRef.current?.setMarkdown(next)
                   setMarkdownText(next)
@@ -628,11 +633,31 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
     if (!activeDoc) return []
     if (activeDoc.session.format === 'md' || activeDoc.session.format === 'txt') {
       return [
-        { id: 'undo', label: tNow('undo'), onPress: () => markdownEditorRef.current?.runAction('undo') },
-        { id: 'redo', label: tNow('redo'), onPress: () => markdownEditorRef.current?.runAction('redo') },
-        { id: 'bold', label: tNow('bold'), onPress: () => markdownEditorRef.current?.runAction('bold') },
-        { id: 'italic', label: tNow('italic'), onPress: () => markdownEditorRef.current?.runAction('italic') },
-        { id: 'heading', label: tNow('heading'), onPress: () => markdownEditorRef.current?.runAction('heading') },
+        {
+          id: 'undo',
+          label: tNow('undo'),
+          onPress: () => markdownEditorRef.current?.runAction('undo'),
+        },
+        {
+          id: 'redo',
+          label: tNow('redo'),
+          onPress: () => markdownEditorRef.current?.runAction('redo'),
+        },
+        {
+          id: 'bold',
+          label: tNow('bold'),
+          onPress: () => markdownEditorRef.current?.runAction('bold'),
+        },
+        {
+          id: 'italic',
+          label: tNow('italic'),
+          onPress: () => markdownEditorRef.current?.runAction('italic'),
+        },
+        {
+          id: 'heading',
+          label: tNow('heading'),
+          onPress: () => markdownEditorRef.current?.runAction('heading'),
+        },
         {
           id: 'image',
           label: tNow('insertImage'),
@@ -644,7 +669,11 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
       { id: 'undo', label: tNow('undo'), onPress: () => hwpEditorRef.current?.runAction('undo') },
       { id: 'redo', label: tNow('redo'), onPress: () => hwpEditorRef.current?.runAction('redo') },
       { id: 'bold', label: tNow('bold'), onPress: () => hwpEditorRef.current?.runAction('bold') },
-      { id: 'italic', label: tNow('italic'), onPress: () => hwpEditorRef.current?.runAction('italic') },
+      {
+        id: 'italic',
+        label: tNow('italic'),
+        onPress: () => hwpEditorRef.current?.runAction('italic'),
+      },
       {
         id: 'underline',
         label: tNow('underline'),

@@ -40,7 +40,8 @@ export const ko = {
   cancel: '취소',
   savedNotice: '저장했습니다.',
   readonlyShareNotice: '외부 앱에서 공유된 임시 파일은 덮어쓸 수 없어 다른 이름으로 저장합니다.',
-  hwpTrackingDroppedNotice: '변경 추적 문서를 현재 본문으로 열었습니다. 저장 시 추적 기록은 유지되지 않습니다.',
+  hwpTrackingDroppedNotice:
+    '변경 추적 문서를 현재 본문으로 열었습니다. 저장 시 추적 기록은 유지되지 않습니다.',
   hwpProtectedSaveError: '암호가 걸렸거나 배포용인 한글 문서는 저장할 수 없습니다.',
   hwpProtectedShareError: '암호·배포용 한글 문서는 원본 파일 그대로만 공유할 수 있습니다.',
   hwpVerifyFailedPrompt: 'HWP 저장 검증에 실패했습니다. HWPX로 다른 이름으로 저장해 주세요.',
@@ -67,7 +68,8 @@ export const ko = {
   aiReauthDesc: '연결을 갱신해야 GenOffice에서 ChatGPT를 계속 쓸 수 있습니다.',
   aiReconnect: 'ChatGPT 다시 연결',
   aiConnectionErrorTitle: 'ChatGPT에 연결하지 못했습니다',
-  aiConnectionErrorDesc: '네트워크를 확인한 뒤 다시 시도해 주세요. 기존 요금 설정은 바뀌지 않습니다.',
+  aiConnectionErrorDesc:
+    '네트워크를 확인한 뒤 다시 시도해 주세요. 기존 요금 설정은 바뀌지 않습니다.',
   aiRetry: '다시 시도',
   settingsTitle: '설정',
   settingsLanguage: '화면 언어',

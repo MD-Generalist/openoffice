@@ -9,7 +9,8 @@ export const de = {
   openFile: 'Datei öffnen',
   recentDocs: 'Zuletzt geöffnet',
   recentEmpty: 'Noch keine zuletzt geöffneten Dokumente.',
-  recentPermissionExpired: 'Die Zugriffsberechtigung ist abgelaufen oder die Datei wurde verschoben.',
+  recentPermissionExpired:
+    'Die Zugriffsberechtigung ist abgelaufen oder die Datei wurde verschoben.',
   removeFromRecent: 'Aus Liste entfernen',
   repickFile: 'Datei erneut wählen',
   recoveryBannerTitle: 'Ungesicherte Wiederherstellungskopie verfügbar',
@@ -39,10 +40,14 @@ export const de = {
   unsavedDiscard: 'Verwerfen',
   cancel: 'Abbrechen',
   savedNotice: 'Gespeichert.',
-  readonlyShareNotice: 'Temporär geteilte Dateien können nicht überschrieben werden. Nutzen Sie Speichern unter.',
-  hwpTrackingDroppedNotice: 'Dokument mit aktuellem Text geöffnet. Änderungsverfolgung wird beim Speichern nicht erhalten.',
-  hwpProtectedSaveError: 'Passwortgeschützte oder Distributions-HWP-Dokumente können nicht gespeichert werden.',
-  hwpProtectedShareError: 'Geschützte HWP-Dokumente können nur unverändert im Original geteilt werden.',
+  readonlyShareNotice:
+    'Temporär geteilte Dateien können nicht überschrieben werden. Nutzen Sie Speichern unter.',
+  hwpTrackingDroppedNotice:
+    'Dokument mit aktuellem Text geöffnet. Änderungsverfolgung wird beim Speichern nicht erhalten.',
+  hwpProtectedSaveError:
+    'Passwortgeschützte oder Distributions-HWP-Dokumente können nicht gespeichert werden.',
+  hwpProtectedShareError:
+    'Geschützte HWP-Dokumente können nur unverändert im Original geteilt werden.',
   hwpVerifyFailedPrompt: 'HWP-Prüfung fehlgeschlagen. Bitte als HWPX speichern.',
   hwpBackupFailedError: 'Sicherung vor Überschreiben fehlgeschlagen; Speichern abgebrochen.',
   imageTooLargeError: 'Das Bild überschreitet das Limit von 5 MiB.',
@@ -61,13 +66,15 @@ export const de = {
   aiUsageLimitTitle: 'ChatGPT-Tariflimit erreicht',
   aiUsageLimitDesc: 'Prüfen Sie Nutzung und App-Limits in den ChatGPT-Einstellungen.',
   aiSharingDeclinedTitle: 'Bei ChatGPT angemeldet, aber Tarif-Freigabe ist aus',
-  aiSharingDeclinedDesc: 'Aktivieren Sie die Freigabe, um Ihren ChatGPT-Tarif in GenOffice zu nutzen.',
+  aiSharingDeclinedDesc:
+    'Aktivieren Sie die Freigabe, um Ihren ChatGPT-Tarif in GenOffice zu nutzen.',
   aiEnableSharing: 'Freigabe aktivieren',
   aiReauthTitle: 'ChatGPT neu verbinden',
   aiReauthDesc: 'Ihre Verbindung muss erneuert werden, um ChatGPT weiter zu nutzen.',
   aiReconnect: 'Neu verbinden',
   aiConnectionErrorTitle: 'Verbindung zu ChatGPT fehlgeschlagen',
-  aiConnectionErrorDesc: 'Netzwerk prüfen und erneut versuchen. Ihre Abrechnungswahl bleibt unverändert.',
+  aiConnectionErrorDesc:
+    'Netzwerk prüfen und erneut versuchen. Ihre Abrechnungswahl bleibt unverändert.',
   aiRetry: 'Erneut versuchen',
   settingsTitle: 'Einstellungen',
   settingsLanguage: 'Sprache',

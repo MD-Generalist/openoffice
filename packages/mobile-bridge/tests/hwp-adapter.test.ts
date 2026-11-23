@@ -61,7 +61,15 @@ describe('createMobileHwpApi save verification, backup gate, protected guard, an
         }
         if (command === 'mobile_hwp_new_tabs') {
           return [
-            { section: 0, para: 0, tabIdx: 0, before: 'A', after: 'B', charShapeId: 0, tabDefId: 0 },
+            {
+              section: 0,
+              para: 0,
+              tabIdx: 0,
+              before: 'A',
+              after: 'B',
+              charShapeId: 0,
+              tabDefId: 0,
+            },
           ] as T
         }
         if (command === 'mobile_save_file_bytes') {
@@ -91,7 +99,13 @@ describe('createMobileHwpApi save verification, backup gate, protected guard, an
       exportHwp: async () => new Uint8Array([0xd0, 0xcf, 0x11, 0xe0]),
       exportHwpx: async () => new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
       exportHwpVerify: async () => ({ pageCountBefore: 2, pageCountAfter: 2, recovered: true }),
-      measureTabs: async (spots) => spots.map((s) => ({ section: s.section, para: s.para, tabIdx: s.tabIdx, widthHwpUnit: 1200 })),
+      measureTabs: async (spots) =>
+        spots.map((s) => ({
+          section: s.section,
+          para: s.para,
+          tabIdx: s.tabIdx,
+          widthHwpUnit: 1200,
+        })),
       getPlainText: async () => 'Hello HWP',
       replaceText: async () => true,
       notifySaved: async () => {},

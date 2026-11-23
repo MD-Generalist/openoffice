@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentSkill, AgentToolCall } from '@genoffice/agent-core'
-import { AI_SUBSCRIPTION_NOTICE_VERSION, isKeyProviderConfigured } from '@genoffice/ai-provider/browser'
+import {
+  AI_SUBSCRIPTION_NOTICE_VERSION,
+  isKeyProviderConfigured,
+} from '@genoffice/ai-provider/browser'
 import {
   SEALED_KEY_PLACEHOLDER,
   assertValidMobileModelSelection,
@@ -191,10 +194,17 @@ describe('view-first mode and AI edit gate', () => {
 describe('AI projection, selectAiProvider, aiSendGate, and stream transport', () => {
   const baseSnapshot: MobileAiSettingsSnapshot = {
     selectedProvider: 'auto',
-    modelByProvider: { openai: 'gpt-4o-mini', openrouter: 'meta-llama/llama-3.3-70b-instruct:free' },
+    modelByProvider: {
+      openai: 'gpt-4o-mini',
+      openrouter: 'meta-llama/llama-3.3-70b-instruct:free',
+    },
     configuredProviders: {
       openai: { hasKey: true, models: ['gpt-4o-mini'] },
-      openrouter: { hasKey: true, freeOnly: true, models: ['meta-llama/llama-3.3-70b-instruct:free'] },
+      openrouter: {
+        hasKey: true,
+        freeOnly: true,
+        models: ['meta-llama/llama-3.3-70b-instruct:free'],
+      },
     },
     chatgptVisible: false,
     subscriptionNoticeVersion: 0,
@@ -233,7 +243,11 @@ describe('AI projection, selectAiProvider, aiSendGate, and stream transport', ()
   })
 
   it('enforces subscription notice version for ready ChatGPT connections', () => {
-    const readyChatgpt: MobileChatGptStatus = { state: 'ready', account: 'user@example.com', sharing: true }
+    const readyChatgpt: MobileChatGptStatus = {
+      state: 'ready',
+      account: 'user@example.com',
+      sharing: true,
+    }
     const unacked: MobileAiSettingsSnapshot = {
       ...baseSnapshot,
       chatgptVisible: true,
@@ -250,27 +264,27 @@ describe('AI projection, selectAiProvider, aiSendGate, and stream transport', ()
 
   it('enforces OpenRouter freeOnly :free models while allowing paid models on BYOK', () => {
     expect(() =>
-      assertValidMobileModelSelection(
-        'openrouter',
-        'openai/gpt-4o',
-        { hasKey: true, freeOnly: true, models: [] },
-      ),
+      assertValidMobileModelSelection('openrouter', 'openai/gpt-4o', {
+        hasKey: true,
+        freeOnly: true,
+        models: [],
+      }),
     ).toThrow(/INVALID_ARGUMENT/)
 
     expect(() =>
-      assertValidMobileModelSelection(
-        'openrouter',
-        'meta-llama/llama-3.3-70b-instruct:free',
-        { hasKey: true, freeOnly: true, models: [] },
-      ),
+      assertValidMobileModelSelection('openrouter', 'meta-llama/llama-3.3-70b-instruct:free', {
+        hasKey: true,
+        freeOnly: true,
+        models: [],
+      }),
     ).not.toThrow()
 
     expect(() =>
-      assertValidMobileModelSelection(
-        'openrouter',
-        'openai/gpt-4o',
-        { hasKey: true, freeOnly: false, models: [] },
-      ),
+      assertValidMobileModelSelection('openrouter', 'openai/gpt-4o', {
+        hasKey: true,
+        freeOnly: false,
+        models: [],
+      }),
     ).not.toThrow()
   })
 

@@ -64,7 +64,8 @@ export function wrapSkillWithViewEditGate(
         const caps = options.getCapabilities()
         if (!canMutateDocument(caps)) {
           return {
-            output: 'Document is read-only, encrypted, or distribution-protected and cannot be modified.',
+            output:
+              'Document is read-only, encrypted, or distribution-protected and cannot be modified.',
             isError: true,
             summary: call.name,
           }

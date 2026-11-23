@@ -40,11 +40,14 @@ export const en = {
   cancel: 'Cancel',
   savedNotice: 'Saved.',
   readonlyShareNotice: 'Temporary shared files cannot be overwritten in place. Choose Save As.',
-  hwpTrackingDroppedNotice: 'Opened tracked-changes document as current text. Tracked history will not be preserved on save.',
+  hwpTrackingDroppedNotice:
+    'Opened tracked-changes document as current text. Tracked history will not be preserved on save.',
   hwpProtectedSaveError: 'Password-protected or distribution HWP documents cannot be saved.',
-  hwpProtectedShareError: 'Password-protected or distribution HWP documents can only be shared as unmodified originals.',
+  hwpProtectedShareError:
+    'Password-protected or distribution HWP documents can only be shared as unmodified originals.',
   hwpVerifyFailedPrompt: 'HWP save verification failed. Save as HWPX instead.',
-  hwpBackupFailedError: 'Pre-overwrite backup failed; save was aborted to protect the original file.',
+  hwpBackupFailedError:
+    'Pre-overwrite backup failed; save was aborted to protect the original file.',
   imageTooLargeError: 'Image exceeds the 5 MiB size limit.',
   imageUnsupportedTypeError: 'Only PNG, JPG, GIF, and WebP images are supported.',
   aiTitle: 'AI Assistant',
@@ -52,7 +55,8 @@ export const en = {
   aiSend: 'Send',
   aiStop: 'Stop',
   aiEmptyHint: 'Summarize the document or ask AI to edit the text directly.',
-  aiReadOnlyHint: 'This document is read-only or protected. Only questions and summaries are allowed.',
+  aiReadOnlyHint:
+    'This document is read-only or protected. Only questions and summaries are allowed.',
   aiSwitchedToEditNotice: 'Switched to Edit mode so AI can apply document changes.',
   aiOffNotice: 'AI Assistant is turned off in Settings.',
   aiNotConnectedTitle: 'No AI provider connected',

@@ -145,7 +145,11 @@ export function assertValidMobileModelSelection(
       detail: 'Model id must not be empty.',
     })
   }
-  if (provider === 'openrouter' && configured?.freeOnly === true && !isOpenRouterFreeModel(trimmed)) {
+  if (
+    provider === 'openrouter' &&
+    configured?.freeOnly === true &&
+    !isOpenRouterFreeModel(trimmed)
+  ) {
     throw new MobileCommandError({
       code: 'INVALID_ARGUMENT',
       messageKey: 'mobile.ai.openrouterFreeOnly',

@@ -40,7 +40,8 @@ export const id = {
   cancel: 'Batal',
   savedNotice: 'Tersimpan.',
   readonlyShareNotice: 'File berbagi sementara tidak dapat ditimpa. Gunakan Simpan Sebagai.',
-  hwpTrackingDroppedNotice: 'Dokumen pelacakan dibuka sebagai teks saat ini. Riwayat perubahan tidak disimpan.',
+  hwpTrackingDroppedNotice:
+    'Dokumen pelacakan dibuka sebagai teks saat ini. Riwayat perubahan tidak disimpan.',
   hwpProtectedSaveError: 'Dokumen HWP berproteksi sandi atau distribusi tidak dapat disimpan.',
   hwpProtectedShareError: 'Dokumen HWP terlindungi hanya dapat dibagikan sebagai file asli.',
   hwpVerifyFailedPrompt: 'Verifikasi simpan HWP gagal. Simpan sebagai HWPX.',

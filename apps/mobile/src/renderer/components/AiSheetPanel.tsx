@@ -1,9 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import type { AgentMessage } from '@genoffice/agent-core'
 import { SUBSCRIPTION_CHATGPT_USAGE_URL } from '@genoffice/ai-provider/browser'
-import {
-  evaluateMobileAiSendGate,
-} from '@genoffice/mobile-bridge/ai-bridge'
+import { evaluateMobileAiSendGate } from '@genoffice/mobile-bridge/ai-bridge'
 import type {
   MobileAiSettingsSnapshot,
   MobileChatGptStatus,
@@ -11,11 +9,7 @@ import type {
 import { useMobileLocale } from '../i18n'
 
 export type ChatGptRecoveryNoticeKind =
-  | 'usage-limit'
-  | 'sharing-declined'
-  | 'reauth'
-  | 'connection-error'
-  | null
+  'usage-limit' | 'sharing-declined' | 'reauth' | 'connection-error' | null
 
 export interface AiSheetPanelProps {
   readonly aiEnabled: boolean
@@ -200,7 +194,9 @@ export function AiSheetPanel({
               <div
                 key={`${msg.role}-${idx}`}
                 className={
-                  msg.role === 'user' ? 'mobile-ai-bubble mobile-ai-user' : 'mobile-ai-bubble mobile-ai-assistant'
+                  msg.role === 'user'
+                    ? 'mobile-ai-bubble mobile-ai-user'
+                    : 'mobile-ai-bubble mobile-ai-assistant'
                 }
               >
                 {msg.text}
@@ -234,11 +230,7 @@ export function AiSheetPanel({
           aria-label={t('aiPlaceholder')}
         />
         {streaming ? (
-          <button
-            type="button"
-            className="mobile-touch-btn mobile-btn-secondary"
-            onClick={onStop}
-          >
+          <button type="button" className="mobile-touch-btn mobile-btn-secondary" onClick={onStop}>
             {t('aiStop')}
           </button>
         ) : (

@@ -157,7 +157,10 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
             italic: 'format.italic',
             underline: 'format.underline',
           }
-          void ed.commands.execute(map[action]).then(() => onDirty()).catch(() => {})
+          void ed.commands
+            .execute(map[action])
+            .then(() => onDirty())
+            .catch(() => {})
         },
         fitToWidth() {
           setZoom(1)

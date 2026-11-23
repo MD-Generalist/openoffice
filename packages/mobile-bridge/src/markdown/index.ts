@@ -1,10 +1,6 @@
 import type { AgentSkill, AgentToolCall, AgentToolDef, ToolExecution } from '@genoffice/agent-core'
 import { brandText } from '@genoffice/i18n'
-import {
-  MobileCommandError,
-  type MobileClient,
-  type MobileDocSession,
-} from '../transport'
+import { MobileCommandError, type MobileClient, type MobileDocSession } from '../transport'
 import {
   wrapSkillWithViewEditGate,
   type DocumentEditCapabilities,
@@ -97,7 +93,8 @@ export function inlineImageToMarkdown(input: InlineImageInput): string {
   return `![${safeAlt}](data:${normalizedMime};base64,${bytesToBase64(input.bytes)})`
 }
 
-const RELATIVE_IMAGE_PATTERN = /!\[[^\]]*\]\(((?!https?:\/\/|data:|blob:|mailto:)[^)\s]+(?:\s+"[^"]*")?)\)/g
+const RELATIVE_IMAGE_PATTERN =
+  /!\[[^\]]*\]\(((?!https?:\/\/|data:|blob:|mailto:)[^)\s]+(?:\s+"[^"]*")?)\)/g
 
 /**
  * Preserves existing relative markdown image syntax verbatim across edits when an editor
@@ -309,10 +306,7 @@ export function createMobileMarkdownSkill(
   const baseSkill: AgentSkill = {
     id: 'mobile-markdown',
     systemPrompt: [
-      brandText(
-        'You are the writing assistant inside GenOffice Mobile Markdown editor.',
-        'en',
-      ),
+      brandText('You are the writing assistant inside GenOffice Mobile Markdown editor.', 'en'),
       'You may only inspect and edit the currently open Markdown document.',
       'Use read_document to inspect content, and replace_text, append_markdown, or replace_document for edits.',
       'Keep existing relative image links intact and never emit raw HTML tags.',
@@ -351,7 +345,11 @@ export function createMobileMarkdownSkill(
       if (call.name === 'append_markdown') {
         const addition = typeof call.input.markdown === 'string' ? call.input.markdown : ''
         if (!addition.trim()) {
-          return { output: 'Missing markdown content to append.', isError: true, summary: call.name }
+          return {
+            output: 'Missing markdown content to append.',
+            isError: true,
+            summary: call.name,
+          }
         }
         const prev = editor.getMarkdown()
         const sep = prev.endsWith('\n') || prev.length === 0 ? '' : '\n\n'

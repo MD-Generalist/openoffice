@@ -183,7 +183,11 @@ async function prepareExportedHwp(
   editor: MobileHwpEditorPort,
   client: MobileClient,
 ): Promise<
-  | { readonly ok: true; readonly bytesBase64: string; readonly measuredTabs: readonly MeasuredTab[] }
+  | {
+      readonly ok: true
+      readonly bytesBase64: string
+      readonly measuredTabs: readonly MeasuredTab[]
+    }
   | { readonly ok: false; readonly reason: 'verify' | 'write'; readonly detail?: string }
 > {
   if (format === 'hwp') {
@@ -400,7 +404,10 @@ export function createMobileHwpSkill(
   const baseSkill: AgentSkill = {
     id: 'mobile-hwp',
     systemPrompt: [
-      brandText('You are the writing assistant inside GenOffice Mobile Hangul (HWP/HWPX) editor.', 'en'),
+      brandText(
+        'You are the writing assistant inside GenOffice Mobile Hangul (HWP/HWPX) editor.',
+        'en',
+      ),
       'Use read_hwp_text to inspect the open document and replace_hwp_text to edit text in place.',
       'Only inspect or edit the currently open document.',
     ].join('\n'),
@@ -421,7 +428,11 @@ export function createMobileHwpSkill(
           return { output: `Text not found: ${find}`, isError: true, summary: call.name }
         }
         gate.onDocumentMutated?.(`Replaced "${find.slice(0, 24)}"`)
-        return { output: 'Updated text in Hangul document.', mutated: true, summary: 'Replace text' }
+        return {
+          output: 'Updated text in Hangul document.',
+          mutated: true,
+          summary: 'Replace text',
+        }
       }
       return { output: `Unknown tool: ${call.name}`, isError: true, summary: call.name }
     },

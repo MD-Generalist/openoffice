@@ -267,11 +267,7 @@ export interface MobileClient {
   openRecentDoc(id: string): Promise<MobileDocSession>
   consumePendingOpenIntent(): Promise<MobileDocSession | null>
   readFileBytes(sessionId: string): Promise<ReadFileBytesResult>
-  hwpNewTabs(
-    sessionId: string,
-    bytesBase64: string,
-    format: 'hwp' | 'hwpx',
-  ): Promise<TabSpot[]>
+  hwpNewTabs(sessionId: string, bytesBase64: string, format: 'hwp' | 'hwpx'): Promise<TabSpot[]>
   saveFileBytes(
     sessionId: string,
     bytesBase64: string,
@@ -375,7 +371,8 @@ export function createMobileClient(transport: MobileTransport): MobileClient {
     hwpBackupList: () => invokeChecked(transport, 'mobile_hwp_backup_list'),
     hwpBackupRestore: (backupId, target) =>
       invokeChecked(transport, 'mobile_hwp_backup_restore', { backupId, target }),
-    hwpBackupDelete: (backupId) => invokeChecked(transport, 'mobile_hwp_backup_delete', { backupId }),
+    hwpBackupDelete: (backupId) =>
+      invokeChecked(transport, 'mobile_hwp_backup_delete', { backupId }),
     getAppPrefs: () => invokeChecked(transport, 'mobile_get_app_prefs'),
     setAppPrefs: (patch) => invokeChecked(transport, 'mobile_set_app_prefs', { ...patch }),
     getAiSettings: () => invokeChecked(transport, 'mobile_get_ai_settings'),
@@ -389,7 +386,8 @@ export function createMobileClient(transport: MobileTransport): MobileClient {
     startAiStream: (request) => invokeChecked(transport, 'mobile_ai_stream_start', { ...request }),
     cancelAiStream: (requestId) =>
       invokeChecked(transport, 'mobile_ai_stream_cancel', { requestId }),
-    onAiStreamChunk: (handler) => transport.listen<MobileAiStreamChunk>('mobile:ai-stream-chunk', handler),
+    onAiStreamChunk: (handler) =>
+      transport.listen<MobileAiStreamChunk>('mobile:ai-stream-chunk', handler),
     chatgptStatus: () => invokeChecked(transport, 'mobile_chatgpt_status'),
     chatgptSignIn: (reconsent) =>
       invokeChecked(transport, 'mobile_chatgpt_sign_in', { reconsent: reconsent ?? false }),
@@ -404,10 +402,7 @@ interface TauriGlobalInternals {
 }
 
 interface TauriEventGlobal {
-  listen?: <T>(
-    event: string,
-    handler: (ev: { payload: T }) => void,
-  ) => Promise<() => void>
+  listen?: <T>(event: string, handler: (ev: { payload: T }) => void) => Promise<() => void>
 }
 
 /**

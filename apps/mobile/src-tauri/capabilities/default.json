@@ -3,7 +3,5 @@
   "identifier": "default",
   "description": "Default mobile WebView capability for IeumOffice Mobile",
   "windows": ["main"],
-  "permissions": [
-    "core:default"
-  ]
+  "permissions": ["core:default"]
 }

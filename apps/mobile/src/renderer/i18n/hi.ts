@@ -9,7 +9,8 @@ export const hi = {
   openFile: 'फ़ाइल खोलें',
   recentDocs: 'हाल के दस्तावेज़',
   recentEmpty: 'अभी कोई हाल का दस्तावेज़ नहीं है।',
-  recentPermissionExpired: 'इस फ़ाइल की पहुँच अनुमति समाप्त हो गई है या फ़ाइल स्थानांतरित हो गई है।',
+  recentPermissionExpired:
+    'इस फ़ाइल की पहुँच अनुमति समाप्त हो गई है या फ़ाइल स्थानांतरित हो गई है।',
   removeFromRecent: 'सूची से हटाएँ',
   repickFile: 'फ़ाइल फिर से चुनें',
   recoveryBannerTitle: 'असहेजी गई रिकवरी प्रति उपलब्ध है',
@@ -39,8 +40,10 @@ export const hi = {
   unsavedDiscard: 'छोड़ें',
   cancel: 'रद्द करें',
   savedNotice: 'सहेजा गया।',
-  readonlyShareNotice: 'अस्थायी साझा फ़ाइल को ओवरराइट नहीं किया जा सकता। "इस रूप में सहेजें" चुनें।',
-  hwpTrackingDroppedNotice: 'दस्तावेज़ वर्तमान पाठ के साथ खोला गया; सहेजने पर परिवर्तन इतिहास नहीं रहेगा।',
+  readonlyShareNotice:
+    'अस्थायी साझा फ़ाइल को ओवरराइट नहीं किया जा सकता। "इस रूप में सहेजें" चुनें।',
+  hwpTrackingDroppedNotice:
+    'दस्तावेज़ वर्तमान पाठ के साथ खोला गया; सहेजने पर परिवर्तन इतिहास नहीं रहेगा।',
   hwpProtectedSaveError: 'पासवर्ड-संरक्षित या वितरण HWP दस्तावेज़ सहेजे नहीं जा सकते।',
   hwpProtectedShareError: 'संरक्षित HWP दस्तावेज़ केवल मूल फ़ाइल के रूप में साझा किए जा सकते हैं।',
   hwpVerifyFailedPrompt: 'HWP सत्यापन विफल रहा। कृपया HWPX के रूप में सहेजें।',

@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  createMobileClient,
-  type MobileDocSession,
-  type MobileTransport,
-} from '../src/transport'
+import { createMobileClient, type MobileDocSession, type MobileTransport } from '../src/transport'
 import {
   MAX_MOBILE_INLINE_IMAGE_BYTES,
   createMobileMarkdownApi,
@@ -58,7 +54,9 @@ describe('markdown inline image validation and relative link preservation', () =
   it('preserves existing relative image markdown syntax intact across edits', () => {
     const original = '# Title\n\n![diagram](./assets/diagram.png)\n\nOld text.\n'
     const edited = '# Title\n\n![diagram](./assets/diagram.png)\n\nNew text.\n'
-    expect(preserveRelativeImageLinks(original, edited)).toContain('![diagram](./assets/diagram.png)')
+    expect(preserveRelativeImageLinks(original, edited)).toContain(
+      '![diagram](./assets/diagram.png)',
+    )
   })
 })
 

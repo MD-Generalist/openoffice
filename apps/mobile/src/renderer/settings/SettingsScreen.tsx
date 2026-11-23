@@ -86,11 +86,7 @@ export function SettingsScreen({
   return (
     <main className="mobile-settings" data-testid="mobile-settings-screen">
       <header className="mobile-editor-header">
-        <button
-          type="button"
-          className="mobile-touch-btn mobile-btn-ghost"
-          onClick={onBack}
-        >
+        <button type="button" className="mobile-touch-btn mobile-btn-ghost" onClick={onBack}>
           {t('back')}
         </button>
         <h1 className="mobile-header-title">{t('settingsTitle')}</h1>
@@ -133,9 +129,7 @@ export function SettingsScreen({
           <select
             className="mobile-select"
             value={prefs.hwpDefaultFormat}
-            onChange={(e) =>
-              onUpdatePrefs({ hwpDefaultFormat: e.target.value as 'hwp' | 'hwpx' })
-            }
+            onChange={(e) => onUpdatePrefs({ hwpDefaultFormat: e.target.value as 'hwp' | 'hwpx' })}
             data-testid="settings-hwp-format-select"
           >
             <option value="hwp">.hwp</option>
@@ -321,7 +315,9 @@ export function SettingsScreen({
             {BYOK_PROVIDERS.map(({ id, label }) => {
               const info = aiSettings.configuredProviders[id]
               const isConnected =
-                id === 'openrouter' ? Boolean(info?.hasKey && !info.freeOnly) : Boolean(info?.hasKey)
+                id === 'openrouter'
+                  ? Boolean(info?.hasKey && !info.freeOnly)
+                  : Boolean(info?.hasKey)
               const slot = `byok-${id}`
               return (
                 <div key={id} className="mobile-provider-row">

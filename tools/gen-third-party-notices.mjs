@@ -73,6 +73,7 @@ const SRC_GLOBS = [
   'apps/diagram/src',
   'apps/whiteboard/src',
   'apps/markdown/src',
+  'apps/mobile/src',
   'apps/pdf/src',
   'apps/sheets/src',
   'apps/shell/src',
@@ -632,6 +633,11 @@ function whiteboardEngineWasmCrates() {
   )
 }
 
+/** Rust crates statically linked into the Tauri 2 Mobile backend (apps/mobile/src-tauri) */
+function mobileTauriCrates() {
+  return linkedRustCrates(join(ROOT, 'apps/mobile/src-tauri/Cargo.toml'), 'ieumoffice-mobile')
+}
+
 /** the crate list and each distinct license text; the count line is what electron-builder checks */
 function crateSection(crates) {
   let text = `\n${crates.length} crates, all under permissive terms:\n\n`
@@ -756,9 +762,7 @@ if (printLayoutCrates === null) {
 }
 
 const whiteboardEngineCrates = whiteboardEngineWasmCrates()
-out += hr(
-  '7. Rust crates (whiteboard-engine, compiled into whiteboard_engine_bg.wasm)',
-)
+out += hr('7. Rust crates (whiteboard-engine, compiled into whiteboard_engine_bg.wasm)')
 out += `
 whiteboard-engine (packages/whiteboard-engine/rust) is built for ${RHWP_TARGET} and ships as
 resources/wasm/whiteboard_engine_bg.wasm for .whiteboard ZIP archives, edit planning,
@@ -770,6 +774,20 @@ if (whiteboardEngineCrates === null) {
   out += ' packages/whiteboard-engine/rust/Cargo.lock for the full crate list.\n'
 } else {
   out += crateSection(whiteboardEngineCrates)
+}
+
+const mobileCrates = mobileTauriCrates()
+out += hr('7b. Rust crates (ieumoffice-mobile Tauri 2 backend, apps/mobile/src-tauri)')
+out += `
+ieumoffice-mobile (apps/mobile/src-tauri) is the Tauri 2 Mobile Rust backend for
+Android and iOS, linking hwp5-wasm and tauri-plugin-ieum-mobile directly.
+`
+if (mobileCrates === null) {
+  gap('cargo metadata failed for apps/mobile/src-tauri (is cargo on PATH?)')
+  out += '\ncargo metadata unavailable at generation time; see'
+  out += ' apps/mobile/src-tauri/Cargo.lock for the full crate list.\n'
+} else {
+  out += crateSection(mobileCrates)
 }
 
 const GOTHIC_KR_COPYRIGHT = [
@@ -890,6 +908,11 @@ const TEMPLATE_FONTS = [
 ]
 
 out += hr('8. Bundled fonts')
+out += `
+The SIL OFL 1.1 Korean font subsets (GenOffice Serif KR, GenOffice Sans KR,
+GenOffice Gothic KR, GenOffice Che Latin KR) are also bundled in the mobile app
+(apps/mobile/src/renderer/assets/fonts/, LICENSE-OFL.txt) for Hangul layout fidelity.
+`
 for (const [name, spdx, copyright] of FONTS) out += sub(`${name} — ${spdx}`) + copyright + '\n'
 for (const [name, file, copyright] of TEMPLATE_FONTS) {
   out += sub(`${name} (slide design templates, resources/template-fonts) — SIL OFL 1.1`)
@@ -1071,7 +1094,7 @@ console.log(
     `${resolved.length} npm packages, ${crates?.length ?? 0} xlsx-sidecar crates, ` +
     `${wasmCrates?.length ?? 0} rhwp crates, ${sidecarCrates?.length ?? 0} parse-sidecar crates, ` +
     `${hwp5Crates?.length ?? 0} hwp5-wasm crates, ${printLayoutCrates?.length ?? 0} print-layout-wasm crates, ` +
-    `${whiteboardEngineCrates?.length ?? 0} whiteboard-engine crates, draw.io ${drawio ? drawio.config.version : 'missing'}`,
+    `${whiteboardEngineCrates?.length ?? 0} whiteboard-engine crates, ${mobileCrates?.length ?? 0} mobile crates, draw.io ${drawio ? drawio.config.version : 'missing'}`,
 )
 if (noText.length > 0) console.warn(`no license file published: ${noText.join(', ')}`)
 if (missing.size > 0) console.warn(`not installed, skipped: ${[...missing].join(', ')}`)

@@ -9,7 +9,8 @@ export const nl = {
   openFile: 'Bestand openen',
   recentDocs: 'Recente documenten',
   recentEmpty: 'Nog geen recente documenten.',
-  recentPermissionExpired: 'Toegangsmachtiging voor dit bestand is verlopen of het bestand is verplaatst.',
+  recentPermissionExpired:
+    'Toegangsmachtiging voor dit bestand is verlopen of het bestand is verplaatst.',
   removeFromRecent: 'Uit lijst verwijderen',
   repickFile: 'Bestand opnieuw kiezen',
   recoveryBannerTitle: 'Niet-opgeslagen herstelkopie beschikbaar',
@@ -39,10 +40,14 @@ export const nl = {
   unsavedDiscard: 'Niet opslaan',
   cancel: 'Annuleren',
   savedNotice: 'Opgeslagen.',
-  readonlyShareNotice: 'Tijdelijk gedeelde bestanden kunnen niet worden overschreven. Gebruik Opslaan als.',
-  hwpTrackingDroppedNotice: 'Document geopend met huidige tekst; wijzigingsgeschiedenis wordt niet bewaard.',
-  hwpProtectedSaveError: 'Met wachtwoord beveiligde of distributie-HWP-documenten kunnen niet worden opgeslagen.',
-  hwpProtectedShareError: 'Beveiligde HWP-documenten kunnen alleen als ongewijzigd origineel worden gedeeld.',
+  readonlyShareNotice:
+    'Tijdelijk gedeelde bestanden kunnen niet worden overschreven. Gebruik Opslaan als.',
+  hwpTrackingDroppedNotice:
+    'Document geopend met huidige tekst; wijzigingsgeschiedenis wordt niet bewaard.',
+  hwpProtectedSaveError:
+    'Met wachtwoord beveiligde of distributie-HWP-documenten kunnen niet worden opgeslagen.',
+  hwpProtectedShareError:
+    'Beveiligde HWP-documenten kunnen alleen als ongewijzigd origineel worden gedeeld.',
   hwpVerifyFailedPrompt: 'HWP-verificatie mislukt. Sla op als HWPX.',
   hwpBackupFailedError: 'Back-up vóór overschrijven mislukt; opslaan afgebroken.',
   imageTooLargeError: 'Afbeelding overschrijdt de limiet van 5 MiB.',
@@ -67,7 +72,8 @@ export const nl = {
   aiReauthDesc: 'Uw verbinding moet worden vernieuwd om ChatGPT te blijven gebruiken.',
   aiReconnect: 'Opnieuw verbinden',
   aiConnectionErrorTitle: 'Kan niet verbinden met ChatGPT',
-  aiConnectionErrorDesc: 'Controleer uw netwerk en probeer het opnieuw. Uw facturering blijft ongewijzigd.',
+  aiConnectionErrorDesc:
+    'Controleer uw netwerk en probeer het opnieuw. Uw facturering blijft ongewijzigd.',
   aiRetry: 'Opnieuw proberen',
   settingsTitle: 'Instellingen',
   settingsLanguage: 'Taal',

@@ -39,10 +39,14 @@ export const es = {
   unsavedDiscard: 'Descartar',
   cancel: 'Cancelar',
   savedNotice: 'Guardado.',
-  readonlyShareNotice: 'Los archivos compartidos temporales no se pueden sobrescribir. Usa Guardar como.',
-  hwpTrackingDroppedNotice: 'Documento abierto con el texto actual. El control de cambios no se conservará al guardar.',
-  hwpProtectedSaveError: 'Los documentos HWP protegidos con contraseña o de distribución no se pueden guardar.',
-  hwpProtectedShareError: 'Los documentos HWP protegidos solo se pueden compartir en su archivo original.',
+  readonlyShareNotice:
+    'Los archivos compartidos temporales no se pueden sobrescribir. Usa Guardar como.',
+  hwpTrackingDroppedNotice:
+    'Documento abierto con el texto actual. El control de cambios no se conservará al guardar.',
+  hwpProtectedSaveError:
+    'Los documentos HWP protegidos con contraseña o de distribución no se pueden guardar.',
+  hwpProtectedShareError:
+    'Los documentos HWP protegidos solo se pueden compartir en su archivo original.',
   hwpVerifyFailedPrompt: 'Falló la verificación HWP. Guárdalo como HWPX.',
   hwpBackupFailedError: 'Falló la copia de seguridad previa; guardado cancelado.',
   imageTooLargeError: 'La imagen supera el límite de 5 MiB.',

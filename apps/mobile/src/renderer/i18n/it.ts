@@ -39,9 +39,12 @@ export const it = {
   unsavedDiscard: 'Non salvare',
   cancel: 'Annulla',
   savedNotice: 'Salvato.',
-  readonlyShareNotice: 'I file condivisi temporanei non possono essere sovrascritti. Usa Salva con nome.',
-  hwpTrackingDroppedNotice: 'Documento aperto con il testo corrente. Le revisioni non verranno mantenute.',
-  hwpProtectedSaveError: 'I documenti HWP protetti da password o di distribuzione non possono essere salvati.',
+  readonlyShareNotice:
+    'I file condivisi temporanei non possono essere sovrascritti. Usa Salva con nome.',
+  hwpTrackingDroppedNotice:
+    'Documento aperto con il testo corrente. Le revisioni non verranno mantenute.',
+  hwpProtectedSaveError:
+    'I documenti HWP protetti da password o di distribuzione non possono essere salvati.',
   hwpProtectedShareError: 'I documenti HWP protetti possono essere condivisi solo come originali.',
   hwpVerifyFailedPrompt: 'Verifica salvataggio HWP non riuscita. Salva come HWPX.',
   hwpBackupFailedError: 'Backup preventivo non riuscito; salvataggio annullato.',

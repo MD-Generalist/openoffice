@@ -15,13 +15,7 @@ import {
 } from '@genoffice/mobile-bridge/markdown'
 
 export type MarkdownQuickAction =
-  | 'undo'
-  | 'redo'
-  | 'bold'
-  | 'italic'
-  | 'heading'
-  | 'list'
-  | 'insertImage'
+  'undo' | 'redo' | 'bold' | 'italic' | 'heading' | 'list' | 'insertImage'
 
 export interface MarkdownMobileEditorHandle {
   readonly runAction: (action: MarkdownQuickAction) => void

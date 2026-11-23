@@ -17,11 +17,7 @@ function replaceOrInsertBlock(content, startMarker, endMarker, block, anchor) {
   const startIdx = content.indexOf(startMarker)
   const endIdx = content.indexOf(endMarker)
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    return (
-      content.slice(0, startIdx) +
-      block.trim() +
-      content.slice(endIdx + endMarker.length)
-    )
+    return content.slice(0, startIdx) + block.trim() + content.slice(endIdx + endMarker.length)
   }
   const anchorIdx = content.indexOf(anchor)
   if (anchorIdx === -1) {

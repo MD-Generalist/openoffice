@@ -9,7 +9,8 @@ export const fr = {
   openFile: 'Ouvrir un fichier',
   recentDocs: 'Documents récents',
   recentEmpty: 'Aucun document récent.',
-  recentPermissionExpired: 'L’autorisation d’accès à ce fichier a expiré ou le fichier a été déplacé.',
+  recentPermissionExpired:
+    'L’autorisation d’accès à ce fichier a expiré ou le fichier a été déplacé.',
   removeFromRecent: 'Retirer de la liste',
   repickFile: 'Choisir à nouveau',
   recoveryBannerTitle: 'Copie de récupération disponible',
@@ -39,10 +40,14 @@ export const fr = {
   unsavedDiscard: 'Ignorer',
   cancel: 'Annuler',
   savedNotice: 'Enregistré.',
-  readonlyShareNotice: 'Les fichiers partagés temporaires ne peuvent pas être écrasés. Utilisez Enregistrer sous.',
-  hwpTrackingDroppedNotice: 'Document ouvert avec le texte actuel. Le suivi des modifications ne sera pas conservé.',
-  hwpProtectedSaveError: 'Les documents HWP protégés par mot de passe ou de distribution ne peuvent pas être enregistrés.',
-  hwpProtectedShareError: 'Les documents HWP protégés ne peuvent être partagés qu’en version originale.',
+  readonlyShareNotice:
+    'Les fichiers partagés temporaires ne peuvent pas être écrasés. Utilisez Enregistrer sous.',
+  hwpTrackingDroppedNotice:
+    'Document ouvert avec le texte actuel. Le suivi des modifications ne sera pas conservé.',
+  hwpProtectedSaveError:
+    'Les documents HWP protégés par mot de passe ou de distribution ne peuvent pas être enregistrés.',
+  hwpProtectedShareError:
+    'Les documents HWP protégés ne peuvent être partagés qu’en version originale.',
   hwpVerifyFailedPrompt: 'La vérification HWP a échoué. Enregistrez en HWPX.',
   hwpBackupFailedError: 'Échec de la sauvegarde préalable ; enregistrement annulé.',
   imageTooLargeError: 'L’image dépasse la limite de 5 MiB.',
@@ -53,7 +58,8 @@ export const fr = {
   aiStop: 'Arrêter',
   aiEmptyHint: 'Résumez le document ou demandez à l’IA de le modifier.',
   aiReadOnlyHint: 'Document en lecture seule ou protégé : questions et résumés uniquement.',
-  aiSwitchedToEditNotice: 'Passage automatique en mode Édition pour appliquer les modifications IA.',
+  aiSwitchedToEditNotice:
+    'Passage automatique en mode Édition pour appliquer les modifications IA.',
   aiOffNotice: 'L’assistant IA est désactivé dans les paramètres.',
   aiNotConnectedTitle: 'Aucun fournisseur IA connecté',
   aiOpenSettings: 'Ouvrir les paramètres IA',
@@ -67,7 +73,8 @@ export const fr = {
   aiReauthDesc: 'Votre connexion doit être renouvelée pour continuer avec ChatGPT.',
   aiReconnect: 'Reconnecter ChatGPT',
   aiConnectionErrorTitle: 'Connexion à ChatGPT impossible',
-  aiConnectionErrorDesc: 'Vérifiez votre connexion et réessayez. Vos paramètres de facturation restent inchangés.',
+  aiConnectionErrorDesc:
+    'Vérifiez votre connexion et réessayez. Vos paramètres de facturation restent inchangés.',
   aiRetry: 'Réessayer',
   settingsTitle: 'Paramètres',
   settingsLanguage: 'Langue',

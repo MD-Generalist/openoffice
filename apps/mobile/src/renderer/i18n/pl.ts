@@ -40,7 +40,8 @@ export const pl = {
   cancel: 'Anuluj',
   savedNotice: 'Zapisano.',
   readonlyShareNotice: 'Tymczasowych plików udostępnionych nie można nadpisać. Użyj Zapisz jako.',
-  hwpTrackingDroppedNotice: 'Otwarto bieżącą treść; historia zmian nie zostanie zachowana przy zapisie.',
+  hwpTrackingDroppedNotice:
+    'Otwarto bieżącą treść; historia zmian nie zostanie zachowana przy zapisie.',
   hwpProtectedSaveError: 'Dokumentów HWP chronionych hasłem lub dystrybucyjnych nie można zapisać.',
   hwpProtectedShareError: 'Chronione dokumenty HWP można udostępniać tylko jako oryginały.',
   hwpVerifyFailedPrompt: 'Weryfikacja zapisu HWP nie powiodła się. Zapisz jako HWPX.',

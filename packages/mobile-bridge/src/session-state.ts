@@ -52,7 +52,9 @@ export class MobileSessionController {
     this.hooks.onSessionChanged?.(this.current, prev)
   }
 
-  updateSessionMetadata(patch: Partial<Omit<ActiveDocState, 'session'>> & { session?: MobileDocSession }): void {
+  updateSessionMetadata(
+    patch: Partial<Omit<ActiveDocState, 'session'>> & { session?: MobileDocSession },
+  ): void {
     if (!this.current) return
     const prev = this.current
     const docKeyChanged = Boolean(patch.session && patch.session.docKey !== prev.session.docKey)
@@ -111,9 +113,7 @@ export class MobileSessionController {
   }
 
   /** Routes an external Share-In / Open-With intent through the same unsaved switch guard. */
-  async handleExternalOpenIntent(
-    incoming: OpenLoadedSession,
-  ): Promise<SwitchOutcome> {
+  async handleExternalOpenIntent(incoming: OpenLoadedSession): Promise<SwitchOutcome> {
     return this.switchTo(async () => incoming)
   }
 

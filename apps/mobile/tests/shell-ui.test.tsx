@@ -43,7 +43,11 @@ const baseAiSettings: MobileAiSettingsSnapshot = {
   selectedProvider: 'auto',
   modelByProvider: {},
   configuredProviders: {
-    openrouter: { hasKey: true, freeOnly: true, models: ['meta-llama/llama-3.3-70b-instruct:free'] },
+    openrouter: {
+      hasKey: true,
+      freeOnly: true,
+      models: ['meta-llama/llama-3.3-70b-instruct:free'],
+    },
   },
   chatgptVisible: false,
   subscriptionNoticeVersion: 0,
