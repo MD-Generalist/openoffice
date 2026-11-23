@@ -360,7 +360,10 @@ describe('vendored rhwp engine', () => {
   // page end has a six-line note in a cell. The engine measured the captions
   // as one line and each note as 400 HWPUNIT, so text ran under the captions
   // and down into the notes, and it drew each number twice ("1) 1) …").
-  function checkCaptionFootnoteFlow(doc: HwpDocument) {
+  function checkCaptionFootnoteFlow(
+    doc: HwpDocument,
+    options: { allowDeferredCellNote?: boolean } = {},
+  ) {
     const text = (node: Node): string =>
       (node.text ?? '') + (node.children ?? []).map(text).join('')
     const pages = Array.from({ length: doc.pageCount() }, (_, page) => {
@@ -409,9 +412,14 @@ describe('vendored rhwp engine', () => {
     for (const n of [1, 2]) expect(pages[notePage(n)].lines.some((l) => l.pi === 12)).toBe(true)
     expect(notePage(3)).toBe(pageOf(16))
     expect(pages[notePage(3)].noteText.length).toBeGreaterThanOrEqual(10)
-    expect(notePage(4)).toBe(
-      pages.findIndex((_, page) => boxes(doc, page).some((b) => b.type === 'Table' && b.pi === 22)),
+    const tablePage = pages.findIndex((_, page) =>
+      boxes(doc, page).some((b) => b.type === 'Table' && b.pi === 22),
     )
+    if (options.allowDeferredCellNote) {
+      expect([tablePage, tablePage + 1]).toContain(notePage(4))
+    } else {
+      expect(notePage(4)).toBe(tablePage)
+    }
   }
 
   it('reserves what multi-line captions and footnotes draw in a file without stored lines', () => {
@@ -427,8 +435,13 @@ describe('vendored rhwp engine', () => {
 
   it('lays out the caption and note lines of a .hwp the earlier engine saved without them', () => {
     // caption-footnote-flow-ieum17.hwp is the fixture saved as .hwp by engine
-    // 0.8.7-ieum.17: no caption or note lines, and inline picture lines that
-    // leave out the caption.
-    checkCaptionFootnoteFlow(open('caption-footnote-flow-ieum17.hwp'))
+    // 0.8.7-ieum.17: no caption or note lines, inline picture lines that leave
+    // out the caption, and no /RhwpLineSegTags stream (rhwp v0.9.1 #8939).
+    // Without that stream v0.9.1 honors the file's stored vpos=0 resets, placing
+    // table 22 near the bottom of page 6 so patch 0039 moves its 9-line note to
+    // page 7 instead of overflowing the page.
+    checkCaptionFootnoteFlow(open('caption-footnote-flow-ieum17.hwp'), {
+      allowDeferredCellNote: true,
+    })
   })
 })

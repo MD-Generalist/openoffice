@@ -798,6 +798,7 @@ describe('the studio source the build fetched', () => {
   const files = [
     'src/main.ts',
     'src/embed/protocol.ts',
+    'src/core/font-substitution.ts',
     'src/core/wasm-bridge.ts',
     'src/core/local-fonts.ts',
     'src/engine/cursor.ts',
@@ -1190,6 +1191,70 @@ describe('the table/cell properties dialog on a cell block', () => {
         "import { t as i18nText } from '../i18n/index.ts';\n",
       ),
     ).toThrow(/exactly one occurrence/)
+  })
+
+  it('keeps patternType 0 (horizontal hatch) distinct from -1 (none) in table border/bg patch', () => {
+    const source = [
+      "import { t as i18nText } from '../i18n/index.ts';",
+      '      // 표 선택 시에만 테두리·배경 탭 표시 (셀 선택 시 별도 "셀 테두리/배경" 대화상자 사용)',
+      "      ...(this.mode === 'table' ? [",
+      "    if (this.mode === 'table' && this.borderTarget === 'table' && this.borderEdits) {",
+      "    if (this.mode === 'table' && this.bgTarget === 'table' && this.bgColorRadio) {",
+      '    const applyProps = () => {',
+      '      this.wasm.setCellProperties(sec, ppi, ci, this.cellIdx, newCellProps as Partial<CellProperties>);',
+    ].join('\n')
+    const patched = applyPatch('studio-table-props-border-bg', source)
+    const start = patched.indexOf('function ieumKeepUnchangedTableLook(')
+    const end = patched.indexOf('\n      // ieum: from a cell too')
+    const js = ts.transpileModule(patched.slice(start, end), {
+      compilerOptions: { target: ts.ScriptTarget.ES2022 },
+    }).outputText
+    const keep = new Function(`${js}\nreturn ieumKeepUnchangedTableLook;`)() as (
+      next: Record<string, unknown>,
+      now: Record<string, unknown>,
+    ) => void
+
+    // solid fill with no pattern (-1) changed to horizontal hatch (0) must be sent as 0, not stripped or reset to -1
+    const toHatch: Record<string, unknown> = {
+      fillType: 'solid',
+      fillColor: '#ffffff',
+      patternColor: '#000000',
+      patternType: 0,
+    }
+    keep(toHatch, {
+      fillType: 'solid',
+      fillColor: '#ffffff',
+      patternColor: '#000000',
+      patternType: -1,
+    })
+    expect(toHatch.fillType).toBe('solid')
+    expect(toHatch.patternType).toBe(0)
+
+    // unchanged horizontal hatch (0) is stripped
+    const sameHatch: Record<string, unknown> = {
+      fillType: 'solid',
+      fillColor: '#ffffff',
+      patternColor: '#000000',
+      patternType: 0,
+    }
+    keep(sameHatch, {
+      fillType: 'solid',
+      fillColor: '#ffffff',
+      patternColor: '#000000',
+      patternType: 0,
+    })
+    expect(sameHatch).toEqual({})
+
+    // changed solid fill with no pattern keeps -1
+    const toSolid: Record<string, unknown> = {
+      fillType: 'solid',
+      fillColor: '#ffff00',
+      patternColor: '#000000',
+      patternType: -1,
+    }
+    keep(toSolid, { fillType: 'none' })
+    expect(toSolid.fillType).toBe('solid')
+    expect(toSolid.patternType).toBe(-1)
   })
 })
 

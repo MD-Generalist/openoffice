@@ -266,14 +266,21 @@ describe('a page of the print path', () => {
   })
 })
 
-describe('the studio patch for equation fonts', () => {
-  // the studio's text around the patch, as the pinned release has it
+describe('the studio patches for equation fonts', () => {
+  // the studio's text around each patch, as the pinned release has it
   const bridge = [
+    "import { substituteCssFontFamily } from './font-substitution';",
     "import { rememberRawCanvasFontDescriptor } from './canvas-font-raw';",
-    "import type { FileSystemFileHandleLike } from '@/command/file-system-access';",
     '',
-    'function substituteCssFontFamily(cssFont: string): string {',
-    '  const incoming = parseCssFontFamilyList(familyPart);',
+    'function installCanvasFontSubstitution(): void {}',
+    '',
+  ].join('\n')
+
+  const substitution = [
+    "import { TEXT_SYMBOL_FONT_FAMILIES } from './text-symbol-font.ts';",
+    '',
+    'export function substituteCssFontFamily(cssFont: string): string {',
+    '  const incoming: string[] = [];',
     '  const primary = incoming[0];',
     '  if (!primary) return cssFont;',
     '  const localFontsEnabled = getLocalFontState().stored;',
@@ -282,19 +289,24 @@ describe('the studio patch for equation fonts', () => {
   ].join('\n')
 
   it('puts the layer under the substitution and lets a glyph run through it', () => {
-    const patched = applyPatch('studio-equation-fonts', bridge)
-    expect(patched).toContain(
-      "import { installEquationFonts, isEquationGlyphFont } from '@ieum/pc-fonts';",
-    )
+    const patchedBridge = applyPatch('studio-equation-fonts', bridge)
+    expect(patchedBridge).toContain("import { installEquationFonts } from '@ieum/pc-fonts';")
     // installed when the module loads, before the substitution wraps the canvas font
-    expect(patched.indexOf('installEquationFonts();')).toBeLessThan(
-      patched.indexOf('function substituteCssFontFamily'),
-    )
-    // the run's font is not weighed against what the studio knows of the PC's fonts
-    expect(patched.indexOf('if (isEquationGlyphFont(primary)) return cssFont;')).toBeLessThan(
-      patched.indexOf('getLocalFontState().stored'),
+    expect(patchedBridge.indexOf('installEquationFonts();')).toBeLessThan(
+      patchedBridge.indexOf('function installCanvasFontSubstitution'),
     )
     expect(STUDIO_PATCHES).toContain('studio-equation-fonts')
     expect(() => applyPatch('studio-equation-fonts', 'export const x = 1')).toThrow(/rhwp patch/)
+
+    const patchedSubst = applyPatch('studio-equation-fonts-subst', substitution)
+    expect(patchedSubst).toContain("import { isEquationGlyphFont } from '@ieum/pc-fonts';")
+    // the run's font is not weighed against what the studio knows of the PC's fonts
+    expect(patchedSubst.indexOf('if (isEquationGlyphFont(primary)) return cssFont;')).toBeLessThan(
+      patchedSubst.indexOf('getLocalFontState().stored'),
+    )
+    expect(STUDIO_PATCHES).toContain('studio-equation-fonts-subst')
+    expect(() => applyPatch('studio-equation-fonts-subst', 'export const x = 1')).toThrow(
+      /rhwp patch/,
+    )
   })
 })
