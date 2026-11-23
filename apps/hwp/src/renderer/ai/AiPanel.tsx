@@ -1803,6 +1803,7 @@ export function AiPanel({
                 onPickedDrive={attachFromDrive}
                 memoAttach={{
                   listMemos: async () => {
+                    if (typeof bridgeRef.current?.listMemos !== 'function') return []
                     const listed = await bridgeRef.current.listMemos().catch(() => ({ memos: [] }))
                     return hwpMemosToReviewMemos(listed.memos)
                   },

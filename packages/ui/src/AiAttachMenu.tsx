@@ -294,11 +294,18 @@ export function AiAttachMenu({
   useEffect(() => {
     if (!open || !memoAttach) return
     let live = true
-    void Promise.resolve(memoAttach.listMemos()).then((list) => {
-      if (!live) return
-      setMemoItems(list)
-      setMemoCount(list.length)
-    })
+    void Promise.resolve()
+      .then(() => memoAttach.listMemos())
+      .then((list) => {
+        if (!live) return
+        setMemoItems(list)
+        setMemoCount(list.length)
+      })
+      .catch(() => {
+        if (!live) return
+        setMemoItems([])
+        setMemoCount(0)
+      })
     return () => {
       live = false
     }
