@@ -2,6 +2,7 @@ import react from '@vitejs/plugin-react'
 import { cpSync, existsSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
+import { rhwpPatches } from '../hwp/scripts/rhwp-patches.mjs'
 
 /**
  * Copies the prebuilt rhwp-studio bundle from apps/hwp/public/studio into
@@ -13,7 +14,11 @@ function copyHwpStudioPlugin(): Plugin {
   return {
     name: 'copy-hwp-studio',
     closeBundle() {
-      if (!existsSync(studioSrc)) return
+      if (!existsSync(studioSrc)) {
+        throw new Error(
+          `rhwp-studio bundle missing at ${studioSrc}; run "npm run studio -w @genoffice/hwp" first.`,
+        )
+      }
       mkdirSync(studioDest, { recursive: true })
       cpSync(studioSrc, studioDest, { recursive: true })
     },
@@ -23,7 +28,7 @@ function copyHwpStudioPlugin(): Plugin {
 export default defineConfig({
   root: resolve(__dirname, 'src/renderer'),
   base: './',
-  plugins: [react(), copyHwpStudioPlugin()],
+  plugins: [react(), rhwpPatches('sdk-scheme') as Plugin, copyHwpStudioPlugin()],
   build: {
     outDir: resolve(__dirname, 'dist'),
     emptyOutDir: true,

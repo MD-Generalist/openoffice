@@ -60,8 +60,7 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           if (cancelled) return
 
           const studioUrl = mobileHwpStudioUrl(lang)
-          const editor = await createEditor({
-            container,
+          const editor = await createEditor(container, {
             studioUrl,
           })
           if (cancelled) {
@@ -71,7 +70,7 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           editorRef.current = editor
 
           if (documentBytes && documentBytes.byteLength > 0) {
-            await editor.loadDocument(documentBytes, fileName)
+            await editor.loadFile(documentBytes, fileName, { skipUnsavedGuard: true })
           }
           onReady?.()
         } catch (err) {
