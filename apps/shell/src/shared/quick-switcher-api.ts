@@ -10,6 +10,7 @@ export const QUICK_SWITCHER_CHANNELS = {
   execute: 'quick-switcher:execute',
   close: 'quick-switcher:close',
   lang: 'quick-switcher:lang',
+  theme: 'quick-switcher:theme',
 } as const
 
 export type QuickSwitcherGroup = 'open-tab' | 'recent-file' | 'project-file' | 'command'
@@ -33,4 +34,5 @@ export interface QuickSwitcherBridge {
   execute(itemId: string): Promise<boolean>
   close(): Promise<void>
   lang(): Promise<string>
+  theme(): Promise<'light' | 'dark' | 'system'>
 }

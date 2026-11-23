@@ -12,6 +12,10 @@ const bridge: QuickSwitcherBridge = {
     ipcRenderer.invoke(QUICK_SWITCHER_CHANNELS.execute, itemId).then((ok) => ok === true),
   close: () => ipcRenderer.invoke(QUICK_SWITCHER_CHANNELS.close),
   lang: () => ipcRenderer.invoke(QUICK_SWITCHER_CHANNELS.lang).then((l) => String(l ?? 'ko')),
+  theme: () =>
+    ipcRenderer
+      .invoke(QUICK_SWITCHER_CHANNELS.theme)
+      .then((t) => (t === 'light' || t === 'dark' ? t : 'system')),
 }
 
 contextBridge.exposeInMainWorld('aiOfficeQuickSwitcher', bridge)

@@ -19,6 +19,7 @@ export interface QuickSwitcherSources {
   readonly isAiVisible: () => boolean
   readonly isEditorEnabled: (editorKind: string) => boolean
   readonly getLang: () => string
+  readonly getTheme?: () => 'light' | 'dark' | 'system'
   readonly listOpenTabs: () => readonly {
     readonly id: string
     readonly title: string
@@ -160,6 +161,7 @@ export function createQuickSwitcherController(
 let popupWin: BrowserWindow | null = null
 let activeController: QuickSwitcherController | null = null
 let activeLangGetter: (() => string) | null = null
+let activeThemeGetter: (() => 'light' | 'dark' | 'system') | null = null
 
 export function registerQuickSwitcherIpc(ipcMain: IpcMain): void {
   for (const ch of Object.values(QUICK_SWITCHER_CHANNELS)) {
@@ -179,6 +181,7 @@ export function registerQuickSwitcherIpc(ipcMain: IpcMain): void {
     closeQuickSwitcherWindow()
   })
   ipcMain.handle(QUICK_SWITCHER_CHANNELS.lang, () => activeLangGetter?.() ?? 'ko')
+  ipcMain.handle(QUICK_SWITCHER_CHANNELS.theme, () => activeThemeGetter?.() ?? 'system')
 }
 
 export function closeQuickSwitcherWindow(): void {
@@ -197,6 +200,7 @@ export function openQuickSwitcherWindow(
 ): void {
   activeController = createQuickSwitcherController(sources)
   activeLangGetter = sources.getLang
+  activeThemeGetter = sources.getTheme ?? null
   if (popupWin && !popupWin.isDestroyed()) {
     popupWin.focus()
     return

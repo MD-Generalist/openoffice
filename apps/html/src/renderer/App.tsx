@@ -2398,6 +2398,7 @@ export default function App() {
               <button
                 type="button"
                 className="status-item"
+                aria-pressed={tweaksOpen}
                 onClick={() => (tweaksOpen ? setTweaksOpen(false) : openTweaks())}
               >
                 {tweaksText(lang, 'title')}
@@ -2405,6 +2406,7 @@ export default function App() {
               <button
                 type="button"
                 className="status-item"
+                aria-pressed={timelineOpen}
                 onClick={() => setTimelineOpen((v) => !v)}
               >
                 {versionTimelineText(lang, 'title')}

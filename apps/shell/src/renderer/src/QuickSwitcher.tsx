@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { isLang, type Lang } from '@genoffice/i18n'
+import { htmlDir, htmlLang, isLang, type Lang } from '@genoffice/i18n'
 import type {
   QuickSwitcherBridge,
   QuickSwitcherGroup,
@@ -44,7 +44,18 @@ export function QuickSwitcher() {
   useEffect(() => {
     inputRef.current?.focus()
     void window.aiOfficeQuickSwitcher?.lang().then((l) => {
-      if (isLang(l)) setLang(l)
+      if (isLang(l)) {
+        setLang(l)
+        document.documentElement.lang = htmlLang(l)
+        document.documentElement.dir = htmlDir(l)
+      }
+    })
+    void window.aiOfficeQuickSwitcher?.theme().then((t) => {
+      if (t === 'light' || t === 'dark') {
+        document.documentElement.setAttribute('data-theme', t)
+      } else {
+        document.documentElement.removeAttribute('data-theme')
+      }
     })
   }, [])
 

@@ -43,6 +43,19 @@ body,
   padding: 6px;
 }
 
+.qs-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.qs-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.qs-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
 .qs-group-label {
   padding: 6px 8px 4px;
   font-size: 11px;

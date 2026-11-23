@@ -5611,6 +5611,7 @@ function installTabShortcuts(): void {
           isEditorEnabled: (kind) =>
             !(editorChoiceService?.effective().off ?? []).includes(kind as never),
           getLang: () => currentLang(),
+          getTheme: () => currentTheme(),
           listOpenTabs: () =>
             manager.list().map((tab) => ({
               id: tab.id,
