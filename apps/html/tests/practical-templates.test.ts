@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { auditHtmlQuality } from '@genoffice/agent-core'
 import {
   PRACTICAL_HTML_TEMPLATES,
   findPracticalHtmlTemplate,
 } from '../src/renderer/templates/practical-templates'
 
 describe('practical HTML templates', () => {
-  it('ships 5 offline 1-page templates with @page rules and zero external URLs', () => {
+  it('ships 5 offline 1-page templates with @page rules, zero external URLs, and zero QC findings', () => {
     expect(PRACTICAL_HTML_TEMPLATES.map((t) => t.id)).toEqual([
       'meeting-minutes',
       'project-prd',
@@ -18,6 +19,7 @@ describe('practical HTML templates', () => {
       expect(tpl.html).toContain('@page')
       expect(tpl.html).not.toMatch(/https?:\/\//i)
       expect(tpl.html).not.toMatch(/cdn\./i)
+      expect(auditHtmlQuality(tpl.html)).toEqual([])
       expect(findPracticalHtmlTemplate(tpl.id)?.id).toBe(tpl.id)
     }
   })
