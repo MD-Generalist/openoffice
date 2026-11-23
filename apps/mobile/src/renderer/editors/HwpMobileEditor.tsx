@@ -31,6 +31,8 @@ export interface HwpMobileEditorProps {
 }
 
 const PASSWORD_FLAG = 'ieumPasswordProtected'
+const STUDIO_DIRTY_EVENT = 'ieum:dirty'
+const DIRTY_POLL_MS = 2000
 
 export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditorProps>(
   function HwpMobileEditor(
@@ -41,10 +43,29 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
     const editorRef = useRef<RhwpEditor | null>(null)
     const [zoom, setZoom] = useState(1)
 
+    // Keep callback props in refs so parent re-renders never tear down and reload rhwp-studio.
+    const onDirtyRef = useRef(onDirty)
+    onDirtyRef.current = onDirty
+    const onReadyRef = useRef(onReady)
+    onReadyRef.current = onReady
+    const onErrorRef = useRef(onError)
+    onErrorRef.current = onError
+
     useEffect(() => {
       let cancelled = false
+      let dirtyPoll: ReturnType<typeof setInterval> | null = null
+      let frameWindow: Window | null = null
+      let lastReportedDirty = false
       const container = containerRef.current
       if (!container) return
+
+      const onFrameDirty = (event: Event) => {
+        const isDirty = (event as CustomEvent<unknown>).detail === true
+        if (isDirty && !lastReportedDirty) {
+          lastReportedDirty = true
+          onDirtyRef.current()
+        }
+      }
 
       void (async () => {
         try {
@@ -72,16 +93,35 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           if (documentBytes && documentBytes.byteLength > 0) {
             await editor.loadFile(documentBytes, fileName, { skipUnsavedGuard: true })
           }
-          onReady?.()
+          if (cancelled) return
+
+          frameWindow = editor.element?.contentWindow ?? null
+          frameWindow?.addEventListener(STUDIO_DIRTY_EVENT, onFrameDirty)
+          dirtyPoll = setInterval(() => {
+            void editor.commands
+              .context()
+              .then((ctx) => {
+                const record = ctx as Record<string, unknown>
+                if ((record.isDirty === true || record.modified === true) && !lastReportedDirty) {
+                  lastReportedDirty = true
+                  onDirtyRef.current()
+                }
+              })
+              .catch(() => {})
+          }, DIRTY_POLL_MS)
+
+          onReadyRef.current?.()
         } catch (err) {
           if (!cancelled) {
-            onError?.(err instanceof Error ? err.message : String(err))
+            onErrorRef.current?.(err instanceof Error ? err.message : String(err))
           }
         }
       })()
 
       return () => {
         cancelled = true
+        if (dirtyPoll) clearInterval(dirtyPoll)
+        frameWindow?.removeEventListener(STUDIO_DIRTY_EVENT, onFrameDirty)
         const current = editorRef.current
         editorRef.current = null
         try {
@@ -90,7 +130,18 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           // Ignore teardown errors when switching documents quickly.
         }
       }
-    }, [documentBytes, fileName, lang, onError, onReady, theme])
+    }, [documentBytes, fileName, lang, theme])
+
+    // Sync view/read-only state inside rhwp-studio without blocking touch scroll or pinch zoom.
+    useEffect(() => {
+      const editor = editorRef.current
+      if (!editor) return
+      const readOnly = mode === 'view'
+      const raw = editor.commands as unknown as {
+        execute: (id: string, payload?: Record<string, unknown>) => Promise<unknown>
+      }
+      void raw.execute('view.setReadOnly', { readOnly }).catch(() => {})
+    }, [mode])
 
     useImperativeHandle(
       ref,
@@ -134,7 +185,7 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
               }
               try {
                 await raw.commands.execute('edit.replace', { find, replace })
-                onDirty()
+                onDirtyRef.current()
                 return true
               } catch {
                 return false
@@ -159,14 +210,14 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           }
           void ed.commands
             .execute(map[action])
-            .then(() => onDirty())
+            .then(() => onDirtyRef.current())
             .catch(() => {})
         },
         fitToWidth() {
           setZoom(1)
         },
       }),
-      [onDirty],
+      [],
     )
 
     return (
@@ -182,7 +233,7 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           style={{
             transform: zoom === 1 ? undefined : `scale(${zoom})`,
             transformOrigin: 'top left',
-            pointerEvents: mode === 'view' ? 'none' : 'auto',
+            touchAction: 'pan-x pan-y pinch-zoom',
           }}
           aria-label={fileName}
         />

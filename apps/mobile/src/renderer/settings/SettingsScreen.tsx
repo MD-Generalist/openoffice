@@ -235,7 +235,7 @@ export function SettingsScreen({
                     className="mobile-touch-btn mobile-btn-secondary"
                     onClick={() => onSelectProvider('openrouter')}
                   >
-                    {t('aiSend')}
+                    {t('settingsOpenRouterFree')}
                   </button>
                   <button
                     type="button"
@@ -277,7 +277,7 @@ export function SettingsScreen({
                     className="mobile-touch-btn mobile-btn-secondary"
                     onClick={() => onSelectProvider('gemini')}
                   >
-                    {t('aiSend')}
+                    {t('settingsGeminiFree')}
                   </button>
                   <button
                     type="button"

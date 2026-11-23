@@ -138,19 +138,17 @@ jobs:
 
       - name: Initialize Android project and inject native config
         working-directory: apps/mobile
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT || '/usr/local/lib/android/sdk' }}
-          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME || env.ANDROID_NDK_HOME }}
         run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          export NDK_HOME="${NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-}}}"
           npx --yes @tauri-apps/cli@2 android init --ci
           node scripts/apply-native-config.mjs android
 
       - name: Build Android unsigned APK (release features, no dev loopback)
         working-directory: apps/mobile
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT || '/usr/local/lib/android/sdk' }}
-          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME || env.ANDROID_NDK_HOME }}
         run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          export NDK_HOME="${NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-}}}"
           npx --yes @tauri-apps/cli@2 android build --apk --target aarch64 --ci
 
   ios-build:

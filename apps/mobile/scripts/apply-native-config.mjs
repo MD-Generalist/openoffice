@@ -2,9 +2,16 @@
 /**
  * Deterministically (idempotently) injects IeumOffice Mobile Android and iOS
  * native configuration into Tauri's generated `src-tauri/gen/android` and
- * `src-tauri/gen/ios` projects after `tauri android init --ci` / `tauri ios init --ci`.
+ * `src-tauri/gen/apple` projects after `tauri android init --ci` / `tauri ios init --ci`.
  */
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -13,17 +20,17 @@ const APP_DIR = resolve(HERE, '..')
 const NATIVE_CONFIG = join(APP_DIR, 'native-config')
 const GEN_DIR = join(APP_DIR, 'src-tauri', 'gen')
 
-function replaceOrInsertBlock(content, startMarker, endMarker, block, anchor) {
+function replaceOrInsertBlock(content, startMarker, endMarker, block, anchorRegex) {
   const startIdx = content.indexOf(startMarker)
   const endIdx = content.indexOf(endMarker)
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
     return content.slice(0, startIdx) + block.trim() + content.slice(endIdx + endMarker.length)
   }
-  const anchorIdx = content.indexOf(anchor)
-  if (anchorIdx === -1) {
-    throw new Error(`Could not locate anchor "${anchor}" for native config injection.`)
+  const match = anchorRegex.exec(content)
+  if (!match) {
+    throw new Error(`Could not locate anchor ${anchorRegex} for native config injection.`)
   }
-  return content.slice(0, anchorIdx) + block.trim() + '\n' + content.slice(anchorIdx)
+  return content.slice(0, match.index) + block.trim() + '\n' + content.slice(match.index)
 }
 
 export function applyAndroidConfig(genRoot = GEN_DIR) {
@@ -52,32 +59,46 @@ export function applyAndroidConfig(genRoot = GEN_DIR) {
     '<!-- IEUM_MOBILE_INTENT_FILTERS_START -->',
     '<!-- IEUM_MOBILE_INTENT_FILTERS_END -->',
     intentBlock,
-    '</activity>',
+    /<\/activity>/,
   )
   manifest = replaceOrInsertBlock(
     manifest,
     '<!-- IEUM_MOBILE_NATIVE_CONFIG_START -->',
     '<!-- IEUM_MOBILE_NATIVE_CONFIG_END -->',
     providerBlock,
-    '</application>',
+    /<\/application>/,
   )
   writeFileSync(manifestPath, manifest, 'utf8')
   return { applied: true, manifestPath }
 }
 
-export function applyIosConfig(genRoot = GEN_DIR) {
-  const iosRoot = join(genRoot, 'ios')
-  if (!existsSync(iosRoot)) {
-    return { applied: false, reason: 'gen/ios not initialized' }
+function findIosInfoPlist(iosRoot) {
+  const direct = join(iosRoot, 'Info.plist')
+  if (existsSync(direct)) return direct
+  for (const entry of readdirSync(iosRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const candidate = join(iosRoot, entry.name, 'Info.plist')
+    if (existsSync(candidate)) return candidate
   }
-  const candidatePlists = [
-    join(iosRoot, 'ieumoffice-mobile_iOS', 'Info.plist'),
-    join(iosRoot, 'app_iOS', 'Info.plist'),
-    join(iosRoot, 'Info.plist'),
-  ]
-  const plistPath = candidatePlists.find((p) => existsSync(p))
+  return null
+}
+
+export function applyIosConfig(genRoot = GEN_DIR) {
+  // Tauri 2 `tauri ios init --ci` outputs under `src-tauri/gen/apple/`.
+  const appleRoot = join(genRoot, 'apple')
+  const legacyIosRoot = join(genRoot, 'ios')
+  const iosRoot = existsSync(appleRoot)
+    ? appleRoot
+    : existsSync(legacyIosRoot)
+      ? legacyIosRoot
+      : null
+  if (!iosRoot) {
+    return { applied: false, reason: 'gen/apple (or gen/ios) not initialized' }
+  }
+
+  const plistPath = findIosInfoPlist(iosRoot)
   if (!plistPath) {
-    return { applied: false, reason: 'Info.plist not found under gen/ios' }
+    return { applied: false, reason: `Info.plist not found under ${iosRoot}` }
   }
 
   const fragment = readFileSync(join(NATIVE_CONFIG, 'ios', 'Info-fragment.plist'), 'utf8')
@@ -90,7 +111,7 @@ export function applyIosConfig(genRoot = GEN_DIR) {
     '<!-- IEUM_MOBILE_IOS_PLIST_START -->',
     '<!-- IEUM_MOBILE_IOS_PLIST_END -->',
     fragment,
-    '</dict>\n</plist>',
+    /<\/dict>\s*<\/plist>/,
   )
   writeFileSync(plistPath, plist, 'utf8')
 
@@ -110,4 +131,12 @@ if (isMain) {
     results.ios = applyIosConfig()
   }
   console.log(JSON.stringify(results, null, 2))
+  if (target === 'android' && !results.android?.applied) {
+    console.error(`Android native config injection failed: ${results.android?.reason}`)
+    process.exit(1)
+  }
+  if (target === 'ios' && !results.ios?.applied) {
+    console.error(`iOS native config injection failed: ${results.ios?.reason}`)
+    process.exit(1)
+  }
 }

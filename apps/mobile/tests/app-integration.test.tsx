@@ -167,11 +167,11 @@ describe('apply-native-config idempotency for Android and iOS', () => {
         'utf8',
       )
 
-      const iosApp = join(tmp, 'ios', 'ieumoffice-mobile_iOS')
+      const iosApp = join(tmp, 'apple', 'ieumoffice-mobile_iOS')
       mkdirSync(iosApp, { recursive: true })
       writeFileSync(
         join(iosApp, 'Info.plist'),
-        '<?xml version="1.0"?><plist version="1.0"><dict>\n  <key>CFBundleName</key>\n  <string>IeumOffice</string>\n</dict>\n</plist>',
+        '<?xml version="1.0"?><plist version="1.0"><dict>\r\n  <key>CFBundleName</key>\r\n  <string>IeumOffice</string>\r\n</dict>\r\n</plist>',
         'utf8',
       )
 

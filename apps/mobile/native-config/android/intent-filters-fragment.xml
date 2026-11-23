@@ -38,6 +38,7 @@
     <category android:name="android.intent.category.DEFAULT" />
     <data android:mimeType="application/x-hwp" />
     <data android:mimeType="application/haansofthwp" />
+    <data android:mimeType="application/vnd.hancom.hwp" />
     <data android:mimeType="application/hwp+zip" />
     <data android:mimeType="application/vnd.hancom.hwpx" />
     <data android:mimeType="text/markdown" />

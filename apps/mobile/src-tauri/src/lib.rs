@@ -9,7 +9,7 @@ use crate::ai::MobileAiService;
 use crate::storage::MobileFileService;
 use std::sync::Arc;
 use tauri::Manager;
-use tauri_plugin_ieum_mobile::{default_auth_bridge, default_file_bridge};
+use tauri_plugin_ieum_mobile::{resolve_auth_bridge, resolve_file_bridge};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -20,11 +20,13 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .unwrap_or_else(|_| std::env::temp_dir().join("ieumoffice-mobile"));
+            let file_bridge = resolve_file_bridge(app.handle());
+            let auth_bridge = resolve_auth_bridge(app.handle());
             let file_service = Arc::new(
-                MobileFileService::new(app_data_dir.clone(), default_file_bridge())
+                MobileFileService::new(app_data_dir.clone(), file_bridge)
                     .map_err(|e| std::io::Error::other(e.to_string()))?,
             );
-            let ai_service = Arc::new(MobileAiService::new(app_data_dir, default_auth_bridge()));
+            let ai_service = Arc::new(MobileAiService::new(app_data_dir, auth_bridge));
             app.manage(file_service);
             app.manage(ai_service);
             Ok(())

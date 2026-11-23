@@ -105,6 +105,8 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
   const [aiAutoSwitched, setAiAutoSwitched] = useState(false)
   const [aiRecoveryNotice, setAiRecoveryNotice] = useState<ChatGptRecoveryNoticeKind>(null)
   const [lastAiUndo, setLastAiUndo] = useState<{ summary: string; undo: () => void } | null>(null)
+  const [lastAiPrompt, setLastAiPrompt] = useState<string | null>(null)
+  const [hwpVerifyFailed, setHwpVerifyFailed] = useState(false)
 
   const [unsavedPromptDoc, setUnsavedPromptDoc] = useState<string | null>(null)
   const unsavedResolverRef = useRef<((choice: UnsavedSwitchChoice) => void) | null>(null)
@@ -213,13 +215,19 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
       const port = hwpEditorRef.current?.getSavePort()
       if (!port) return false
       const flags = { encrypted: doc.encrypted, distribution: doc.distribution }
-      const targetFormat: 'hwp' | 'hwpx' = session.format === 'hwpx' ? 'hwpx' : 'hwp'
+      const targetFormat: 'hwp' | 'hwpx' =
+        forceSaveAs && hwpVerifyFailed ? 'hwpx' : session.format === 'hwpx' ? 'hwpx' : 'hwp'
+      const suggestedName =
+        targetFormat === 'hwpx' && session.name.toLowerCase().endsWith('.hwp')
+          ? `${session.name.slice(0, -4)}.hwpx`
+          : session.name
       const outcome =
         forceSaveAs || !session.writable || session.ephemeral
-          ? await hwpApi.saveAsDocument(session, session.name, targetFormat, port, flags)
+          ? await hwpApi.saveAsDocument(session, suggestedName, targetFormat, port, flags)
           : await hwpApi.saveDocument(session, port, flags)
 
       if (outcome.kind === 'saved') {
+        setHwpVerifyFailed(false)
         if (outcome.session) {
           sessionControllerRef.current?.updateSessionMetadata({
             session: outcome.session,
@@ -237,6 +245,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
       if (outcome.reason === 'protected') {
         setNoticeBanner(tNow('hwpProtectedSaveError'))
       } else if (outcome.reason === 'verify') {
+        setHwpVerifyFailed(true)
         setNoticeBanner(tNow('hwpVerifyFailedPrompt'))
       } else if (outcome.reason === 'backup-failed') {
         setNoticeBanner(tNow('hwpBackupFailedError'))
@@ -246,14 +255,17 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
       }
       return false
     },
-    [hwpApi, markdownApi, refreshHomeData, tNow],
+    [hwpApi, hwpVerifyFailed, markdownApi, refreshHomeData, tNow],
   )
+
+  const saveDocumentRef = useRef(saveDocumentInternal)
+  saveDocumentRef.current = saveDocumentInternal
 
   const sessionControllerRef = useRef<ReturnType<typeof createMobileSessionController> | null>(null)
   if (!sessionControllerRef.current) {
     sessionControllerRef.current = createMobileSessionController({
       confirmUnsavedSwitch: (current) => requestUnsavedChoice(current),
-      saveCurrentDocument: (current) => saveDocumentInternal(current, false),
+      saveCurrentDocument: (current) => saveDocumentRef.current(current, false),
       discardRecovery: async (docKey) => {
         await client.recoveryDiscard(docKey).catch(() => {})
       },
@@ -503,8 +515,10 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
     async (prompt: string) => {
       const doc = activeDocRef.current
       if (!doc || !prefs.aiEnabled) return
+      setLastAiPrompt(prompt)
       setAiRecoveryNotice(null)
       setAiStreaming(true)
+      let classifiedError = false
 
       const caps = {
         writable: doc.session.writable,
@@ -565,6 +579,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
 
       const transport = createMobileAgentTransport(client, {
         onStreamError: (detail) => {
+          classifiedError = true
           if (detail.errorCode === 'rate-limit') {
             setAiRecoveryNotice('usage-limit')
           } else if (detail.errorCode === 'signed-out') {
@@ -592,7 +607,9 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
               resolve()
             },
             onError: () => {
-              setAiRecoveryNotice('connection-error')
+              if (!classifiedError) {
+                setAiRecoveryNotice((prev) => prev ?? 'connection-error')
+              }
               resolve()
             },
           },
@@ -619,6 +636,14 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
     },
     [client],
   )
+
+  const handleHwpDirty = useCallback(() => {
+    sessionControllerRef.current?.markDirty(true)
+  }, [])
+
+  const handleHwpError = useCallback((msg: string) => {
+    setNoticeBanner(msg)
+  }, [])
 
   const canEditActive = activeDoc
     ? canMutateDocument({
@@ -717,6 +742,9 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
           }}
           onValidateAndSaveKey={async ({ provider, apiKey, freeOnly }) => {
             const validated = await client.validateAiKey({ provider, apiKey, freeOnly })
+            if (!validated.ok) {
+              throw new Error('API key validation failed.')
+            }
             const updated = await client.setAiSettings({
               selectedProvider: provider,
               providerKeyPatch: { provider, apiKey, freeOnly },
@@ -802,6 +830,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
               }}
               onChatgptReconsent={() => void client.chatgptSignIn(true).then(refreshAiState)}
               onChatgptReconnect={() => void client.chatgptSignIn(false).then(refreshAiState)}
+              onRetryLast={lastAiPrompt ? () => void handleSendAi(lastAiPrompt) : undefined}
             />
           }
         >
@@ -826,8 +855,8 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
               mode={mode}
               lang={lang}
               theme={prefs.theme}
-              onDirty={() => sessionControllerRef.current?.markDirty(true)}
-              onError={(msg) => setNoticeBanner(msg)}
+              onDirty={handleHwpDirty}
+              onError={handleHwpError}
             />
           )}
         </EditorShell>
