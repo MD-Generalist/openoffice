@@ -240,3 +240,26 @@ export {
   type SaveConflictOptions,
   type SaveDiskState,
 } from './save-conflict'
+
+export {
+  MAX_PROMPT_SUMMARY_CHARS,
+  MAX_SINGLE_SNAPSHOT_BYTES,
+  MAX_TIMELINE_TOTAL_BYTES,
+  MAX_VERSIONS_PER_DOC,
+  VersionTimelineStore,
+  docKeyFromPath,
+  isValidDocKey,
+} from './version-timeline-store'
+export type { VersionTimelineStoreOptions } from './version-timeline-store'
+export { VERSION_TIMELINE_BRIDGE_KEY, VERSION_TIMELINE_CHANNELS } from './version-timeline-channels'
+export type {
+  RecordVersionInput,
+  RecordVersionResult,
+  TimelineEditorKind,
+  VersionEntry,
+  VersionSource,
+  VersionTimelineBridge,
+  VersionTimelineStats,
+} from './version-timeline-channels'
+export { GENERATE_EDITOR_CHANNELS } from './generate-editor-channels'
+export type { GenerateEditorBridge, GenerateEditorOpenResult } from './generate-editor-channels'

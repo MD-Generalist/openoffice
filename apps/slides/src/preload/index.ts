@@ -16,6 +16,9 @@ import { CONNECTOR_ATTACH_BRIDGE_KEY } from '@genoffice/electron-utils/connector
 import { splitPaneBridge } from '@genoffice/electron-utils/split-pane-bridge'
 import { createPrintLayoutBridge } from '@genoffice/electron-utils/print-layout-bridge'
 import { APP_CHOICE_BRIDGE_KEY, appChoiceBridge } from '@genoffice/electron-utils/app-choice-bridge'
+import { VERSION_TIMELINE_BRIDGE_KEY } from '@genoffice/electron-utils/version-timeline-channels'
+import { versionTimelineBridge } from '@genoffice/electron-utils/version-timeline-bridge'
+import { generateEditorBridge } from '@genoffice/electron-utils/generate-editor-bridge'
 import type { IpcRendererEvent } from 'electron'
 import type { ProjectApi } from '@genoffice/project-store'
 import { installDropOpenBridge } from '@genoffice/electron-utils/drop-open'
@@ -562,6 +565,8 @@ const api: SlidesApi = {
     ipcRenderer.invoke('slides:handoff-run-started', attachedPaths),
   // the open deck as edited, for a skill's template (spec 5.6)
   templateBytes: () => ipcRenderer.invoke('slides:template-bytes'),
+  restoreTimelineBytes: (bytes: Uint8Array) =>
+    ipcRenderer.invoke('slides:timeline-restore-bytes', bytes),
 }
 
 contextBridge.exposeInMainWorld('slidesApi', api)
@@ -608,6 +613,8 @@ contextBridge.exposeInMainWorld(APP_CHOICE_BRIDGE_KEY, {
   get: appChoice.get,
   onChange: appChoice.onChange,
 })
+contextBridge.exposeInMainWorld(VERSION_TIMELINE_BRIDGE_KEY, versionTimelineBridge())
+contextBridge.exposeInMainWorld('aiOfficeGenerateEditor', generateEditorBridge())
 
 // open documents dragged from the OS onto this tab as a new shell tab
 installDropOpenBridge()

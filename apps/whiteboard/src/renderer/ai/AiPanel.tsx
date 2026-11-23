@@ -34,6 +34,7 @@ import {
 import {
   AI_QUEUE_LABELS,
   AiAttachMenu,
+  AiAssistantBody,
   AiBlockedNotice,
   AiChangesCard,
   type AiChangesState,
@@ -48,6 +49,8 @@ import {
   type AiModelPickerBridge,
   AiPanelHeader,
   AiPanelSideButton,
+  AiQualityBadge,
+  AiQuestionCard,
   AiQueueStrip,
   AiReplyFooter,
   AiReplyProgress,
@@ -62,7 +65,6 @@ import {
   type DriveAttachPicked,
   IconArrowUp,
   IconStop,
-  Markdown,
   McpPermissionCard,
   McpServerButton,
   NO_SKILL_USE,
@@ -74,10 +76,12 @@ import {
   aiPanelWidthAtPointer,
   aiSubscriptionText,
   docMentionActions,
+  openGenerateForCurrentDocument,
   panelProjectSkill,
   panelUserSkills,
   placeRemoteEntries,
   skillChipRefsOf,
+  useAiInlineQuestions,
   useAiSendGate,
   useChatRunQueue,
   useComposerSkills,
@@ -102,6 +106,8 @@ import { useSubscriptionConnection } from './subscription-client'
 import { createElectronTransport } from './transport'
 import { modelSupportsVision } from './vision-capability'
 import { createWhiteboardSkill, whiteboardContext } from './whiteboard-skill'
+import { runWhiteboardStaticQualityAudit } from './whiteboard-qc'
+import type { QualityFinding } from '@genoffice/agent-core'
 import fileDocumentIcon from './assets/file-document.png'
 import fileExcelIcon from './assets/file-excel.png'
 import fileGeneralIcon from './assets/file-general.png'
@@ -177,6 +183,8 @@ export interface WhiteboardAiPanelProps {
   handoff?: WhiteboardHandoff | null
   onCollapse(): void
   onHandoffConsumed?(): void
+  onOpenTweaks?(): void
+  onAiDoneRecord?(promptSummary: string): void
 }
 
 function clampPanelWidth(w: number): number {
@@ -310,6 +318,8 @@ export function AiPanel({
   handoff,
   onCollapse,
   onHandoffConsumed,
+  onOpenTweaks,
+  onAiDoneRecord,
 }: WhiteboardAiPanelProps): ReactElement {
   const { lang, t } = useI18n()
   const sub = useSubscriptionConnection()
@@ -328,6 +338,8 @@ export function AiPanel({
   const [aiSettings, setAiSettings] = useState<AiSettings | null>(null)
   const [chat, setChat] = useState<ChatEntry[]>([])
   const [prompt, setPrompt] = useState('')
+  const inlineQuestions = useAiInlineQuestions()
+  const [qualityFindings, setQualityFindings] = useState<QualityFinding[]>([])
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
   const [attachmentPreviews, setAttachmentPreviews] = useState<Record<string, string>>({})
   const [attachNotice, setAttachNotice] = useState<string | null>(null)
@@ -718,6 +730,7 @@ export function AiPanel({
       () => loopRef.current?.messages ?? [],
       [
         wbSkill,
+        inlineQuestions.askQuestionsSkill,
         createSearchSkill(),
         createFilesSkill(availableAttachments),
         ...panelUserSkills({
@@ -802,6 +815,15 @@ export function AiPanel({
             hostRef.current.setHighlights(changedIds)
             changes = { batchCount: batches, changedIds, state: 'applied' }
             if (activeAsstIdRef.current) setMarkedMsgId(activeAsstIdRef.current)
+            if (!cancelled) {
+              setQualityFindings(
+                runWhiteboardStaticQualityAudit(hostRef.current.getDocument(), {
+                  pageId: hostRef.current.getActivePageId(),
+                  userPrompt: runInstructionRef.current,
+                }).findings,
+              )
+              onAiDoneRecord?.(runInstructionRef.current)
+            }
           }
           setChat((prev) => {
             const next = [...prev]
@@ -922,6 +944,7 @@ export function AiPanel({
     if (!sendGate.admit({ text: instruction, attachments: overrideAttachments, skillUse })) {
       return false
     }
+    inlineQuestions.supersedeOpen()
 
     lastStreamErrorRef.current = null
     setInputTruncated(false)
@@ -1310,7 +1333,21 @@ export function AiPanel({
               ) : (
                 entry.text && (
                   <div dir="auto">
-                    <Markdown text={entry.text} />
+                    <AiAssistantBody
+                      lang={lang}
+                      text={entry.text}
+                      streaming={entry.streaming}
+                      questionStatus={inlineQuestions.textCardStates[entry.id]?.status}
+                      savedAnswers={inlineQuestions.textCardStates[entry.id]?.answers}
+                      onQuestionSubmit={(spec, answers) => {
+                        inlineQuestions.markTextCard(entry.id, 'submitted', answers)
+                        send(inlineQuestions.formatFollowUp(spec, answers, false))
+                      }}
+                      onQuestionSkip={(spec) => {
+                        inlineQuestions.markTextCard(entry.id, 'skipped')
+                        send(inlineQuestions.formatFollowUp(spec, {}, true))
+                      }}
+                    />
                   </div>
                 )
               )}
@@ -1332,6 +1369,21 @@ export function AiPanel({
                 />
               )}
               <AiReplyProgress reply={entry} thinking={t('aiThinking')} working={t('aiWorking')} />
+              {isLast && !busy && qualityFindings.length > 0 && (
+                <AiQualityBadge
+                  lang={lang}
+                  findings={qualityFindings}
+                  aiVisible
+                  onFixWithAi={() => {
+                    const summary = qualityFindings
+                      .map((f) => `- [${f.severity}] ${f.message}`)
+                      .join('\n')
+                    send(
+                      `Please fix the following quality audit findings on the whiteboard:\n${summary}`,
+                    )
+                  }}
+                />
+              )}
               {(showToolbar || (turnEnded && entry.usage)) && (
                 <AiReplyFooter
                   lang={lang}
@@ -1341,11 +1393,41 @@ export function AiPanel({
                     showToolbar && isLast && !busy && runInstructionRef.current ? retry : undefined
                   }
                   usage={turnEnded ? entry.usage : undefined}
+                  nextSteps={
+                    isLast
+                      ? {
+                          context: {
+                            aiVisible: true,
+                            streaming: Boolean(entry.streaming),
+                            completedNormally: !entry.isError && !entry.blocked,
+                            editorKind: 'whiteboard',
+                            editedDocument: Boolean(entry.changes),
+                            qualityIssueCount: qualityFindings.length,
+                            usedSkillName: entry.skills?.[0]?.title,
+                            canGenerateOtherDoc: true,
+                            hasSavedPath: Boolean(filePath),
+                          },
+                          onRunAi: (fixPrompt) => send(fixPrompt),
+                          onOpenTweaks,
+                          onGenerateOtherDoc: openGenerateForCurrentDocument,
+                        }
+                      : undefined
+                  }
                 />
               )}
             </div>
           )
         })}
+        {inlineQuestions.activeToolCard && (
+          <AiQuestionCard
+            lang={lang}
+            spec={inlineQuestions.activeToolCard.spec}
+            status={inlineQuestions.activeToolCard.status}
+            savedAnswers={inlineQuestions.activeToolCard.answers}
+            onSubmit={inlineQuestions.submitToolCard}
+            onSkip={inlineQuestions.skipToolCard}
+          />
+        )}
         <McpPermissionCard lang={lang} />
         {project.hint}
         {project.notices}

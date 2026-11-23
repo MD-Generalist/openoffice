@@ -4,7 +4,10 @@ import {
   aiPanelWidthAtPointer,
   AiPanelHeader,
   AiPanelSideButton,
+  AiAssistantBody,
   AiReplyFooter,
+  openGenerateForCurrentDocument,
+  useAiInlineQuestions,
   AiScrollToBottom,
   AiModelPicker,
   AiWorkSteps,
@@ -374,6 +377,7 @@ export function AiChatPanel({
   onExpand,
   onCollapse,
   project,
+  filePath,
 }: {
   readonly isOpen: boolean
   /** An explicit AI action focuses the composer, including when already open. */
@@ -450,6 +454,8 @@ export function AiChatPanel({
   readonly onCollapse: () => void
   /** the project folder parts; absent: the panel shows none */
   readonly project?: AiPanelProject | undefined
+  /** optional saved file path for the "Create another document" next-step chip */
+  readonly filePath?: string | null | undefined
 }): React.JSX.Element {
   const { t, lang } = useI18n()
   // A reply that stopped because its connection cannot go on: the queue is paused, so the next
@@ -458,6 +464,7 @@ export function AiChatPanel({
   const msgQueueRef = useRef<ChatRunQueue<QueuedMeta> | null>(null)
   /** the chat index whose changes card is taking its run back */
   const [reverting, setReverting] = useState<number | null>(null)
+  const inlineQuestions = useAiInlineQuestions()
   const lastEntry = chat.at(-1)
   const lastReplyBlocked = lastEntry?.role === 'assistant' && lastEntry.blocked !== undefined
   useEffect(() => {
@@ -912,7 +919,22 @@ export function AiChatPanel({
                   ) : (
                     entry.text && (
                       <div dir="auto">
-                        <Markdown text={entry.text} navs={[citationNav, fileNav]} />
+                        <AiAssistantBody
+                          lang={lang}
+                          text={entry.text}
+                          navs={[citationNav, fileNav]}
+                          streaming={entry.streaming}
+                          questionStatus={inlineQuestions.textCardStates[`m-${index}`]?.status}
+                          savedAnswers={inlineQuestions.textCardStates[`m-${index}`]?.answers}
+                          onQuestionSubmit={(spec, answers) => {
+                            inlineQuestions.markTextCard(`m-${index}`, 'submitted', answers)
+                            onSend(inlineQuestions.formatFollowUp(spec, answers, false), [])
+                          }}
+                          onQuestionSkip={(spec) => {
+                            inlineQuestions.markTextCard(`m-${index}`, 'skipped')
+                            onSend(inlineQuestions.formatFollowUp(spec, {}, true), [])
+                          }}
+                        />
                       </div>
                     )
                   )}
@@ -947,6 +969,24 @@ export function AiChatPanel({
                       isLast={isLast}
                       copyText={showCopy ? entry.text : undefined}
                       usage={entry.usage}
+                      nextSteps={
+                        isLast
+                          ? {
+                              context: {
+                                aiVisible: true,
+                                streaming: Boolean(entry.streaming),
+                                completedNormally: !entry.isError && !entry.blocked,
+                                editorKind: 'sheets',
+                                editedDocument: Boolean(entry.autoApplied),
+                                qualityIssueCount: 0,
+                                usedSkillName: entry.skills?.[0]?.title,
+                                canGenerateOtherDoc: true,
+                                hasSavedPath: Boolean(filePath),
+                              },
+                              onGenerateOtherDoc: openGenerateForCurrentDocument,
+                            }
+                          : undefined
+                      }
                     />
                   )}
                 </>

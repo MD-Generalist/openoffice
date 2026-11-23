@@ -48,6 +48,8 @@ export default defineConfig({
           'connector-picker': resolve(__dirname, 'src/preload/connector-picker.ts'),
           // dedicated preload for the Quick Look preview window (see src/main/quick-look/quick-look-window.ts)
           'quick-look': resolve(__dirname, 'src/preload/quick-look.ts'),
+          // dedicated preload for the Global Quick Switcher popup window
+          'quick-switcher': resolve(__dirname, 'src/preload/quick-switcher.ts'),
         },
       },
     },
@@ -74,6 +76,8 @@ export default defineConfig({
           'connector-picker': resolve(__dirname, 'src/renderer/connector-picker.html'),
           // Quick Look preview window (see src/main/quick-look/quick-look-window.ts)
           'quick-look': resolve(__dirname, 'src/renderer/quick-look.html'),
+          // Global Quick Switcher popup window (Ctrl+Shift+P / Cmd+Shift+P)
+          'quick-switcher': resolve(__dirname, 'src/renderer/quick-switcher.html'),
         },
       },
     },

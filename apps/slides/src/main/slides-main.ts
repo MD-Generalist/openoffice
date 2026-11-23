@@ -1229,6 +1229,7 @@ async function openAndBuild(
       slides: buildAllRenderSlides(existing.opened, fitWidthPx),
       size: { cx: existing.opened.deck.size.cx, cy: existing.opened.deck.size.cy },
       defaultFont: deckDefaultFont(existing.opened),
+      ...(existing.password !== undefined ? { encrypted: true } : {}),
     }
   }
   const raw = unlocked?.bytes ?? (await readFile(path))
@@ -1286,6 +1287,7 @@ async function openAndBuild(
     slides,
     size: { cx: opened.deck.size.cx, cy: opened.deck.size.cy },
     defaultFont: deckDefaultFont(opened),
+    ...(unlocked !== undefined ? { encrypted: true } : {}),
   }
 }
 
@@ -1841,6 +1843,7 @@ export function registerSlidesIpc(): void {
         slides: buildAllRenderSlides(session.opened, fitWidthPx),
         size: { cx: session.opened.deck.size.cx, cy: session.opened.deck.size.cy },
         defaultFont: deckDefaultFont(session.opened),
+        ...(session.password !== undefined ? { encrypted: true } : {}),
       } satisfies OpenResult
     }
     return null
@@ -4857,6 +4860,35 @@ export function registerSlidesIpc(): void {
     if (!restoreAiSnapshot(session, id)) return null
     scheduleDeckBroadcast(session)
     return buildAllRenderSlides(session.opened, session.fitWidthPx)
+  })
+
+  ipcMain.handle('slides:timeline-restore-bytes', async (e, raw: unknown) => {
+    const session = sessions.get(e.sender.id)
+    if (!session || session.masterEdit || session.historyBatch) return null
+    const bytes =
+      raw instanceof Uint8Array
+        ? raw
+        : ArrayBuffer.isView(raw)
+          ? new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength)
+          : null
+    if (!bytes || bytes.byteLength === 0) return null
+    try {
+      const opened = await openPptx(bytes)
+      settleStaleHistoryBatch(session)
+      session.undoStack.push(takeSnapshot(session))
+      session.redoStack.length = 0
+      restoreSnapshot(session, {
+        slides: opened.deck.slides,
+        entries: new Map(opened.archive.entries),
+        size: { ...opened.deck.size },
+        metaDirty: true,
+      })
+      scheduleHistoryNotify(session)
+      scheduleDeckBroadcast(session)
+      return buildAllRenderSlides(session.opened, session.fitWidthPx)
+    } catch {
+      return null
+    }
   })
 
   // Which AI rollback points are still in the ring: the panel tells a point

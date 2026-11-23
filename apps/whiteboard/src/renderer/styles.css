@@ -1133,6 +1133,20 @@ body,
   cursor: pointer;
 }
 
+.wb-noai-tools {
+  position: fixed;
+  right: 64px;
+  bottom: 16px;
+  z-index: 35;
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--surface);
+  box-shadow: var(--shadow-menu);
+}
+
 /* ── Marquee selection, smart guides, rotation, lock, search, minimap, context menu, templates ── */
 
 .wb-marquee-rect {

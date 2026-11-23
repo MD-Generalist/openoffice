@@ -1,4 +1,9 @@
 import React, { useEffect, useState } from 'react'
+import type { Lang } from '@genoffice/i18n'
+import { aiDiagnosticsText } from './strings-ai-diagnostics'
+
+/** Elapsed seconds before showing a gentle slow-response hint (tunable default). */
+export const SLOW_RESPONSE_HINT_AFTER_S = 15
 
 /** Some locales already end the label with an ellipsis — normalize to exactly one. */
 function withEllipsis(label: string): string {
@@ -6,9 +11,20 @@ function withEllipsis(label: string): string {
 }
 
 /** Thinking indicator, two mutually exclusive phases:
- *  grow/shrink blue dots first, then after ~1.2s only the shimmer label with a " · Ns" elapsed hint after 3s.
- *  The .ai-typing-* style classes are provided by each app's styles.css. */
-export function AiTypingIndicator({ label }: { readonly label: string }): React.JSX.Element {
+ *  grow/shrink blue dots first, then after ~1.2s only the shimmer label with a " · Ns" elapsed hint after 3s,
+ *  and a gentle slow-wait hint line after SLOW_RESPONSE_HINT_AFTER_S (15s).
+ *  The .ai-typing-* style classes are provided by ai-panel.css / each app's styles.css. */
+export function AiTypingIndicator({
+  label,
+  lang = 'en',
+  slowHint,
+  slowAfterSeconds = SLOW_RESPONSE_HINT_AFTER_S,
+}: {
+  readonly label: string
+  readonly lang?: Lang | undefined
+  readonly slowHint?: string | undefined
+  readonly slowAfterSeconds?: number | undefined
+}): React.JSX.Element {
   const [elapsed, setElapsed] = useState(0)
   const [showLabel, setShowLabel] = useState(false)
 
@@ -21,14 +37,20 @@ export function AiTypingIndicator({ label }: { readonly label: string }): React.
     }
   }, [])
 
+  const showSlowHint = showLabel && elapsed >= slowAfterSeconds
+  const slowHintText = slowHint ?? aiDiagnosticsText(lang, 'slowResponseHint')
+
   return (
     <span className="ai-typing" role="status" aria-label={label}>
       {showLabel ? (
-        <span className="ai-typing-label">
-          {withEllipsis(label)}
-          {elapsed >= 3 && (
-            <span className="ai-typing-elapsed" aria-hidden>{` · ${elapsed}s`}</span>
-          )}
+        <span className="ai-typing-stack">
+          <span className="ai-typing-label">
+            {withEllipsis(label)}
+            {elapsed >= 3 && (
+              <span className="ai-typing-elapsed" aria-hidden>{` · ${elapsed}s`}</span>
+            )}
+          </span>
+          {showSlowHint && <span className="ai-typing-slow-hint">{slowHintText}</span>}
         </span>
       ) : (
         <span className="ai-typing-dots" aria-hidden>
@@ -48,6 +70,7 @@ export function AiReplyProgress({
   reply,
   thinking,
   working,
+  lang,
 }: {
   readonly reply: {
     readonly streaming?: boolean | undefined
@@ -55,11 +78,12 @@ export function AiReplyProgress({
   }
   readonly thinking: string
   readonly working: string
+  readonly lang?: Lang | undefined
 }): React.JSX.Element | null {
   if (!reply.streaming) return null
   return (
     <span className="ai-typing-row">
-      <AiTypingIndicator label={reply.tools?.length ? working : thinking} />
+      <AiTypingIndicator label={reply.tools?.length ? working : thinking} lang={lang} />
     </span>
   )
 }

@@ -781,8 +781,21 @@ describe('aiRunErrorText', () => {
   })
 
   it('leaves the kinds each editor already words to the editor', () => {
-    for (const kind of ['timeout', 'credits', 'network', 'overloaded'] as const)
+    for (const kind of ['credits', 'network', 'overloaded'] as const)
       expect(aiRunErrorText('en', { kind })).toBeUndefined()
+  })
+
+  it('words proxy, certificate, network-unreachable, and timeout errors in every language without raw details', () => {
+    for (const kind of ['proxy-error', 'cert-error', 'network-unreachable', 'timeout'] as const) {
+      const en = aiRunErrorText('en', { kind })
+      expect(en, `en:${kind}`).toBeTruthy()
+      for (const lang of LANGS) {
+        const text = aiRunErrorText(lang, { kind })
+        expect(text, `${lang}:${kind}`).toBeTruthy()
+        expect(text, `${lang}:${kind}`).not.toMatch(/[{}]/)
+        if (lang !== 'en') expect(text, `${lang}:${kind}`).not.toBe(en)
+      }
+    }
   })
 
   it('has a filled-in message for every new kind in every language', () => {

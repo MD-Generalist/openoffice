@@ -944,3 +944,16 @@
     animation: none;
   }
 }
+
+/* Slow-response secondary hint under the elapsed typing label (15s+) */
+.ai-typing-stack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ai-typing-slow-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}

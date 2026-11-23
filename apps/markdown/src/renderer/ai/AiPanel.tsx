@@ -12,7 +12,11 @@ import {
   type AiChangeLine,
   type AiChangesState,
   AiMark,
+  AiAssistantBody,
+  AiQuestionCard,
   AiReplyFooter,
+  openGenerateForCurrentDocument,
+  useAiInlineQuestions,
   AiScrollToBottom,
   AiToolsUnsupportedNotice,
   AiSubscriptionUsageLine,
@@ -52,7 +56,6 @@ import {
   AiUsageChip,
   addTokenUsage,
   createFileNav,
-  Markdown,
   McpPermissionCard,
   McpServerButton,
   useMcpWindow,
@@ -378,6 +381,7 @@ export function AiPanel({
   /** bumped by New chat / unmount: a writer resuming after its abort must not open the keep card */
   const writerEpochRef = useRef(0)
   const [prompt, setPrompt] = useState('')
+  const inlineQuestions = useAiInlineQuestions()
   const [busy, setBusy] = useState(false)
   /** messages queued while a reply runs; the pump re-runs them through send on settle */
   const msgQueue = useChatRunQueue<{ skillUse: SkillUse }>({
@@ -830,6 +834,7 @@ export function AiPanel({
           }),
         ),
         createSearchSkill(),
+        inlineQuestions.askQuestionsSkill,
         // the person's skills: use_skill, read_skill_file, propose_skill (app-run tools)
         ...panelUserSkills({
           editor: 'markdown',
@@ -1610,7 +1615,22 @@ export function AiPanel({
               ) : (
                 entry.text && (
                   <div dir="auto">
-                    <Markdown text={entry.text} navs={[docNav, fileNav]} />
+                    <AiAssistantBody
+                      lang={lang}
+                      text={entry.text}
+                      navs={[docNav, fileNav]}
+                      streaming={entry.streaming}
+                      questionStatus={inlineQuestions.textCardStates[`m-${i}`]?.status}
+                      savedAnswers={inlineQuestions.textCardStates[`m-${i}`]?.answers}
+                      onQuestionSubmit={(spec, answers) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'submitted', answers)
+                        send(inlineQuestions.formatFollowUp(spec, answers, false))
+                      }}
+                      onQuestionSkip={(spec) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'skipped')
+                        send(inlineQuestions.formatFollowUp(spec, {}, true))
+                      }}
+                    />
                   </div>
                 )
               )}
@@ -1672,11 +1692,39 @@ export function AiPanel({
                     showToolbar && isLast && !busy && runInstructionRef.current ? retry : undefined
                   }
                   usage={entry.usage}
+                  nextSteps={
+                    isLast
+                      ? {
+                          context: {
+                            aiVisible: true,
+                            streaming: Boolean(entry.streaming),
+                            completedNormally: !entry.isError && !entry.blocked,
+                            editorKind: 'markdown',
+                            editedDocument: Boolean(entry.changes),
+                            qualityIssueCount: 0,
+                            usedSkillName: entry.skills?.[0]?.title,
+                            canGenerateOtherDoc: true,
+                            hasSavedPath: Boolean(filePath),
+                          },
+                          onGenerateOtherDoc: openGenerateForCurrentDocument,
+                        }
+                      : undefined
+                  }
                 />
               )}
             </div>
           )
         })}
+        {inlineQuestions.activeToolCard && (
+          <AiQuestionCard
+            lang={lang}
+            spec={inlineQuestions.activeToolCard.spec}
+            status={inlineQuestions.activeToolCard.status}
+            savedAnswers={inlineQuestions.activeToolCard.answers}
+            onSubmit={inlineQuestions.submitToolCard}
+            onSkip={inlineQuestions.skipToolCard}
+          />
+        )}
         {skillTemplates.notes}
         {/* an MCP tool waiting for the person's yes (user MCP spec 7.4) */}
         <McpPermissionCard lang={lang} />

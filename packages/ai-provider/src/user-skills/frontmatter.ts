@@ -5,7 +5,13 @@
  * as `metadata`, and top-level lists of scalars (`- item` lines or `[a, b]`).
  * Anything else is kept as written when the app rewrites a file.
  */
-import { IEUM_EDITORS_KEY, IEUM_TEMPLATE_KEY, IEUM_TITLE_KEY } from './constants'
+import {
+  IEUM_CRAFT_KEY,
+  IEUM_EDITORS_KEY,
+  IEUM_EXAMPLE_KEY,
+  IEUM_TEMPLATE_KEY,
+  IEUM_TITLE_KEY,
+} from './constants'
 
 export interface ParsedSkillMd {
   name: string | undefined
@@ -482,6 +488,10 @@ export interface SkillMdInput {
    * out, and undefined keeps what the file has
    */
   editors?: string | null | undefined
+  /** `metadata.ieum-craft`, space-separated craft slugs; `null` removes it, undefined keeps existing */
+  craft?: string | null | undefined
+  /** `metadata.ieum-example`, short example prompt; `null` removes it, undefined keeps existing */
+  example?: string | null | undefined
   body: string
   /** other top-level keys to set, such as `disable-model-invocation` */
   fields?: Record<string, string | boolean> | undefined
@@ -498,8 +508,12 @@ export function renderSkillMd(input: SkillMdInput, base?: string): string {
   if (input.title !== undefined) ieum.push([IEUM_TITLE_KEY, input.title])
   if (input.template !== undefined) ieum.push([IEUM_TEMPLATE_KEY, input.template])
   if (typeof input.editors === 'string') ieum.push([IEUM_EDITORS_KEY, input.editors])
+  if (typeof input.craft === 'string') ieum.push([IEUM_CRAFT_KEY, input.craft])
+  if (typeof input.example === 'string') ieum.push([IEUM_EXAMPLE_KEY, input.example])
   const managed = new Set([IEUM_TITLE_KEY, IEUM_TEMPLATE_KEY])
   if (input.editors !== undefined) managed.add(IEUM_EDITORS_KEY)
+  if (input.craft !== undefined) managed.add(IEUM_CRAFT_KEY)
+  if (input.example !== undefined) managed.add(IEUM_EXAMPLE_KEY)
   const fields = new Map<string, string | boolean>([
     ['name', input.name],
     ['description', input.description],

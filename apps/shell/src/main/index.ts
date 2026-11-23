@@ -4,15 +4,17 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
   statSync,
   writeFileSync,
+  type Dirent,
 } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { release } from 'node:os'
-import { basename, dirname, extname, join, resolve } from 'node:path'
+import { basename, dirname, extname, join, relative, resolve } from 'node:path'
 import {
   BrowserWindow,
   Menu,
@@ -141,6 +143,14 @@ import { installCliLinkBestEffort } from './cli-link'
 import { createDefaultAppService, execFileRunner } from './default-app'
 import { registerIntegrationsIpc } from './integrations-ipc'
 import { registerResultStoreIpc } from './result-store-ipc'
+import { VersionTimelineStore } from '@genoffice/electron-utils'
+import { registerVersionTimelineIpc } from './version-timeline-ipc'
+import { registerDiagnosticsIpc } from './diagnostics-bundle'
+import { openQuickSwitcherWindow, registerQuickSwitcherIpc } from './quick-switcher-window'
+import { quickSwitcherCommandText } from '../shared/quick-switcher-commands-i18n'
+import { registerGenerateEditorIpc } from './generate/generate-editor-ipc'
+import { openGenerateWindowForDocument } from './generate/generate-window'
+import { builtinCraftDirFor } from './user-skills/builtin-craft-dir'
 import { FEEDBACK_SURVEY_URL, feedbackDetails, feedbackText, platformLabel } from './feedback'
 import { registerDriveIpc, type DriveService } from './drive/drive-ipc'
 import { registerEditorChoiceIpc, type EditorChoiceService } from './editor-choice-main'
@@ -5526,11 +5536,131 @@ function installUiScale(): void {
  * well, with preventDefault, keeps one press from closing two tabs; Home falls
  * through to its File > Close, which still closes the window.
  */
+const QUICK_SWITCHER_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'build', '.cache'])
+
+function collectProjectFilesForQuickSwitcher(
+  roots: readonly string[],
+  query: string,
+  limit = 40,
+): Array<{ path: string; relPath: string; name: string }> {
+  const q = query.trim().toLowerCase()
+  const out: Array<{ path: string; relPath: string; name: string }> = []
+  const walk = (root: string, rootLabel: string, dir: string, depth: number): void => {
+    if (out.length >= limit || depth > 3) return
+    let entries: Dirent[]
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (out.length >= limit) return
+      if (entry.name.startsWith('.')) continue
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (!QUICK_SWITCHER_SKIP_DIRS.has(entry.name)) walk(root, rootLabel, full, depth + 1)
+        continue
+      }
+      if (!entry.isFile()) continue
+      const rel = `${rootLabel}/${relative(root, full).replace(/\\/g, '/')}`
+      if (q && !entry.name.toLowerCase().includes(q) && !rel.toLowerCase().includes(q)) continue
+      out.push({ path: full, relPath: rel, name: entry.name })
+    }
+  }
+  for (const root of roots) {
+    if (out.length >= limit) break
+    walk(root, basename(root), root, 0)
+  }
+  return out
+}
+
+const HOME_KIND_TO_EDITOR: Record<Exclude<HomeKind, 'pdfTools'>, string> = {
+  docx: 'docs',
+  xlsx: 'sheets',
+  pptx: 'slides',
+  md: 'markdown',
+  html: 'html',
+  xmind: 'mindmap',
+  drawio: 'diagram',
+  whiteboard: 'whiteboard',
+  hwp: 'hwp',
+  pdf: 'pdf',
+}
+
+/**
+ * Install keyboard shortcuts for tab switching across every WebContents.
+ */
 function installTabShortcuts(): void {
   app.on('web-contents-created', (_event, contents) => {
     contents.on('before-input-event', (event, input) => {
       const manager = tabManager
       if (!manager) return
+      // Global Quick Switcher (Ctrl+Shift+P / Cmd+Shift+P), preserving Ctrl+K hyperlink in editors
+      if (
+        input.type === 'keyDown' &&
+        input.shift &&
+        !input.alt &&
+        (process.platform === 'darwin'
+          ? input.meta && !input.control
+          : input.control && !input.meta) &&
+        input.key.toLowerCase() === 'p'
+      ) {
+        event.preventDefault()
+        openQuickSwitcherWindow(BrowserWindow.getFocusedWindow() ?? shellWindow, {
+          isAiVisible: () => editorChoiceService?.effective().aiFeatures ?? true,
+          isEditorEnabled: (kind) =>
+            !(editorChoiceService?.effective().off ?? []).includes(kind as never),
+          getLang: () => currentLang(),
+          getTheme: () => currentTheme(),
+          listOpenTabs: () =>
+            manager.list().map((tab) => ({
+              id: tab.id,
+              title: tab.title,
+              path: tab.filePath ?? undefined,
+              editorKind: tab.kind,
+              activate: () => manager.activateTab(tab.id),
+            })),
+          listRecentFiles: () =>
+            readRecentFiles()
+              .slice(0, 20)
+              .map((filePath) => ({ path: filePath, title: basename(filePath) })),
+          listProjectFiles: async (q) =>
+            collectProjectFilesForQuickSwitcher(projectFolderRoots(APP_SETTINGS_PATH()), q),
+          openFile: (filePath) => {
+            void openMadeDocument(filePath)
+          },
+          listCommands: () => {
+            const lang = currentLang()
+            const newDocCommands = visibleHomeKinds(readHomeKinds()).flatMap((kind) => {
+              if (kind === 'pdfTools') return []
+              const entry = NEW_KIND_MENU[kind]
+              return [
+                {
+                  id: `new-${kind}`,
+                  title: tm(entry.label),
+                  editorKind: HOME_KIND_TO_EDITOR[kind],
+                  run: entry.open,
+                },
+              ]
+            })
+            return [
+              {
+                id: 'settings',
+                title: quickSwitcherCommandText(lang, 'cmdSettings'),
+                run: () => openHomeSettings({ section: 'general' }),
+              },
+              {
+                id: 'ai-settings',
+                title: quickSwitcherCommandText(lang, 'cmdAiSettings'),
+                aiOnly: true,
+                run: () => openHomeSettings({ section: 'aiModel' }),
+              },
+              ...newDocCommands,
+            ]
+          },
+        })
+        return
+      }
       // Ctrl+Tab in a Hangul table cell inserts a tab and Ctrl+Shift+Tab lines the paragraph
       // up at the caret, as Hancom does; elsewhere the shell keeps them for cycling tabs. The
       // editor answers from its own key map.
@@ -10515,6 +10645,69 @@ registerIntegrationsIpc({
     : join(APPS_ROOT, '..', 'packages', 'cli', 'package.json'),
 })
 registerResultStoreIpc(ipcMain, () => app.getPath('userData'))
+registerVersionTimelineIpc(ipcMain, new VersionTimelineStore({ baseDir: app.getPath('userData') }))
+registerDiagnosticsIpc(ipcMain, {
+  userDataDir: () => app.getPath('userData'),
+  collectInput: () => {
+    const rawSubs = sharedSubscriptionStatuses() as Record<
+      string,
+      { state?: unknown; version?: unknown } | undefined
+    >
+    const subscriptions: Record<string, { state: string; version?: string }> = {}
+    for (const [provider, status] of Object.entries(rawSubs)) {
+      if (!status || typeof status.state !== 'string') continue
+      subscriptions[provider] = {
+        state: status.state,
+        ...(typeof status.version === 'string' ? { version: status.version } : {}),
+      }
+    }
+    return {
+      appVersion: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      osRelease: release(),
+      uiLang: currentLang(),
+      subscriptions,
+    }
+  },
+  pickSavePath: async (defaultName) => {
+    const parent = BrowserWindow.getFocusedWindow() ?? shellWindow ?? undefined
+    const opts = {
+      defaultPath: defaultName,
+      filters: [{ name: 'ZIP', extensions: ['zip'] }],
+    }
+    const res = parent
+      ? await dialog.showSaveDialog(parent, opts)
+      : await dialog.showSaveDialog(opts)
+    return res.canceled || !res.filePath ? null : res.filePath
+  },
+})
+registerQuickSwitcherIpc(ipcMain)
+registerGenerateEditorIpc(ipcMain, {
+  resolveTabForSender: (senderId) => {
+    const tabId = tabManager?.tabIdForWebContents(senderId)
+    if (tabId) {
+      const list = tabManager?.list() ?? []
+      const found = list.find((t) => t.id === tabId)
+      if (!found) return null
+      return {
+        webContentsId: senderId,
+        filePath: found.filePath ?? undefined,
+        title: found.title,
+        parent: shellWindow,
+      }
+    }
+    const detached = detachedDocumentFor(senderId)
+    if (!detached) return null
+    return {
+      webContentsId: senderId,
+      filePath: detached.filePath ?? undefined,
+      title: detached.title,
+      parent: detachedWindowForWebContents(senderId) ?? shellWindow,
+    }
+  },
+  openForDocument: (doc) => openGenerateWindowForDocument(doc),
+})
 registerTabsIpc()
 registerSplitIpc()
 registerDroppedFilesIpc()
@@ -10547,6 +10740,12 @@ const builtinSkillsDir = (): string =>
 const userSkills = createUserSkillsService({
   homeDir: () => homedir(),
   builtinDir: builtinSkillsDir,
+  builtinCraftDir: () =>
+    builtinCraftDirFor({
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      appPath: app.getAppPath(),
+    }),
   settingsPath: APP_SETTINGS_PATH,
   tempDir: () => join(tmpdir(), 'ieumoffice-skills'),
   trash: (path) => shell.trashItem(path),

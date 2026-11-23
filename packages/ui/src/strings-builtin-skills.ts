@@ -22,6 +22,11 @@ export const BUILTIN_SKILL_NAMES = [
   'diagram',
   'whiteboard',
   'html-document',
+  'general-report',
+  'project-proposal',
+  'public-notice',
+  'presentation-deck',
+  'table-summary',
 ] as const
 
 export type BuiltinSkillName = (typeof BUILTIN_SKILL_NAMES)[number]
@@ -52,9 +57,20 @@ const zh = {
     '根据主题或资料制作思维导图：均衡地设 3 到 7 个主分支，标题简短、说明放在备注里，最后检查结构。',
   'builtinSkillDesc.diagram':
     '绘制清晰易读的图表：选对图表类型，流向保持一个方向，文字简短、颜色少用，并检查重叠和孤立的图形。',
-  'builtinSkillDesc.whiteboard': '在白板上组织便利贴、区域、卡片、连线和表格：先规划版面再一次落盘，保持留白清晰、文字简短，并在最后检查重叠。',
+  'builtinSkillDesc.whiteboard':
+    '在白板上组织便利贴、区域、卡片、连线和表格：先规划版面再一次落盘，保持留白清晰、文字简短，并在最后检查重叠。',
   'builtinSkillDesc.html-document':
     '制作屏幕上好读、打印也整洁的 HTML 文档：先确定读者、篇幅和纸张，再检查分页和内容。',
+  'builtinSkillDesc.general-report':
+    '按“先问清、再列纲、后撰写、最后检查”的流程撰写结构清晰的通用报告，结论先行并核对数据来源。',
+  'builtinSkillDesc.project-proposal':
+    '撰写涵盖背景问题、解决方案、范围边界、里程碑、风险与决策请求的完整项目策划与提案。',
+  'builtinSkillDesc.public-notice':
+    '撰写面向内部或外部读者的通知与公告，在开头突出对象、时间、影响范围、所需操作与联系方式。',
+  'builtinSkillDesc.presentation-deck':
+    '按周报、提案、讲义或产品介绍四种目标结构规划并制作演示文稿，控制单页信息量并支持演讲者备注。',
+  'builtinSkillDesc.table-summary':
+    '把零散记录或对比资料整理为带单位表头、统一格式与核心结论摘要的清晰表格。',
 }
 
 /**
@@ -95,9 +111,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Builds a mind map from a topic or material: three to seven balanced main branches, short titles with the detail in notes, and a structure check at the end.',
     'builtinSkillDesc.diagram':
       'Draws a clear diagram: picks the type that fits, keeps one direction, short labels and few colours, and checks for overlaps and loose shapes.',
-    'builtinSkillDesc.whiteboard': 'Organizes sticky notes, zones, cards, connectors and tables on a whiteboard: plans a clear layout, keeps labels short and whitespace clean, and checks for overlaps.',
+    'builtinSkillDesc.whiteboard':
+      'Organizes sticky notes, zones, cards, connectors and tables on a whiteboard: plans a clear layout, keeps labels short and whitespace clean, and checks for overlaps.',
     'builtinSkillDesc.html-document':
       'Makes an HTML document that reads well on screen and prints cleanly: settles the reader, length and paper first, then checks the pages and the content.',
+    'builtinSkillDesc.general-report':
+      'Writes a clear workplace report in four steps (ask, outline, draft, verify) with conclusion first and grounded facts.',
+    'builtinSkillDesc.project-proposal':
+      'Drafts a structured project proposal covering problem, approach, scope, timeline, risks, and the decision ask.',
+    'builtinSkillDesc.public-notice':
+      'Writes a clear notice or announcement highlighting who is affected, when it happens, required actions, and contacts upfront.',
+    'builtinSkillDesc.presentation-deck':
+      'Plans and builds a presentation deck for weekly reports, proposals, lectures, or product overviews with clean hierarchy and speaker notes.',
+    'builtinSkillDesc.table-summary':
+      'Turns raw notes or multi-source records into a scannable comparison or summary table with units and a concise takeaway.',
   },
   ja: {
     'builtinSkillDesc.meeting-minutes':
@@ -129,9 +156,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'テーマや資料からマインドマップを作ります。主な枝を 3〜7 本でバランスよく取り、タイトルは短く、説明はノートに置き、最後に構成を点検します。',
     'builtinSkillDesc.diagram':
       '読みやすい図を描きます。合った種類を選び、流れは一方向に、文字は短く、色は少なくし、重なりや孤立した図形を点検します。',
-    'builtinSkillDesc.whiteboard': 'ホワイトボード上に付箋・エリア・カード・接続線・表を整理します。見やすい配置を先に組み立て、文字は短く余白を保ち、最後に重なりを点検します。',
+    'builtinSkillDesc.whiteboard':
+      'ホワイトボード上に付箋・エリア・カード・接続線・表を整理します。見やすい配置を先に組み立て、文字は短く余白を保ち、最後に重なりを点検します。',
     'builtinSkillDesc.html-document':
       '画面で読みやすく、印刷してもきれいな HTML 文書を作ります。読み手・分量・用紙を先に決め、ページ割りと内容を点検します。',
+    'builtinSkillDesc.general-report':
+      '確認・構成・執筆・点検の4段階で、結論を先に置き根拠を整えた実務報告書を作成します。',
+    'builtinSkillDesc.project-proposal':
+      '課題・解決策・範囲・スケジュール・リスク・承認依頼を整理した提案書・企画書を作成します。',
+    'builtinSkillDesc.public-notice':
+      '対象・日時・影響範囲・必要な対応・問い合わせ先を冒頭にまとめた分かりやすい案内文を作成します。',
+    'builtinSkillDesc.presentation-deck':
+      '週次報告・提案書・講義資料・製品紹介の4構成に合わせて、見やすいスライド資料を作成します。',
+    'builtinSkillDesc.table-summary':
+      '散らばったメモや比較情報を、単位と要約を備えた見やすい比較表・集計表に整理します。',
   },
   ko: {
     'builtinSkillDesc.meeting-minutes':
@@ -164,9 +202,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       '주제나 자료로 마인드맵을 만듭니다. 큰 가지 3~7개를 고르게 잡고, 제목은 짧게 쓰고 설명은 메모에 두며, 마지막에 짜임을 점검합니다.',
     'builtinSkillDesc.diagram':
       '읽기 쉬운 다이어그램을 그립니다. 알맞은 종류를 고르고, 흐름은 한 방향으로, 글은 짧게, 색은 적게 쓰며, 겹침과 떨어진 도형을 점검합니다.',
-    'builtinSkillDesc.whiteboard': '화이트보드에 포스트잇·구역·카드·연결선·표를 정리합니다. 보기 좋은 배치를 먼저 짜고 글은 짧고 여백은 넉넉히 두며, 마지막에 겹침을 점검합니다.',
+    'builtinSkillDesc.whiteboard':
+      '화이트보드에 포스트잇·구역·카드·연결선·표를 정리합니다. 보기 좋은 배치를 먼저 짜고 글은 짧고 여백은 넉넉히 두며, 마지막에 겹침을 점검합니다.',
     'builtinSkillDesc.html-document':
       '화면에서 읽기 좋고 인쇄해도 깔끔한 HTML 문서를 만듭니다. 읽는 사람·분량·용지를 먼저 정하고, 쪽 나눔과 내용을 점검합니다.',
+    'builtinSkillDesc.general-report':
+      '묻고·짜고·쓰고·점검하는 4단계로 결론을 앞에 두고 근거를 맞춘 범용 실무 보고서를 작성합니다.',
+    'builtinSkillDesc.project-proposal':
+      '배경·문제, 해결 방안, 범위, 일정, 리스크, 의사결정 요청을 갖춘 제안서와 기획서를 작성합니다.',
+    'builtinSkillDesc.public-notice':
+      '대상·일시·변경 내용·필요 조치·문의처를 첫머리에 정리한 명확한 안내문과 공지문을 작성합니다.',
+    'builtinSkillDesc.presentation-deck':
+      '주간 보고·제안서·강의안·제품 소개 4가지 목적별 구조로 간결하고 균형 잡힌 발표 자료를 만듭니다.',
+    'builtinSkillDesc.table-summary':
+      '흩어진 메모나 비교 자료를 단위·정렬·핵심 요약 3줄이 갖춰진 깔끔한 비교·요약 표로 정리합니다.',
   },
   fr: {
     'builtinSkillDesc.meeting-minutes':
@@ -199,9 +248,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Construit une carte mentale à partir d’un sujet ou de documents : trois à sept branches principales équilibrées, des titres courts avec le détail dans les notes, et une vérification de la structure à la fin.',
     'builtinSkillDesc.diagram':
       'Dessine un diagramme clair : choisit le type adapté, garde un seul sens de lecture, des libellés courts et peu de couleurs, puis vérifie les chevauchements et les formes isolées.',
-    'builtinSkillDesc.whiteboard': 'Organise post-its, zones, cartes, connecteurs et tableaux sur un tableau blanc : planifie une mise en page claire, garde des libellés courts et vérifie les chevauchements.',
+    'builtinSkillDesc.whiteboard':
+      'Organise post-its, zones, cartes, connecteurs et tableaux sur un tableau blanc : planifie une mise en page claire, garde des libellés courts et vérifie les chevauchements.',
     'builtinSkillDesc.html-document':
       'Crée un document HTML agréable à lire à l’écran et propre à l’impression : fixe d’abord le lecteur, la longueur et le papier, puis vérifie les pages et le contenu.',
+    'builtinSkillDesc.general-report':
+      'Rédige un rapport structuré en quatre étapes (questions, plan, rédaction, contrôle) avec la conclusion en tête.',
+    'builtinSkillDesc.project-proposal':
+      'Rédige une proposition de projet présentant problème, solution, périmètre, calendrier, risques et décision attendue.',
+    'builtinSkillDesc.public-notice':
+      'Rédige un avis ou une annonce claire mettant en avant le public, la date, les actions requises et le contact.',
+    'builtinSkillDesc.presentation-deck':
+      'Conçoit une présentation selon quatre structures (rapport hebdomadaire, proposition, cours, produit) avec une hiérarchie soignée.',
+    'builtinSkillDesc.table-summary':
+      'Transforme des notes éparses en tableau de synthèse ou de comparaison avec unités, totaux et résumé initial.',
   },
   de: {
     'builtinSkillDesc.meeting-minutes':
@@ -234,9 +294,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Baut eine Mindmap aus einem Thema oder Material: drei bis sieben ausgewogene Hauptzweige, kurze Titel mit den Details in Notizen und am Ende eine Prüfung der Struktur.',
     'builtinSkillDesc.diagram':
       'Zeichnet ein klares Diagramm: wählt den passenden Typ, hält eine Leserichtung, kurze Beschriftungen und wenige Farben ein und prüft auf Überlappungen und lose Formen.',
-    'builtinSkillDesc.whiteboard': 'Ordnet Haftnotizen, Bereiche, Karten, Verbinder und Tabellen auf einem Whiteboard: plant ein klares Layout, hält Texte kurz und prüft am Ende auf Überlappungen.',
+    'builtinSkillDesc.whiteboard':
+      'Ordnet Haftnotizen, Bereiche, Karten, Verbinder und Tabellen auf einem Whiteboard: plant ein klares Layout, hält Texte kurz und prüft am Ende auf Überlappungen.',
     'builtinSkillDesc.html-document':
       'Erstellt ein HTML-Dokument, das sich am Bildschirm gut liest und sauber druckt: legt zuerst Leser, Länge und Papier fest und prüft dann Seiten und Inhalt.',
+    'builtinSkillDesc.general-report':
+      'Schreibt einen klaren Bericht in vier Schritten (klären, gliedern, schreiben, prüfen) mit Fazit am Anfang.',
+    'builtinSkillDesc.project-proposal':
+      'Erstellt einen Projektvorschlag mit Problemstellung, Lösung, Umfang, Zeitplan, Risiken und Entscheidungsbitte.',
+    'builtinSkillDesc.public-notice':
+      'Verfasst eine klare Bekanntmachung mit Zielgruppe, Zeitraum, Auswirkungen, Handlungsbedarf und Kontakt ganz oben.',
+    'builtinSkillDesc.presentation-deck':
+      'Plant und erstellt Präsentationen für Wochenbericht, Vorschlag, Vortrag oder Produktübersicht mit klarer Gliederung.',
+    'builtinSkillDesc.table-summary':
+      'Ordnet lose Notizen in eine übersichtliche Vergleichs- oder Übersichtstabelle mit Einheiten und Kurzfazit.',
   },
   es: {
     'builtinSkillDesc.meeting-minutes':
@@ -269,9 +340,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Construye un mapa mental a partir de un tema o de materiales: de tres a siete ramas principales equilibradas, títulos cortos con el detalle en las notas y una revisión de la estructura al final.',
     'builtinSkillDesc.diagram':
       'Dibuja un diagrama claro: elige el tipo adecuado, mantiene una sola dirección, etiquetas cortas y pocos colores, y revisa solapamientos y formas sueltas.',
-    'builtinSkillDesc.whiteboard': 'Organiza notas adhesivas, zonas, tarjetas, conectores y tablas en una pizarra: diseña una disposición clara, usa textos breves y revisa posibles solapamientos.',
+    'builtinSkillDesc.whiteboard':
+      'Organiza notas adhesivas, zonas, tarjetas, conectores y tablas en una pizarra: diseña una disposición clara, usa textos breves y revisa posibles solapamientos.',
     'builtinSkillDesc.html-document':
       'Crea un documento HTML que se lee bien en pantalla y se imprime limpio: define primero el lector, la extensión y el papel, y luego revisa las páginas y el contenido.',
+    'builtinSkillDesc.general-report':
+      'Redacta un informe claro en cuatro pasos (aclarar, esquematizar, redactar, revisar) con la conclusión al principio.',
+    'builtinSkillDesc.project-proposal':
+      'Elabora una propuesta de proyecto con problema, solución, alcance, cronograma, riesgos y solicitud de decisión.',
+    'builtinSkillDesc.public-notice':
+      'Redacta un aviso o comunicado claro destacando al inicio afectados, fechas, acciones requeridas y contacto.',
+    'builtinSkillDesc.presentation-deck':
+      'Planifica y crea presentaciones para informe semanal, propuesta, clase o producto con jerarquía limpia.',
+    'builtinSkillDesc.table-summary':
+      'Convierte notas dispersas en una tabla comparativa o resumen con unidades claras y conclusión inicial.',
   },
   th: {
     'builtinSkillDesc.meeting-minutes':
@@ -304,9 +386,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'สร้างแผนผังความคิดจากหัวข้อหรือเอกสาร โดยวางกิ่งหลัก 3 ถึง 7 กิ่งให้สมดุล ตั้งชื่อหัวข้อสั้น ๆ ใส่รายละเอียดไว้ในบันทึก แล้วตรวจโครงสร้างตอนท้าย',
     'builtinSkillDesc.diagram':
       'วาดแผนภาพที่อ่านง่าย โดยเลือกชนิดให้เหมาะ ให้ทิศทางไหลไปทางเดียว ใช้ข้อความสั้นและสีน้อย แล้วตรวจการซ้อนทับและรูปร่างที่ไม่ได้เชื่อมต่อ',
-    'builtinSkillDesc.whiteboard': 'จัดระเบียบโพสต์อิท โซน การ์ด เส้นเชื่อม และตารางบนไวท์บอร์ด วางผังให้ชัดเจน ใช้ข้อความสั้น มีพื้นที่ว่างพอเหมาะ และตรวจการซ้อนทับตอนท้าย',
+    'builtinSkillDesc.whiteboard':
+      'จัดระเบียบโพสต์อิท โซน การ์ด เส้นเชื่อม และตารางบนไวท์บอร์ด วางผังให้ชัดเจน ใช้ข้อความสั้น มีพื้นที่ว่างพอเหมาะ และตรวจการซ้อนทับตอนท้าย',
     'builtinSkillDesc.html-document':
       'สร้างเอกสาร HTML ที่อ่านง่ายบนจอและพิมพ์ออกมาเรียบร้อย โดยกำหนดผู้อ่าน ความยาว และกระดาษก่อน แล้วตรวจการแบ่งหน้าและเนื้อหา',
+    'builtinSkillDesc.general-report':
+      'เขียนรายงานการทำงานอย่างเป็นระบบใน 4 ขั้นตอน (ถาม วางโครง ร่าง ตรวจทาน) โดยสรุปประเด็นสำคัญไว้ตอนต้น',
+    'builtinSkillDesc.project-proposal':
+      'ร่างข้อเสนอโครงการที่ครอบคลุมปัญหา แนวทาง ขอบเขต กำหนดการ ความเสี่ยง และข้อเสนอเพื่ออนุมัติ',
+    'builtinSkillDesc.public-notice':
+      'เขียนประกาศหรือแจ้งเตือนที่ชัดเจน โดยระบุกลุ่มเป้าหมาย วันเวลา การดำเนินการที่ต้องทำ และช่องทางติดต่อไว้ด้านบน',
+    'builtinSkillDesc.presentation-deck':
+      'วางโครงและสร้างสไลด์นำเสนอตาม 4 รูปแบบหลัก (รายงานประจำสัปดาห์ ข้อเสนอ บทเรียน แนะนำผลิตภัณฑ์) อย่างกระชับ',
+    'builtinSkillDesc.table-summary':
+      'จัดระเบียบบันทึกหรือข้อมูลเปรียบเทียบให้เป็นตารางสรุปที่อ่านง่าย พร้อมหน่วยวัดและสรุปใจความสำคัญ',
   },
   id: {
     'builtinSkillDesc.meeting-minutes':
@@ -339,9 +432,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Menyusun peta pikiran dari topik atau bahan: tiga sampai tujuh cabang utama yang seimbang, judul singkat dengan rincian di catatan, dan pemeriksaan struktur di akhir.',
     'builtinSkillDesc.diagram':
       'Menggambar diagram yang jelas: memilih jenis yang sesuai, menjaga satu arah alur, label singkat dan sedikit warna, lalu memeriksa tumpang-tindih dan bentuk yang lepas.',
-    'builtinSkillDesc.whiteboard': 'Menata catatan tempel, zona, kartu, konektor, dan tabel di papan tulis: merancang tata letak yang jelas, label singkat, ruang lega, lalu memeriksa tumpang-tindih.',
+    'builtinSkillDesc.whiteboard':
+      'Menata catatan tempel, zona, kartu, konektor, dan tabel di papan tulis: merancang tata letak yang jelas, label singkat, ruang lega, lalu memeriksa tumpang-tindih.',
     'builtinSkillDesc.html-document':
       'Membuat dokumen HTML yang enak dibaca di layar dan rapi saat dicetak: menetapkan pembaca, panjang, dan kertas lebih dulu, lalu memeriksa halaman dan isinya.',
+    'builtinSkillDesc.general-report':
+      'Menulis laporan kerja yang jelas dalam empat langkah (tanya, rangka, tulis, periksa) dengan kesimpulan di awal.',
+    'builtinSkillDesc.project-proposal':
+      'Menyusun proposal proyek berisi masalah, solusi, ruang lingkup, jadwal, risiko, dan permintaan keputusan.',
+    'builtinSkillDesc.public-notice':
+      'Menulis pengumuman yang jelas dengan menyoroti pihak terdampak, waktu, tindakan yang diperlukan, dan kontak.',
+    'builtinSkillDesc.presentation-deck':
+      'Merancang presentasi untuk laporan mingguan, proposal, materi ajar, atau pengenalan produk dengan tata letak rapi.',
+    'builtinSkillDesc.table-summary':
+      'Mengubah catatan mentah menjadi tabel perbandingan atau ringkasan yang rapi dengan satuan jelas dan inti utama.',
   },
   ru: {
     'builtinSkillDesc.meeting-minutes':
@@ -374,9 +478,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Строит интеллект-карту по теме или материалам: от трёх до семи уравновешенных главных ветвей, короткие заголовки с подробностями в заметках и проверка структуры в конце.',
     'builtinSkillDesc.diagram':
       'Рисует понятную диаграмму: выбирает подходящий тип, держит одно направление, короткие подписи и мало цветов, проверяет наложения и несвязанные фигуры.',
-    'builtinSkillDesc.whiteboard': 'Организует стикеры, зоны, карточки, связи и таблицы на доске: продумывает чистую компоновку, короткие подписи и отступы, а затем проверяет наложения.',
+    'builtinSkillDesc.whiteboard':
+      'Организует стикеры, зоны, карточки, связи и таблицы на доске: продумывает чистую компоновку, короткие подписи и отступы, а затем проверяет наложения.',
     'builtinSkillDesc.html-document':
       'Создаёт HTML-документ, который удобно читать на экране и аккуратно печатать: сначала определяет читателя, объём и бумагу, затем проверяет страницы и содержание.',
+    'builtinSkillDesc.general-report':
+      'Пишет структурированный рабочий отчёт в четыре шага (уточнить, составить план, написать, проверить) с выводом в начале.',
+    'builtinSkillDesc.project-proposal':
+      'Готовит проектное предложение с описанием проблемы, решения, границ, сроков, рисков и запроса на согласование.',
+    'builtinSkillDesc.public-notice':
+      'Составляет понятное объявление, вынося наверх адресатов, сроки, необходимые действия и контакты.',
+    'builtinSkillDesc.presentation-deck':
+      'Планирует и собирает презентацию по четырём структурам (еженедельный отчёт, предложение, лекция, обзор продукта).',
+    'builtinSkillDesc.table-summary':
+      'Превращает разрозненные заметки в наглядную сводную или сравнительную таблицу с единицами измерения и кратким выводом.',
   },
   ar: {
     'builtinSkillDesc.meeting-minutes':
@@ -408,9 +523,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'ينشئ خريطة ذهنية من موضوع أو مواد: من ثلاثة إلى سبعة فروع رئيسية متوازنة، وعناوين قصيرة مع وضع التفاصيل في الملاحظات، ثم يراجع البنية في النهاية.',
     'builtinSkillDesc.diagram':
       'يرسم مخططًا واضحًا: يختار النوع المناسب، ويحافظ على اتجاه واحد وتسميات قصيرة وألوان قليلة، ثم يتحقق من التداخل والأشكال غير الموصولة.',
-    'builtinSkillDesc.whiteboard': 'ينظم الملاحظات اللاصقة والمناطق والبطاقات والروابط والجداول على السبورة: يخطط تخطيطًا واضحًا بعناوين قصيرة ومساحات مريحة ويتحقق من عدم التداخل.',
+    'builtinSkillDesc.whiteboard':
+      'ينظم الملاحظات اللاصقة والمناطق والبطاقات والروابط والجداول على السبورة: يخطط تخطيطًا واضحًا بعناوين قصيرة ومساحات مريحة ويتحقق من عدم التداخل.',
     'builtinSkillDesc.html-document':
       'ينشئ مستند HTML سهل القراءة على الشاشة ومرتبًا عند الطباعة: يحدد القارئ والطول والورق أولًا، ثم يراجع الصفحات والمحتوى.',
+    'builtinSkillDesc.general-report':
+      'يكتب تقرير عمل واضحًا في أربع خطوات (استيضاح، تخطيط، صياغة، مراجعة) مع تقديم الخلاصة أولًا وتدقيق الأرقام.',
+    'builtinSkillDesc.project-proposal':
+      'يصوغ مقترح مشروع متكاملًا يغطي المشكلة والحل والنطاق والجدول الزمني والمخاطر وطلب الاعتماد.',
+    'builtinSkillDesc.public-notice':
+      'يكتب إعلانًا أو تنويهًا واضحًا يبرز في بدايته الفئة المعنية والموعد والإجراء المطلوب وجهة التواصل.',
+    'builtinSkillDesc.presentation-deck':
+      'يخطط وينشئ عرضًا تقديميًا لأربعة أغراض (تقرير أسبوعي، مقترح، محاضرة، تعريف منتج) بتسلسل بصري متوازن.',
+    'builtinSkillDesc.table-summary':
+      'يحول الملاحظات المتفرقة إلى جدول مقارنة أو ملخص منظم بوحدات واضحة وخلاصة موجزة في الأعلى.',
   },
   pt: {
     'builtinSkillDesc.meeting-minutes':
@@ -443,9 +569,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Monta um mapa mental a partir de um tema ou de materiais: de três a sete ramos principais equilibrados, títulos curtos com o detalhe nas notas e uma conferência da estrutura no final.',
     'builtinSkillDesc.diagram':
       'Desenha um diagrama claro: escolhe o tipo adequado, mantém uma só direção, rótulos curtos e poucas cores, e confere sobreposições e formas soltas.',
-    'builtinSkillDesc.whiteboard': 'Organiza notas adesivas, zonas, cartões, conectores e tabelas em um quadro branco: planeja um layout claro, usa rótulos curtos e verifica sobreposições.',
+    'builtinSkillDesc.whiteboard':
+      'Organiza notas adesivas, zonas, cartões, conectores e tabelas em um quadro branco: planeja um layout claro, usa rótulos curtos e verifica sobreposições.',
     'builtinSkillDesc.html-document':
       'Cria um documento HTML bom de ler na tela e limpo na impressão: define primeiro o leitor, o tamanho e o papel, depois confere as páginas e o conteúdo.',
+    'builtinSkillDesc.general-report':
+      'Escreve um relatório claro em quatro etapas (alinhar, estruturar, redigir, revisar) com a conclusão logo no início.',
+    'builtinSkillDesc.project-proposal':
+      'Elabora uma proposta de projeto com problema, solução, escopo, cronograma, riscos e pedido de decisão.',
+    'builtinSkillDesc.public-notice':
+      'Redige um aviso ou comunicado objetivo destacando no topo quem é afetado, datas, ações necessárias e contato.',
+    'builtinSkillDesc.presentation-deck':
+      'Planeja e monta apresentações para relatório semanal, proposta, aula ou produto com hierarquia visual limpa.',
+    'builtinSkillDesc.table-summary':
+      'Organiza anotações soltas em uma tabela de comparação ou resumo com unidades claras e síntese inicial.',
   },
   it: {
     'builtinSkillDesc.meeting-minutes':
@@ -478,9 +615,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Costruisce una mappa mentale da un argomento o da materiali: da tre a sette rami principali equilibrati, titoli brevi con i dettagli nelle note e un controllo della struttura alla fine.',
     'builtinSkillDesc.diagram':
       'Disegna un diagramma chiaro: sceglie il tipo adatto, mantiene una sola direzione, etichette brevi e pochi colori, e controlla sovrapposizioni e forme isolate.',
-    'builtinSkillDesc.whiteboard': 'Organizza foglietti, aree, schede, connettori e tabelle su una lavagna: imposta un layout chiaro, usa testi brevi e controlla eventuali sovrapposizioni.',
+    'builtinSkillDesc.whiteboard':
+      'Organizza foglietti, aree, schede, connettori e tabelle su una lavagna: imposta un layout chiaro, usa testi brevi e controlla eventuali sovrapposizioni.',
     'builtinSkillDesc.html-document':
       'Crea un documento HTML piacevole da leggere a schermo e pulito in stampa: stabilisce prima lettore, lunghezza e carta, poi controlla le pagine e il contenuto.',
+    'builtinSkillDesc.general-report':
+      'Scrive un rapporto chiaro in quattro fasi (chiarire, strutturare, redigere, verificare) con conclusione in apertura.',
+    'builtinSkillDesc.project-proposal':
+      'Redige una proposta di progetto con problema, soluzione, ambito, tempi, rischi e richiesta di approvazione.',
+    'builtinSkillDesc.public-notice':
+      'Scrive un avviso chiaro mettendo subito in evidenza destinatari, date, azioni richieste e contatti.',
+    'builtinSkillDesc.presentation-deck':
+      'Progetta presentazioni per report settimanale, proposta, lezione o prodotto con gerarchia pulita e note relatore.',
+    'builtinSkillDesc.table-summary':
+      'Trasforma appunti sparsi in una tabella comparativa o riepilogativa con unità chiare e sintesi iniziale.',
   },
   pl: {
     'builtinSkillDesc.meeting-minutes':
@@ -513,9 +661,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Buduje mapę myśli z tematu lub materiałów: od trzech do siedmiu zrównoważonych głównych gałęzi, krótkie tytuły ze szczegółami w notatkach i sprawdzenie struktury na końcu.',
     'builtinSkillDesc.diagram':
       'Rysuje czytelny diagram: dobiera właściwy typ, trzyma jeden kierunek, krótkie etykiety i niewiele kolorów, a potem sprawdza nakładanie się i luźne kształty.',
-    'builtinSkillDesc.whiteboard': 'Porządkuje karteczki, strefy, karty, łączniki i tabele na tablicy: planuje przejrzysty układ, krótkie etykiety i odstępy, a na końcu sprawdza nakładanie się.',
+    'builtinSkillDesc.whiteboard':
+      'Porządkuje karteczki, strefy, karty, łączniki i tabele na tablicy: planuje przejrzysty układ, krótkie etykiety i odstępy, a na końcu sprawdza nakładanie się.',
     'builtinSkillDesc.html-document':
       'Tworzy dokument HTML, który dobrze się czyta na ekranie i czysto drukuje: najpierw ustala czytelnika, długość i papier, potem sprawdza strony i treść.',
+    'builtinSkillDesc.general-report':
+      'Pisze przejrzysty raport w czterech krokach (doprecyzuj, zaplanuj, napisz, sprawdź) z wnioskiem na początku.',
+    'builtinSkillDesc.project-proposal':
+      'Tworzy propozycję projektu obejmującą problem, rozwiązanie, zakres, harmonogram, ryzyka i prośbę o decyzję.',
+    'builtinSkillDesc.public-notice':
+      'Redaguje klarowne ogłoszenie z wyróżnieniem odbiorców, terminu, wymaganych działań i kontaktu na samej górze.',
+    'builtinSkillDesc.presentation-deck':
+      'Planuje i buduje prezentację dla raportu tygodniowego, propozycji, wykładu lub przeglądu produktu.',
+    'builtinSkillDesc.table-summary':
+      'Zamienia luźne notatki w czytelną tabelę porównawczą lub podsumowującą z jednostkami i krótkim wnioskiem.',
   },
   cs: {
     'builtinSkillDesc.meeting-minutes':
@@ -548,9 +707,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Sestaví myšlenkovou mapu z tématu nebo podkladů: tři až sedm vyvážených hlavních větví, krátké názvy s podrobnostmi v poznámkách a na konci kontrola struktury.',
     'builtinSkillDesc.diagram':
       'Nakreslí přehledný diagram: zvolí vhodný typ, drží jeden směr, krátké popisky a málo barev a zkontroluje překryvy a nepřipojené tvary.',
-    'builtinSkillDesc.whiteboard': 'Uspořádá lístečky, zóny, karty, spojnice a tabulky na tabuli: navrhne přehledné rozvržení, krátké popisky a čisté rozestupy a zkontroluje překryvy.',
+    'builtinSkillDesc.whiteboard':
+      'Uspořádá lístečky, zóny, karty, spojnice a tabulky na tabuli: navrhne přehledné rozvržení, krátké popisky a čisté rozestupy a zkontroluje překryvy.',
     'builtinSkillDesc.html-document':
       'Vytvoří dokument HTML, který se dobře čte na obrazovce a čistě tiskne: nejdřív určí čtenáře, rozsah a papír, potom zkontroluje stránky a obsah.',
+    'builtinSkillDesc.general-report':
+      'Napíše přehlednou zprávu ve čtyřech krocích (upřesnit, rozvrhnout, napsat, zkontrolovat) se závěrem na začátku.',
+    'builtinSkillDesc.project-proposal':
+      'Připraví návrh projektu s problémem, řešením, rozsahem, harmonogramem, riziky a žádostí o rozhodnutí.',
+    'builtinSkillDesc.public-notice':
+      'Sepíše jasné oznámení, které hned v úvodu uvádí dotčené osoby, termín, potřebné kroky a kontakt.',
+    'builtinSkillDesc.presentation-deck':
+      'Navrhne a vytvoří prezentaci pro týdenní hlášení, návrh, přednášku nebo přehled produktu.',
+    'builtinSkillDesc.table-summary':
+      'Převede roztříštěné poznámky na přehlednou srovnávací nebo souhrnnou tabulku s jednotkami a krátkým shrnutím.',
   },
   nl: {
     'builtinSkillDesc.meeting-minutes':
@@ -583,9 +753,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Bouwt een mindmap uit een onderwerp of materiaal: drie tot zeven evenwichtige hoofdtakken, korte titels met de details in notities en aan het eind een controle van de structuur.',
     'builtinSkillDesc.diagram':
       'Tekent een duidelijk diagram: kiest het passende type, houdt één richting aan, korte labels en weinig kleuren, en controleert op overlappingen en losse vormen.',
-    'builtinSkillDesc.whiteboard': 'Ordent plaknotities, zones, kaarten, verbindingslijnen en tabellen op een whiteboard: plant een heldere indeling, korte labels en controleert op overlappingen.',
+    'builtinSkillDesc.whiteboard':
+      'Ordent plaknotities, zones, kaarten, verbindingslijnen en tabellen op een whiteboard: plant een heldere indeling, korte labels en controleert op overlappingen.',
     'builtinSkillDesc.html-document':
       'Maakt een HTML-document dat prettig leest op het scherm en netjes afdrukt: legt eerst lezer, lengte en papier vast en controleert daarna de pagina’s en de inhoud.',
+    'builtinSkillDesc.general-report':
+      'Schrijft een helder rapport in vier stappen (afstemmen, structureren, schrijven, controleren) met conclusie voorop.',
+    'builtinSkillDesc.project-proposal':
+      'Stelt een projectvoorstel op met probleem, aanpak, reikwijdte, planning, risico’s en beslisvraag.',
+    'builtinSkillDesc.public-notice':
+      'Schrijft een duidelijke aankondiging met doelgroep, tijdstip, vereiste actie en contactgegevens direct bovenaan.',
+    'builtinSkillDesc.presentation-deck':
+      'Ontwerpt een presentatie voor weekrapport, voorstel, les of productoverzicht met heldere structuur.',
+    'builtinSkillDesc.table-summary':
+      'Zet losse notities om in een overzichtelijke vergelijkings- of samenvattingstabel met eenheden en kernpunt.',
   },
   ms: {
     'builtinSkillDesc.meeting-minutes':
@@ -618,9 +799,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Membina peta minda daripada topik atau bahan: tiga hingga tujuh cabang utama yang seimbang, tajuk ringkas dengan butiran dalam nota, dan semakan struktur pada akhirnya.',
     'builtinSkillDesc.diagram':
       'Melukis rajah yang jelas: memilih jenis yang sesuai, mengekalkan satu arah aliran, label ringkas dan sedikit warna, kemudian menyemak pertindihan dan bentuk yang terlepas.',
-    'builtinSkillDesc.whiteboard': 'Menyusun nota lekat, zon, kad, penyambung dan jadual di papan putih: merancang susun atur yang jelas, label ringkas dan menyemak pertindihan.',
+    'builtinSkillDesc.whiteboard':
+      'Menyusun nota lekat, zon, kad, penyambung dan jadual di papan putih: merancang susun atur yang jelas, label ringkas dan menyemak pertindihan.',
     'builtinSkillDesc.html-document':
       'Membuat dokumen HTML yang selesa dibaca pada skrin dan kemas apabila dicetak: menetapkan pembaca, panjang dan kertas dahulu, kemudian menyemak halaman dan kandungannya.',
+    'builtinSkillDesc.general-report':
+      'Menulis laporan kerja yang jelas dalam empat langkah (tanya, rangka, tulis, semak) dengan kesimpulan di awal.',
+    'builtinSkillDesc.project-proposal':
+      'Menyediakan cadangan projek merangkumi masalah, penyelesaian, skop, jadual, risiko dan permintaan keputusan.',
+    'builtinSkillDesc.public-notice':
+      'Menulis notis atau pengumuman jelas yang menonjolkan pihak terlibat, masa, tindakan diperlukan dan rujukan.',
+    'builtinSkillDesc.presentation-deck':
+      'Merancang dan membina dek pembentangan bagi laporan mingguan, cadangan, kuliah atau pengenalan produk.',
+    'builtinSkillDesc.table-summary':
+      'Menyusun nota mentah menjadi jadual perbandingan atau ringkasan yang kemas dengan unit jelas dan rumusan awal.',
   },
   he: {
     'builtinSkillDesc.meeting-minutes': 'הופך רשימות מפגישה לסיכום שמציג את ההחלטות ואת המשימות.',
@@ -652,9 +844,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'בונה מפת חשיבה מנושא או מחומרים: שלושה עד שבעה ענפים ראשיים מאוזנים, כותרות קצרות עם הפירוט בהערות, ובדיקת המבנה בסוף.',
     'builtinSkillDesc.diagram':
       'משרטט תרשים ברור: בוחר את הסוג המתאים, שומר על כיוון אחד, תוויות קצרות ומעט צבעים, ובודק חפיפות וצורות שאינן מחוברות.',
-    'builtinSkillDesc.whiteboard': 'מארגן פתקים דביקים, אזורים, כרטיסים, חיבורים וטבלאות על לוח לבן: מתכנן פריסה ברורה, שומר על תוויות קצרות ורווחים נקיים ובודק חפיפות.',
+    'builtinSkillDesc.whiteboard':
+      'מארגן פתקים דביקים, אזורים, כרטיסים, חיבורים וטבלאות על לוח לבן: מתכנן פריסה ברורה, שומר על תוויות קצרות ורווחים נקיים ובודק חפיפות.',
     'builtinSkillDesc.html-document':
       'יוצר מסמך HTML שנוח לקרוא על המסך ונקי בהדפסה: קובע קודם את הקורא, האורך והנייר, ואז בודק את העמודים והתוכן.',
+    'builtinSkillDesc.general-report':
+      'כותב דוח עבודה ברור בארבעה שלבים (בירור, מתווה, כתיבה, בדיקה) כשהמסקנה בראש והנתונים מבוססים.',
+    'builtinSkillDesc.project-proposal':
+      'מנסח הצעת פרויקט הכוללת בעיה, פתרון, היקף, לוח זמנים, סיכונים ובקשת החלטה ברורה.',
+    'builtinSkillDesc.public-notice':
+      'כותב הודעה או עדכון ברור המדגיש מיד מי מושפע, מתי זה קורה, מה נדרש לעשות ופרטי קשר.',
+    'builtinSkillDesc.presentation-deck':
+      'מתכנן ובונה מצגת לארבע מטרות (דוח שבועי, הצעה, הרצאה, סקירת מוצר) בהיררכיה נקייה ועם הערות דובר.',
+    'builtinSkillDesc.table-summary':
+      'הופך רשימות מפוזרות לטבלת השוואה או סיכום ברורה עם יחידות מידה ותקציר ממוקד בראשה.',
   },
   hi: {
     'builtinSkillDesc.meeting-minutes':
@@ -687,9 +890,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'किसी विषय या सामग्री से माइंड मैप बनाता है: तीन से सात संतुलित मुख्य शाखाएँ, छोटे शीर्षक और ब्योरा नोट में, और अंत में ढाँचे की जाँच।',
     'builtinSkillDesc.diagram':
       'साफ़ आरेख बनाता है: सही प्रकार चुनता है, प्रवाह एक ही दिशा में, लेबल छोटे और रंग कम रखता है, और ओवरलैप व बिना जुड़ी आकृतियों की जाँच करता है।',
-    'builtinSkillDesc.whiteboard': 'व्हाइटबोर्ड पर स्टिकी नोट्स, ज़ोन, कार्ड, कनेक्टर और तालिकाएँ व्यवस्थित करता है: स्पष्ट लेआउट बनाता है, लेबल छोटे रखता है और अंत में ओवरलैप जाँचता है।',
+    'builtinSkillDesc.whiteboard':
+      'व्हाइटबोर्ड पर स्टिकी नोट्स, ज़ोन, कार्ड, कनेक्टर और तालिकाएँ व्यवस्थित करता है: स्पष्ट लेआउट बनाता है, लेबल छोटे रखता है और अंत में ओवरलैप जाँचता है।',
     'builtinSkillDesc.html-document':
       'ऐसा HTML दस्तावेज़ बनाता है जो स्क्रीन पर पढ़ने में अच्छा और छपने पर साफ़ हो: पहले पाठक, लंबाई और काग़ज़ तय करता है, फिर पृष्ठों और सामग्री की जाँच करता है।',
+    'builtinSkillDesc.general-report':
+      'चार चरणों (पूछें, रूपरेखा, लेखन, जाँच) में निष्कर्ष-प्रमुख और तथ्यों पर आधारित स्पष्ट कार्य रिपोर्ट लिखता है।',
+    'builtinSkillDesc.project-proposal':
+      'समस्या, समाधान, दायरा, समय-सीमा, जोखिम और निर्णय अनुरोध सहित संरचित परियोजना प्रस्ताव तैयार करता है।',
+    'builtinSkillDesc.public-notice':
+      'स्पष्ट सूचना या घोषणा लिखता है जिसमें प्रभावित लोग, समय, आवश्यक कार्रवाई और संपर्क विवरण सबसे ऊपर हों।',
+    'builtinSkillDesc.presentation-deck':
+      'साप्ताहिक रिपोर्ट, प्रस्ताव, व्याख्यान या उत्पाद परिचय के चार ढाँचों के अनुसार संतुलित स्लाइड डेक बनाता है।',
+    'builtinSkillDesc.table-summary':
+      'बिखरे नोट्स को स्पष्ट इकाइयों, सुसंगत प्रारूप और संक्षिप्त निष्कर्ष वाली तुलना या सारांश तालिका में बदलता है।',
   },
   'zh-TW': {
     'builtinSkillDesc.meeting-minutes': '把會議筆記整理成列明決議事項和待辦事項的會議紀錄。',
@@ -718,9 +932,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       '根據主題或資料製作心智圖：均衡地設 3 到 7 個主分支，標題簡短、說明放在備註裡，最後檢查架構。',
     'builtinSkillDesc.diagram':
       '繪製清楚易讀的圖表：選對圖表類型，流向保持同一方向，文字簡短、顏色少用，並檢查重疊和孤立的圖形。',
-    'builtinSkillDesc.whiteboard': '在白板上整理便利貼、區域、卡片、連線與表格：先規劃版面再一次建立，保持留白清楚、文字簡短，最後檢查重疊。',
+    'builtinSkillDesc.whiteboard':
+      '在白板上整理便利貼、區域、卡片、連線與表格：先規劃版面再一次建立，保持留白清楚、文字簡短，最後檢查重疊。',
     'builtinSkillDesc.html-document':
       '製作在螢幕上好讀、列印也整潔的 HTML 文件：先確定讀者、篇幅和紙張，再檢查分頁和內容。',
+    'builtinSkillDesc.general-report':
+      '依「先釐清、再列綱、後撰寫、最後檢查」四步驟撰寫結構清楚的通用報告，結論先行並核對來源。',
+    'builtinSkillDesc.project-proposal':
+      '撰寫涵蓋問題背景、解決方案、範圍界線、時程、風險與決策請求的完整專案提案與企劃書。',
+    'builtinSkillDesc.public-notice':
+      '撰寫清楚明確的公告與通知，在開頭突出對象、時間、影響範圍、所需操作與聯絡方式。',
+    'builtinSkillDesc.presentation-deck':
+      '依週報、提案、講義或產品介紹四種目標架構規劃簡報，控制單頁資訊量並支援講者備忘稿。',
+    'builtinSkillDesc.table-summary':
+      '將零散筆記或比較資料整理為具備單位表頭、統一格式與核心摘要的清晰比較與彙整表。',
   },
   vi: {
     'builtinSkillDesc.meeting-minutes':
@@ -753,9 +978,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Dựng sơ đồ tư duy từ một chủ đề hoặc tài liệu: ba đến bảy nhánh chính cân đối, tiêu đề ngắn với chi tiết đặt trong ghi chú, và kiểm tra cấu trúc ở cuối.',
     'builtinSkillDesc.diagram':
       'Vẽ sơ đồ rõ ràng: chọn loại phù hợp, giữ một hướng đi, nhãn ngắn và ít màu, rồi kiểm tra chồng lấn và hình rời rạc.',
-    'builtinSkillDesc.whiteboard': 'Sắp xếp giấy nhớ, khu vực, thẻ, đường nối và bảng trên bảng trắng: bố cục rõ ràng, nhãn ngắn gọn, khoảng trống thoáng và kiểm tra chồng lấn.',
+    'builtinSkillDesc.whiteboard':
+      'Sắp xếp giấy nhớ, khu vực, thẻ, đường nối và bảng trên bảng trắng: bố cục rõ ràng, nhãn ngắn gọn, khoảng trống thoáng và kiểm tra chồng lấn.',
     'builtinSkillDesc.html-document':
       'Tạo tài liệu HTML dễ đọc trên màn hình và gọn gàng khi in: xác định người đọc, độ dài và khổ giấy trước, rồi kiểm tra các trang và nội dung.',
+    'builtinSkillDesc.general-report':
+      'Viết báo cáo công việc rõ ràng theo bốn bước (hỏi rõ, lập dàn ý, viết, kiểm tra) với kết luận đặt đầu tiên.',
+    'builtinSkillDesc.project-proposal':
+      'Soạn đề xuất dự án đầy đủ vấn đề, giải pháp, phạm vi, tiến độ, rủi ro và đề nghị phê duyệt.',
+    'builtinSkillDesc.public-notice':
+      'Viết thông báo rõ ràng nêu bật ngay đầu bài đối tượng ảnh hưởng, thời gian, hành động cần làm và liên hệ.',
+    'builtinSkillDesc.presentation-deck':
+      'Lập cấu trúc và tạo bài thuyết trình theo bốn mục tiêu (báo cáo tuần, đề xuất, bài giảng, giới thiệu sản phẩm).',
+    'builtinSkillDesc.table-summary':
+      'Chuyển ghi chú rời rạc thành bảng so sánh hoặc tóm tắt rõ đơn vị, nhất quán định dạng kèm tóm lược ngắn.',
   },
   tr: {
     'builtinSkillDesc.meeting-minutes':
@@ -788,9 +1024,20 @@ export const BUILTIN_SKILL_STRINGS = defineStrings({
       'Bir konudan veya malzemeden zihin haritası kurar: üç ila yedi dengeli ana dal, ayrıntısı notlarda duran kısa başlıklar ve sonunda yapı denetimi.',
     'builtinSkillDesc.diagram':
       'Anlaşılır bir diyagram çizer: uygun türü seçer, tek yönü, kısa etiketleri ve az rengi korur, çakışmaları ve bağlantısız şekilleri denetler.',
-    'builtinSkillDesc.whiteboard': 'Beyaz tahtada yapışkan notları, bölgeleri, kartları, bağlantıları ve tabloları düzenler: net bir yerleşim kurar, etiketleri kısa tutar ve çakışmaları denetler.',
+    'builtinSkillDesc.whiteboard':
+      'Beyaz tahtada yapışkan notları, bölgeleri, kartları, bağlantıları ve tabloları düzenler: net bir yerleşim kurar, etiketleri kısa tutar ve çakışmaları denetler.',
     'builtinSkillDesc.html-document':
       'Ekranda rahat okunan ve temiz basılan bir HTML belgesi hazırlar: önce okuru, uzunluğu ve kâğıdı belirler, sonra sayfaları ve içeriği denetler.',
+    'builtinSkillDesc.general-report':
+      'Dört adımda (netleştir, taslak çıkar, yaz, denetle) sonucu başa alan, kanıta dayalı net bir iş raporu yazar.',
+    'builtinSkillDesc.project-proposal':
+      'Sorun, çözüm, kapsam, zaman planı, riskler ve karar talebini içeren düzenli bir proje önerisi hazırlar.',
+    'builtinSkillDesc.public-notice':
+      'Kimlerin etkilendiğini, zamanı, gereken adımları ve iletişimi en üstte vurgulayan net bir duyuru yazar.',
+    'builtinSkillDesc.presentation-deck':
+      'Haftalık rapor, öneri, ders veya ürün tanıtımı için temiz hiyerarşili sunum destesi planlar ve oluşturur.',
+    'builtinSkillDesc.table-summary':
+      'Dağınık notları açık birimli, düzenli biçimli ve kısa özetli bir karşılaştırma veya özet tablosuna dönüştürür.',
   },
 })
 
