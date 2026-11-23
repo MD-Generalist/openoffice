@@ -94,4 +94,13 @@ export const ru = {
   rangeCurrentPage: 'Текущая страница',
   print: 'Печать',
   rangeInvalid: 'Укажите диапазон страниц в виде «1-3, 5».',
+  printer: 'Принтер',
+  defaultPrinter: 'Принтер по умолчанию',
+  systemDialog: 'Системный диалог печати…',
+  copies: 'Копии',
+  collate: 'Разобрать по копиям',
+  duplex: 'Двусторонняя печать',
+  duplexOff: 'Выкл.',
+  duplexLong: 'Переплёт по длинному краю',
+  duplexShort: 'Переплёт по короткому краю',
 } satisfies Record<keyof typeof zh, string>

@@ -8,6 +8,7 @@ import {
 import {
   SimplePrintDialog,
   printLayoutIssueText,
+  type PrintJobSelection,
   type PrintLabelSpecStore,
   type PrintLayoutPreviewRequest,
   type PrintLayoutProgress,
@@ -107,6 +108,7 @@ export function HtmlPrintDialog(props: HtmlPrintDialogProps): ReactElement {
     kind: 'print' | 'save',
     r: SimplePrintRange,
     options: PrintLayoutOptions,
+    job?: PrintJobSelection,
   ): Promise<void> => {
     if (runningRef.current || refusesRange(r)) return
     runningRef.current = true
@@ -116,7 +118,7 @@ export function HtmlPrintDialog(props: HtmlPrintDialogProps): ReactElement {
       if (mountedRef.current) setProgress(next)
     })
     try {
-      const request = { options, editor: jobOf(r) }
+      const request = { options, editor: jobOf(r), ...(kind === 'print' && job ? { job } : {}) }
       const result =
         kind === 'print'
           ? await api.printLayout.print(request)
@@ -207,12 +209,13 @@ export function HtmlPrintDialog(props: HtmlPrintDialogProps): ReactElement {
       rangeChoice="all-custom"
       pages={pages}
       capabilities={{ showPaperAndFit: true }}
+      listPrinters={api.printLayout.listPrinters}
       onRangeChange={(next) => {
         setRange(next)
         setRangeEmpty(false)
       }}
       onPlainPrint={plainPrint}
-      onPrint={(r, options) => void runLayout('print', r, options)}
+      onPrint={(r, options, job) => void runLayout('print', r, options, job)}
       onSavePdf={(r, options) => void runLayout('save', r, options)}
       onCancel={() => {
         if (runningRef.current) void api.printLayout.cancel()

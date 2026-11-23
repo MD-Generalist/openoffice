@@ -94,4 +94,13 @@ export const en = {
   rangeCurrentPage: 'Current page',
   print: 'Print',
   rangeInvalid: 'Write the page range like "1-3, 5".',
+  printer: 'Printer',
+  defaultPrinter: 'Default printer',
+  systemDialog: 'System print dialog…',
+  copies: 'Copies',
+  collate: 'Collate',
+  duplex: 'Double-sided',
+  duplexOff: 'Off',
+  duplexLong: 'Flip on long edge',
+  duplexShort: 'Flip on short edge',
 } satisfies Record<keyof typeof zh, string>

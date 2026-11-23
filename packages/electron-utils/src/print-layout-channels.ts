@@ -7,11 +7,18 @@ import type {
   PrintLayoutOptions,
 } from '@genoffice/print-layout/plan'
 
-/** App-wide channels: the typed-in label grid, one for every editor. */
+/** App-wide channels: the typed-in label grid and installed printer list, one for every editor. */
 export const PRINT_LAYOUT_SHARED_CHANNELS = {
   labelSpecGet: 'print-layout:label-spec-get',
   labelSpecSet: 'print-layout:label-spec-set',
+  listPrinters: 'print-layout:printers',
 } as const
+
+/** One installed OS printer returned by `print-layout:printers`. */
+export interface PrintLayoutPrinterInfo {
+  name: string
+  displayName: string
+}
 
 export interface PrintLayoutEditorChannels {
   preview: string

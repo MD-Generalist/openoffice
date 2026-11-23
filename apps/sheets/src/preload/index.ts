@@ -2838,7 +2838,11 @@ function isPdfExportRequest(request: unknown): boolean {
         !Number.isInteger(request.copies) ||
         request.copies < 1 ||
         request.copies > 999)) ||
-    (request.collate !== undefined && typeof request.collate !== 'boolean')
+    (request.collate !== undefined && typeof request.collate !== 'boolean') ||
+    (request.duplex !== undefined &&
+      request.duplex !== 'simplex' &&
+      request.duplex !== 'longEdge' &&
+      request.duplex !== 'shortEdge')
   )
 }
 

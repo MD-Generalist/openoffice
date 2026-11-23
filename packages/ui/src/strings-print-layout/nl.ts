@@ -97,4 +97,13 @@ export const nl = {
   rangeCurrentPage: 'Huidige pagina',
   print: 'Afdrukken',
   rangeInvalid: 'Schrijf het paginabereik als "1-3, 5".',
+  printer: 'Printer',
+  defaultPrinter: 'Standaardprinter',
+  systemDialog: 'Systeemafdrukvenster…',
+  copies: 'Exemplaren',
+  collate: 'Sorteren',
+  duplex: 'Dubbelzijdig',
+  duplexOff: 'Uit',
+  duplexLong: 'Omslaan langs lange zijde',
+  duplexShort: 'Omslaan langs korte zijde',
 } satisfies Record<keyof typeof zh, string>

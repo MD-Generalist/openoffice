@@ -9,6 +9,7 @@ import {
   type PageSize,
   type PrintLayoutOptions,
 } from '@genoffice/print-layout/plan'
+import type { PrintJobOptions } from '../shared/ipc'
 import { parsePageRanges } from './view-config'
 
 export type PrintRangeMode = 'all' | 'current' | 'custom' | 'picked'
@@ -71,8 +72,13 @@ export function routePrint(
   options: PrintLayoutOptions,
   pages: number[] | undefined,
   routes: PrintRoutes,
+  job?: PrintJobOptions,
 ): 'current' | 'arranged' {
-  if (isDefaultOptions(options)) {
+  // Choosing an in-app printer ('' = OS default, or a named printer) prints
+  // silently via the main-process route so copies, collate and duplex apply.
+  // The system dialog with default layout options stays on window.print().
+  const silent = typeof job?.deviceName === 'string'
+  if (isDefaultOptions(options) && !silent) {
     if (pages === undefined) routes.current()
     else routes.current(pages)
     return 'current'

@@ -9,6 +9,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDefaultOptions, type PageSize } from '@genoffice/print-layout/plan'
 import { LANGS } from '@genoffice/i18n'
+import { SYSTEM_DIALOG } from '@genoffice/ui'
 
 vi.mock('../src/renderer/i18n/locale', async () => {
   const { createI18n } = await import('@genoffice/i18n')
@@ -59,6 +60,15 @@ function type(el: HTMLInputElement, value: string) {
   })
 }
 
+function selectValue(el: HTMLSelectElement, value: string) {
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, value)
+    el.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+}
+
+const DEFAULT_JOB = { deviceName: '', copies: 1, collate: true, duplex: 'simplex' }
+
 function fakeApi(pages: PageSize[] | Error = [A4, A4, A4]) {
   return {
     printJobPages: vi.fn(async () =>
@@ -96,18 +106,31 @@ const pick = (value: string) =>
   $$<HTMLInputElement>('input[data-pl="range"]').find((r) => r.value === value)!
 
 describe('the HTML print dialog', () => {
-  it('prints all pages with nothing changed exactly as before', async () => {
+  it('prints all pages with nothing changed exactly as before when system dialog is chosen', async () => {
     const { props, api } = await mount()
     expect($('[role="dialog"]')).not.toBeNull()
     expect($$<HTMLInputElement>('input[data-pl="range"]').map((r) => r.value)).toEqual([
       'all',
       'custom',
     ])
+    selectValue($<HTMLSelectElement>('select[data-print="printer"]')!, SYSTEM_DIALOG)
     await click($('button[data-pl="print"]'))
     expect(props.onClose).toHaveBeenCalledTimes(1)
     expect(props.onPlainPrint).toHaveBeenCalledTimes(1)
     expect(api.printLayout.print).not.toHaveBeenCalled()
     expect(api.printLayout.savePdf).not.toHaveBeenCalled()
+  })
+
+  it('sends duplex job through printLayout when an in-app printer is chosen', async () => {
+    const { props, api } = await mount()
+    selectValue($<HTMLSelectElement>('select[data-print="duplex"]')!, 'longEdge')
+    await click($('button[data-pl="print"]'))
+    expect(props.onPlainPrint).not.toHaveBeenCalled()
+    expect(api.printLayout.print).toHaveBeenCalledWith({
+      options: createDefaultOptions(),
+      editor: { html: DOC, suggestedName: 'page' },
+      job: { ...DEFAULT_JOB, duplex: 'longEdge' },
+    })
   })
 
   it('counts the pages once per dialog, from the document as the print serializes it', async () => {
@@ -132,6 +155,7 @@ describe('the HTML print dialog', () => {
     expect(api.printLayout.print).toHaveBeenCalledWith({
       options,
       editor: { html: DOC, suggestedName: 'page' },
+      job: DEFAULT_JOB,
     })
     expect(props.onPlainPrint).not.toHaveBeenCalled()
     expect(props.onClose).toHaveBeenCalledTimes(1)
@@ -139,6 +163,7 @@ describe('the HTML print dialog', () => {
 
   it('prints a typed range on the arranged route even with the options at their defaults', async () => {
     const { props, api } = await mount()
+    selectValue($<HTMLSelectElement>('select[data-print="printer"]')!, SYSTEM_DIALOG)
     await click(pick('custom'))
     type($<HTMLInputElement>('input[data-pl="range-text"]')!, '2-3')
     await click($('button[data-pl="print"]'))

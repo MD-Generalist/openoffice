@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   SimplePrintDialog,
   printLayoutIssueText,
+  type PrintJobSelection,
   type PrintLabelSpecStore,
   type PrintLayoutProgress,
   type SimplePrintRange,
@@ -104,6 +105,7 @@ export function DiagramPrintDialog(props: DiagramPrintDialogProps) {
     kind: 'print' | 'save',
     range: SimplePrintRange,
     options: PrintLayoutOptions,
+    printJob?: PrintJobSelection,
   ): Promise<void> => {
     if (runningRef.current) return
     runningRef.current = true
@@ -114,7 +116,11 @@ export function DiagramPrintDialog(props: DiagramPrintDialogProps) {
       if (mountedRef.current) setProgress(next)
     })
     try {
-      const request = { options, editor: await jobOf(range) }
+      const request = {
+        options,
+        editor: await jobOf(range),
+        ...(kind === 'print' && printJob ? { job: printJob } : {}),
+      }
       if (stoppedRef.current || !mountedRef.current) return
       const result =
         kind === 'print' ? await printLayout.print(request) : await printLayout.savePdf(request)
@@ -126,7 +132,7 @@ export function DiagramPrintDialog(props: DiagramPrintDialogProps) {
         return
       }
       if (kind === 'print') {
-        onClose()
+        if (!('canceled' in result)) onClose()
       } else if ('path' in result) {
         onClose()
         onMessage(t('printLayoutSaved'))
@@ -192,9 +198,10 @@ export function DiagramPrintDialog(props: DiagramPrintDialogProps) {
       rangeChoice="all-current"
       pages={pages}
       capabilities={{ showPaperAndFit: true }}
+      listPrinters={printLayout.listPrinters}
       onRangeChange={(range) => countPages(scopeOf(range))}
       onPlainPrint={onPlainPrint}
-      onPrint={(range, options) => void runLayout('print', range, options)}
+      onPrint={(range, options, printJob) => void runLayout('print', range, options, printJob)}
       onSavePdf={(range, options) => void runLayout('save', range, options)}
       onCancel={() => {
         if (runningRef.current) stopJob()

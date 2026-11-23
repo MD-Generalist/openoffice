@@ -57,6 +57,7 @@ describe('print layout bridge', () => {
     await expect(bridge.cancel()).resolves.toBeUndefined()
     await expect(bridge.getLabelSpec()).resolves.toBeNull()
     await expect(bridge.setLabelSpec({} as never)).resolves.toMatchObject({ ok: false })
+    await expect(bridge.listPrinters?.()).resolves.toEqual([])
   })
 
   it('passes progress on, drops malformed payloads, and unsubscribes', () => {

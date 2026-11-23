@@ -95,4 +95,13 @@ export const tr = {
   rangeCurrentPage: 'Geçerli sayfa',
   print: 'Yazdır',
   rangeInvalid: 'Sayfa aralığını "1-3, 5" gibi yazın.',
+  printer: 'Yazıcı',
+  defaultPrinter: 'Varsayılan yazıcı',
+  systemDialog: 'Sistem yazdırma iletişim kutusu…',
+  copies: 'Kopya sayısı',
+  collate: 'Sırala',
+  duplex: 'Çift taraflı',
+  duplexOff: 'Kapalı',
+  duplexLong: 'Uzun kenardan çevir',
+  duplexShort: 'Kısa kenardan çevir',
 } satisfies Record<keyof typeof zh, string>

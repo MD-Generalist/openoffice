@@ -94,4 +94,13 @@ export const cs = {
   rangeCurrentPage: 'Aktuální stránka',
   print: 'Tisk',
   rangeInvalid: 'Zadejte rozsah stránek ve tvaru „1-3, 5“.',
+  printer: 'Tiskárna',
+  defaultPrinter: 'Výchozí tiskárna',
+  systemDialog: 'Systémový dialog tisku…',
+  copies: 'Kopie',
+  collate: 'Kompletovat',
+  duplex: 'Oboustranný tisk',
+  duplexOff: 'Vypnuto',
+  duplexLong: 'Překlopit po delší straně',
+  duplexShort: 'Překlopit po kratší straně',
 } satisfies Record<keyof typeof zh, string>

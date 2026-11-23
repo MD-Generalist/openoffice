@@ -3,7 +3,13 @@ import type { Lang } from '@genoffice/i18n'
 import type { PageSize, PrintLayoutOptions } from '@genoffice/print-layout/plan'
 import { useModalKeys } from '../modal-keys'
 import { printLayoutText } from '../strings-print-layout'
-import { usePrintLayoutOptions, type PrintLayoutPreviewRequest } from './hooks'
+import {
+  usePrintJob,
+  usePrintLayoutOptions,
+  type PrintJobSelection,
+  type PrintLayoutPreviewRequest,
+  type PrintPrinterInfo,
+} from './hooks'
 import {
   parsePrintRanges,
   printLayoutProblem,
@@ -11,6 +17,7 @@ import {
   type PrintLayoutCapabilities,
   type PrintPageRange,
 } from './model'
+import { PrintJobFields } from './PrintJobFields'
 import { PrintLayoutPanel, type PrintLabelSpecStore, type PrintLayoutJob } from './PrintLayoutPanel'
 import './print-layout.css'
 
@@ -29,12 +36,14 @@ export interface SimplePrintDialogProps {
   /** the job's page sizes for the chosen range; null while the editor counts them */
   pages: readonly PageSize[] | null
   capabilities: PrintLayoutCapabilities
+  /** installed OS printers for the in-app printer / duplex selector */
+  listPrinters?: (() => Promise<readonly PrintPrinterInfo[]>) | undefined
   /** told when the range changes so the editor can count the pages again */
   onRangeChange?: ((range: SimplePrintRange) => void) | undefined
-  /** nothing changed in the panel: print exactly as before */
+  /** system dialog and nothing changed in the panel: print exactly as before */
   onPlainPrint: (range: SimplePrintRange) => void
-  /** an option is on: print down the new route */
-  onPrint: (range: SimplePrintRange, options: PrintLayoutOptions) => void
+  /** an option is on or an in-app printer is chosen: print down the new route */
+  onPrint: (range: SimplePrintRange, options: PrintLayoutOptions, job?: PrintJobSelection) => void
   onSavePdf: (range: SimplePrintRange, options: PrintLayoutOptions) => void
   onCancel: () => void
   labelSpecStore?: PrintLabelSpecStore | undefined
@@ -50,8 +59,9 @@ type RangeKind = SimplePrintRange['kind']
 
 /**
  * A small print dialog for editors that had none (HTML, mind map, diagram):
- * a range choice, the shared panel, and Print, Cancel and "Save arranged PDF".
- * Mount it for each print so the options start from the defaults.
+ * printer/copies/duplex, a range choice, the shared panel, and Print, Cancel
+ * and "Save arranged PDF". Mount it for each print so the options start from
+ * the defaults.
  */
 export function SimplePrintDialog(props: SimplePrintDialogProps): ReactElement {
   const {
@@ -59,6 +69,7 @@ export function SimplePrintDialog(props: SimplePrintDialogProps): ReactElement {
     rangeChoice,
     pages,
     capabilities,
+    listPrinters,
     onRangeChange,
     onPlainPrint,
     onPrint,
@@ -70,6 +81,7 @@ export function SimplePrintDialog(props: SimplePrintDialogProps): ReactElement {
   } = props
   const id = useId()
   const [options, setOptions] = usePrintLayoutOptions(true)
+  const printJob = usePrintJob(options, listPrinters)
   const [kind, setKind] = useState<RangeKind>('all')
   const [text, setText] = useState('')
   const [showInvalid, setShowInvalid] = useState(false)
@@ -108,7 +120,7 @@ export function SimplePrintDialog(props: SimplePrintDialogProps): ReactElement {
       setShowInvalid(true)
       return
     }
-    if (newRoute) onPrint(range, options)
+    if (newRoute || printJob.isSilent) onPrint(range, options, printJob.job)
     else onPlainPrint(range)
   }
 
@@ -121,6 +133,7 @@ export function SimplePrintDialog(props: SimplePrintDialogProps): ReactElement {
           {t('dialogTitle')}
         </div>
         <div className="gs-pl-dialog-body">
+          <PrintJobFields lang={lang} state={printJob} disabled={running} />
           {kinds.length > 0 && (
             <fieldset className="gs-pl-group">
               <legend className="gs-pl-legend">{t('rangeLabel')}</legend>

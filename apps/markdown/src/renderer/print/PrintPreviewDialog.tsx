@@ -8,13 +8,16 @@ import type {
   PrintLayoutOptions,
 } from '@genoffice/print-layout/plan'
 import {
+  PrintJobFields,
   PrintLayoutPanel,
   PrintLayoutSchematic,
   printLayoutIssueText,
   printLayoutProblem,
   showsLayoutSchematic,
   takesNewPrintRoute,
+  usePrintJob,
   usePrintLayoutOptions,
+  type PrintJobSelection,
   type PrintLabelSpecStore,
   type PrintLayoutPreviewRequest,
   type PrintLayoutProgress,
@@ -227,6 +230,7 @@ export function PrintPreviewDialog({
   )
   const showSchematic = showsLayoutSchematic(layout)
   const printLayout = window.markdownApi.printLayout
+  const printJob = usePrintJob(layout, printLayout.listPrinters)
 
   /** The advanced layout's job: the preview's HTML and paper, kept to the range. */
   const job = useMemo(
@@ -250,7 +254,11 @@ export function PrintPreviewDialog({
 
   /** Print or save on the advanced print layout's route. */
   const runLayout = useCallback(
-    async (kind: 'print' | 'save', options: PrintLayoutOptions): Promise<void> => {
+    async (
+      kind: 'print' | 'save',
+      options: PrintLayoutOptions,
+      jobSelection?: PrintJobSelection,
+    ): Promise<void> => {
       if (printingRef.current) return
       printingRef.current = true
       layoutRunningRef.current = true
@@ -262,7 +270,11 @@ export function PrintPreviewDialog({
         if (mountedRef.current) setLayoutProgress(next)
       })
       try {
-        const request = { options, editor: job }
+        const request = {
+          options,
+          editor: job,
+          ...(kind === 'print' && jobSelection ? { job: jobSelection } : {}),
+        }
         const result =
           kind === 'print' ? await printLayout.print(request) : await printLayout.savePdf(request)
         if (!mountedRef.current) return
@@ -275,7 +287,7 @@ export function PrintPreviewDialog({
             })
           }
         } else if (kind === 'print') {
-          onClose()
+          if (!('canceled' in result)) onClose()
         } else if ('path' in result) {
           setLayoutSaved(true)
         }
@@ -329,9 +341,10 @@ export function PrintPreviewDialog({
 
   const print = async (): Promise<void> => {
     if (printingRef.current || rangeInvalid || rendering) return
-    // a layout option on: the arranged route; all at their defaults: the print as it was
-    if (layoutOn) {
-      if (layoutProblem === null) await runLayout('print', layout)
+    // a layout option on or an in-app printer chosen: the arranged route;
+    // system dialog with all defaults keeps the print as it was
+    if (layoutOn || printJob.isSilent) {
+      if (!layoutOn || layoutProblem === null) await runLayout('print', layout, printJob.job)
       return
     }
     printingRef.current = true
@@ -461,6 +474,7 @@ export function PrintPreviewDialog({
                 {t('appPrintPreviewActual')}
               </button>
             </div>
+            <PrintJobFields lang={lang} state={printJob} disabled={printing} />
             <fieldset className="md-print-fieldset">
               <legend>{t('appPrintPreviewRange')}</legend>
               <label>

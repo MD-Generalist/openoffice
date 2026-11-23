@@ -96,4 +96,13 @@ export const it = {
   rangeCurrentPage: 'Pagina corrente',
   print: 'Stampa',
   rangeInvalid: 'Scrivi l’intervallo di pagine come "1-3, 5".',
+  printer: 'Stampante',
+  defaultPrinter: 'Stampante predefinita',
+  systemDialog: 'Finestra di stampa di sistema…',
+  copies: 'Copie',
+  collate: 'Fascicola',
+  duplex: 'Fronte-retro',
+  duplexOff: 'Disattivato',
+  duplexLong: 'Capovolgi sul lato lungo',
+  duplexShort: 'Capovolgi sul lato corto',
 } satisfies Record<keyof typeof zh, string>

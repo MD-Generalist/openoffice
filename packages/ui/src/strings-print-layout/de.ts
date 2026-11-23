@@ -96,4 +96,13 @@ export const de = {
   rangeCurrentPage: 'Aktuelle Seite',
   print: 'Drucken',
   rangeInvalid: 'Geben Sie den Seitenbereich wie „1-3, 5“ ein.',
+  printer: 'Drucker',
+  defaultPrinter: 'Standarddrucker',
+  systemDialog: 'Systemdruckdialog…',
+  copies: 'Exemplare',
+  collate: 'Sortieren',
+  duplex: 'Beidseitig',
+  duplexOff: 'Aus',
+  duplexLong: 'An langer Kante spiegeln',
+  duplexShort: 'An kurzer Kante spiegeln',
 } satisfies Record<keyof typeof zh, string>

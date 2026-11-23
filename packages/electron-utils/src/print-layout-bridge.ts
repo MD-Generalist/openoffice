@@ -11,6 +11,7 @@ import {
   type PrintLayoutFailure,
   type PrintLayoutPreviewRequest,
   type PrintLayoutPreviewResult,
+  type PrintLayoutPrinterInfo,
   type PrintLayoutPrintRequest,
   type PrintLayoutPrintResult,
   type PrintLayoutProgress,
@@ -39,6 +40,8 @@ export interface PrintLayoutBridge<E = unknown> {
   /** the label grid the user typed in last; null when none */
   getLabelSpec(): Promise<LabelSpec | null>
   setLabelSpec(spec: LabelSpec): Promise<LabelSpecSetResult>
+  /** installed OS printers for the in-app print dialog; absent in older mocks */
+  listPrinters?(): Promise<PrintLayoutPrinterInfo[]>
 }
 
 function noAnswer(err: unknown): PrintLayoutFailure {
@@ -87,5 +90,10 @@ export function createPrintLayoutBridge<E = unknown>(
         .catch(() => null),
     setLabelSpec: (spec) =>
       ipcRenderer.invoke(PRINT_LAYOUT_SHARED_CHANNELS.labelSpecSet, spec).catch(noAnswer),
+    listPrinters: () =>
+      ipcRenderer
+        .invoke(PRINT_LAYOUT_SHARED_CHANNELS.listPrinters)
+        .then((list: unknown) => (Array.isArray(list) ? (list as PrintLayoutPrinterInfo[]) : []))
+        .catch(() => []),
   }
 }

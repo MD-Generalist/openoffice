@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { LANGS, type Lang } from '@genoffice/i18n'
+import { SYSTEM_DIALOG } from '@genoffice/ui'
 import { createDefaultOptions } from '@genoffice/print-layout/plan'
 import type { PrintLayoutBridge } from '@genoffice/electron-utils/print-layout-bridge'
 import type { BridgeOp, BridgeOps } from '../src/shared/bridge-protocol'
@@ -102,6 +103,12 @@ afterEach(() => {
 
 const $ = <T extends Element = HTMLElement>(sel: string) => host.querySelector<T>(sel)
 const click = (el: Element | null) => act(() => (el as HTMLElement).click())
+const selectValue = (el: HTMLSelectElement | null, value: string) =>
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el!, value)
+    el!.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+const DEFAULT_JOB = { deviceName: '', copies: 1, collate: true, duplex: 'simplex' }
 const settle = () =>
   act(async () => {
     for (let i = 0; i < 10; i++) await new Promise((resolve) => setTimeout(resolve, 0))
@@ -144,9 +151,10 @@ describe('the print as it always was', () => {
     expect(api.print).toHaveBeenCalledWith({ pages: [SHEET_P1, SHEET_P2], title: 'Flow' })
   })
 
-  it('is what Print does when nothing in the dialog changed', async () => {
+  it('is what Print does when system dialog is chosen and nothing in the dialog changed', async () => {
     const { print, printLayout, onClose, client } = await open()
     expect(range('all')!.checked).toBe(true)
+    selectValue($<HTMLSelectElement>('select[data-print="printer"]'), SYSTEM_DIALOG)
     click($('button[data-pl="print"]'))
     await settle()
     expect(onClose).toHaveBeenCalled()
@@ -161,8 +169,23 @@ describe('the print as it always was', () => {
     ])
   })
 
+  it('sends duplex job through printLayout when an in-app printer is chosen', async () => {
+    const { print, printLayout, onClose } = await open()
+    selectValue($<HTMLSelectElement>('select[data-print="duplex"]'), 'longEdge')
+    click($('button[data-pl="print"]'))
+    await settle()
+    expect(print).not.toHaveBeenCalled()
+    expect(printLayout.print).toHaveBeenCalledWith({
+      options: createDefaultOptions(),
+      editor: { pages: [SHEET_P1, SHEET_P2], title: 'Flow' },
+      job: { ...DEFAULT_JOB, duplex: 'longEdge' },
+    })
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it('prints the page on screen only when that is the range', async () => {
     const { print, printLayout } = await open()
+    selectValue($<HTMLSelectElement>('select[data-print="printer"]'), SYSTEM_DIALOG)
     click(range('current'))
     await settle()
     click($('button[data-pl="print"]'))
@@ -173,6 +196,7 @@ describe('the print as it always was', () => {
 
   it('reports a failed print in the status line', async () => {
     const { print, onMessage } = await open()
+    selectValue($<HTMLSelectElement>('select[data-print="printer"]'), SYSTEM_DIALOG)
     print.mockResolvedValueOnce({ ok: false, error: 'no printer' })
     click($('button[data-pl="print"]'))
     await settle()
@@ -192,6 +216,7 @@ describe('the arranged route', () => {
     expect(printLayout.print).toHaveBeenCalledWith({
       options: expected,
       editor: { pages: [SHEET_P1, SHEET_P2], title: 'Flow' },
+      job: DEFAULT_JOB,
     })
     expect(onClose).toHaveBeenCalled()
   })

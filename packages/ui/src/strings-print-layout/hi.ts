@@ -94,4 +94,13 @@ export const hi = {
   rangeCurrentPage: 'मौजूदा पेज',
   print: 'प्रिंट करें',
   rangeInvalid: 'पेज की सीमा "1-3, 5" की तरह लिखें।',
+  printer: 'प्रिंटर',
+  defaultPrinter: 'डिफ़ॉल्ट प्रिंटर',
+  systemDialog: 'सिस्टम प्रिंट संवाद…',
+  copies: 'प्रतियाँ',
+  collate: 'क्रमबद्ध करें',
+  duplex: 'दो तरफ़ा',
+  duplexOff: 'बंद',
+  duplexLong: 'लंबे किनारे पर पलटें',
+  duplexShort: 'छोटे किनारे पर पलटें',
 } satisfies Record<keyof typeof zh, string>

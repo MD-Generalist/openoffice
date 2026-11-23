@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { LANGS } from '@genoffice/i18n'
+import { SYSTEM_DIALOG } from '@genoffice/ui'
 import { LocaleProvider } from '../src/renderer/i18n/locale'
 import { strings } from '../src/renderer/i18n/strings'
 import { PrintPreviewDialog } from '../src/renderer/print/PrintPreviewDialog'
@@ -157,6 +158,18 @@ async function click(element: HTMLElement): Promise<void> {
   await settle()
 }
 
+async function selectValue(selector: string, value: string): Promise<void> {
+  const el = container.querySelector<HTMLSelectElement>(selector)
+  if (!el) throw new Error(`no select ${selector}`)
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, value)
+    el.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await settle()
+}
+
+const DEFAULT_JOB = { deviceName: '', copies: 1, collate: true, duplex: 'simplex' }
+
 /** Chooses the typed range and types it, as a user does. */
 async function customRange(value: string): Promise<void> {
   await click(radio(en.appPrintPreviewCustom))
@@ -170,8 +183,9 @@ async function customRange(value: string): Promise<void> {
 }
 
 describe('the print dialog at default layout options', () => {
-  it('prints the whole note through the system dialog exactly as before', async () => {
+  it('prints the whole note through the system dialog exactly as before when system dialog is chosen', async () => {
     const { onClose } = await mount()
+    await selectValue('select[data-print="printer"]', SYSTEM_DIALOG)
     await click(button(en.appPrintPreviewPrint))
     expect(api.printDocument).toHaveBeenCalledTimes(1)
     expect(api.printDocument).toHaveBeenCalledWith({ html: HTML, pages: null, options: PAPER })
@@ -179,8 +193,22 @@ describe('the print dialog at default layout options', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('prints the current page and a typed range as before', async () => {
+  it('prints silently with duplex via printLayout when an in-app printer is chosen', async () => {
+    const { onClose } = await mount()
+    await selectValue('select[data-print="duplex"]', 'longEdge')
+    await click(button(en.appPrintPreviewPrint))
+    expect(api.printDocument).not.toHaveBeenCalled()
+    expect(api.printLayout.print).toHaveBeenCalledWith({
+      options: expect.objectContaining({ mode: 'single' }),
+      editor: { html: HTML, pages: null, options: PAPER, name: 'Notes' },
+      job: { ...DEFAULT_JOB, duplex: 'longEdge' },
+    })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('prints the current page and a typed range as before with system dialog', async () => {
     await mount()
+    await selectValue('select[data-print="printer"]', SYSTEM_DIALOG)
     await click(radio(en.appPrintPreviewCurrent))
     await click(button(en.appPrintPreviewPrint))
     expect(api.printDocument).toHaveBeenLastCalledWith({
@@ -224,6 +252,7 @@ describe('the Selection range', () => {
 
   it('previews and prints only the selection through the system dialog', async () => {
     await mount({ selectionHtml: SELECTION_HTML })
+    await selectValue('select[data-print="printer"]', SYSTEM_DIALOG)
     const selection = radio(en.appPrintPreviewSelection)
     expect(selection.disabled).toBe(false)
     await click(selection)
@@ -252,6 +281,7 @@ describe('the print dialog with a layout option on', () => {
     expect(api.printLayout.print).toHaveBeenCalledWith({
       options: expect.objectContaining({ reverse: true, mode: 'single' }),
       editor: { html: HTML, pages: null, options: PAPER, name: 'Notes' },
+      job: DEFAULT_JOB,
     })
   })
 
@@ -263,12 +293,14 @@ describe('the print dialog with a layout option on', () => {
     expect(api.printLayout.print).toHaveBeenLastCalledWith({
       options: expect.objectContaining({ grayscale: true }),
       editor: { html: SELECTION_HTML, pages: null, options: PAPER, name: 'Notes' },
+      job: DEFAULT_JOB,
     })
     await customRange('2-3')
     await click(button(en.appPrintPreviewPrint))
     expect(api.printLayout.print).toHaveBeenLastCalledWith({
       options: expect.objectContaining({ grayscale: true }),
       editor: { html: HTML, pages: { from: 2, to: 3 }, options: PAPER, name: 'Notes' },
+      job: DEFAULT_JOB,
     })
     expect(api.printDocument).not.toHaveBeenCalled()
   })

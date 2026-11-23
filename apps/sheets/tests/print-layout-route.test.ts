@@ -223,6 +223,32 @@ describe('sheets Print dialog: the arranged route', () => {
     await expect(pending).rejects.toThrow()
   })
 
+  it('forwards duplex on both the plain print and arranged routes when an in-app printer is set', async () => {
+    const host = hostFor(null)
+    const job = await host.buildJob('active', {})
+    await host.print(job, {
+      deviceName: 'Office printer',
+      copies: 1,
+      collate: true,
+      duplex: 'longEdge',
+      pages: null,
+    })
+    expect(printWorkbook).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deviceName: 'Office printer', duplex: 'longEdge' }),
+    )
+    await host.printArranged(
+      job,
+      { deviceName: 'Office printer', copies: 1, collate: true, duplex: 'shortEdge', pages: null },
+      twoUp(),
+    )
+    expect(bridge.print.mock.calls[0]![0].job).toEqual({
+      deviceName: 'Office printer',
+      copies: 1,
+      collate: true,
+      duplex: 'shortEdge',
+    })
+  })
+
   it('the label grid store goes through the bridge', async () => {
     const host = hostFor(null)
     await host.labelSpecStore.load()

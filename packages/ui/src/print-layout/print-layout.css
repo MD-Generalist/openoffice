@@ -76,6 +76,7 @@
 }
 
 .gs-pl select,
+.gs-pl-select,
 .gs-pl-number,
 .gs-pl-range-text {
   box-sizing: border-box;
@@ -86,6 +87,46 @@
   background: var(--surface);
   color: var(--text);
   font: inherit;
+}
+
+.gs-pl-printer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.gs-pl-printer > .gs-pl-legend {
+  width: auto;
+  margin-bottom: 0;
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.gs-pl-printer > .gs-pl-select {
+  width: 100%;
+}
+
+.gs-pl-printer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.gs-pl-printer-duplex {
+  display: flex;
+  width: 100%;
+}
+
+.gs-pl-printer-duplex > .gs-pl-select {
+  flex: 1;
+  min-width: 0;
 }
 
 .gs-pl-number {

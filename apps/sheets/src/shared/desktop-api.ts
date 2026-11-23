@@ -2894,6 +2894,7 @@ export const workbookExportPdfRequestSchema = z
     deviceName: z.string().max(255).optional(),
     copies: z.number().int().min(1).max(999).optional(),
     collate: z.boolean().optional(),
+    duplex: z.enum(['simplex', 'longEdge', 'shortEdge']).optional(),
   })
   .strict()
 

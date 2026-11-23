@@ -94,4 +94,13 @@ export const vi = {
   rangeCurrentPage: 'Trang hiện tại',
   print: 'In',
   rangeInvalid: 'Hãy viết phạm vi trang như "1-3, 5".',
+  printer: 'Máy in',
+  defaultPrinter: 'Máy in mặc định',
+  systemDialog: 'Hộp thoại in của hệ thống…',
+  copies: 'Số bản',
+  collate: 'Sắp xếp theo bộ',
+  duplex: 'In hai mặt',
+  duplexOff: 'Tắt',
+  duplexLong: 'Lật theo cạnh dài',
+  duplexShort: 'Lật theo cạnh ngắn',
 } satisfies Record<keyof typeof zh, string>

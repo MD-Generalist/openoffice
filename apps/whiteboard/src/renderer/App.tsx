@@ -18,6 +18,7 @@ import type {
 } from '../shared/ipc'
 import { WhiteboardAiDock, useWhiteboardAiOpen } from './ai/AiDock'
 import { WhiteboardEditor, type WhiteboardEditorMenuAction } from './components/WhiteboardEditor'
+import { WhiteboardPrintDialog } from './PrintDialog'
 import { WhiteboardSession } from './document/session'
 import { renderPageToSvg, renderSvgToPngBytes } from './export/render-svg'
 import { t as tGlobal, useI18n } from './i18n/locale'
@@ -37,6 +38,7 @@ export default function App(): ReactElement {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
   const [toast, setToast] = useState<string | null>(null)
   const [exportModalFormat, setExportModalFormat] = useState<ExportFormat | null>(null)
+  const [printDialogOpen, setPrintDialogOpen] = useState(false)
   const [presenting, setPresenting] = useState(false)
   const [handoff, setHandoff] = useState<WhiteboardHandoff | null>(null)
   const [menuCommand, setMenuCommand] = useState<{
@@ -269,22 +271,10 @@ export default function App(): ReactElement {
     [buildPrintPages, showToast],
   )
 
-  const handlePrint = useCallback(async () => {
-    const s = sessionRef.current
-    if (!s) return
-    try {
-      const pages = buildPrintPages(s, 'all')
-      const res = await window.whiteboardApi.exporting.print({
-        title: s.getDocument().title || tGlobal('untitled'),
-        pages,
-      })
-      if (!res.ok && !res.canceled) {
-        showToast(tGlobal('printFailed', { error: res.error ?? 'unknown error' }))
-      }
-    } catch (err) {
-      showToast(tGlobal('printFailed', { error: err instanceof Error ? err.message : String(err) }))
-    }
-  }, [buildPrintPages, showToast])
+  const handlePrint = useCallback(() => {
+    if (!sessionRef.current) return
+    setPrintDialogOpen(true)
+  }, [])
 
   // Subscribe to shell IPC events (save, close-save, export, print, menu, recovery, MCP queries).
   useEffect(() => {
@@ -424,6 +414,15 @@ export default function App(): ReactElement {
           setOpen={setAiOpen}
           handoff={handoff}
           onHandoffConsumed={() => setHandoff(null)}
+        />
+      )}
+      {printDialogOpen && (
+        <WhiteboardPrintDialog
+          api={window.whiteboardApi}
+          title={session.getDocument().title || tGlobal('untitled')}
+          buildPages={(scope) => buildPrintPages(session, scope)}
+          onClose={() => setPrintDialogOpen(false)}
+          onMessage={showToast}
         />
       )}
       {toast && (

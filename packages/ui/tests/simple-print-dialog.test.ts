@@ -3,7 +3,7 @@ import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDefaultOptions, type PageSize } from '@genoffice/print-layout/plan'
-import { SimplePrintDialog, type SimplePrintDialogProps } from '../src/print-layout'
+import { SimplePrintDialog, SYSTEM_DIALOG, type SimplePrintDialogProps } from '../src/print-layout'
 
 const A4: PageSize = { widthPt: 595.28, heightPt: 841.89 }
 const pages = (n: number): PageSize[] => Array.from({ length: n }, () => ({ ...A4 }))
@@ -36,6 +36,15 @@ function type(el: HTMLInputElement, value: string) {
   })
 }
 
+function selectValue(el: HTMLSelectElement, value: string) {
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, value)
+    el.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+}
+
+const DEFAULT_JOB = { deviceName: '', copies: 1, collate: true, duplex: 'simplex' }
+
 function mount(overrides: Partial<SimplePrintDialogProps> = {}) {
   const props: SimplePrintDialogProps = {
     lang: 'en',
@@ -53,13 +62,25 @@ function mount(overrides: Partial<SimplePrintDialogProps> = {}) {
 }
 
 describe('SimplePrintDialog', () => {
-  it('prints down the current path when nothing changed', () => {
+  it('prints down the current path when system dialog is chosen and nothing changed', () => {
     const props = mount()
     expect($('[role="dialog"]')).not.toBeNull()
     expect($('button[data-pl="save-pdf"]')).toBeNull()
+    selectValue($<HTMLSelectElement>('select[data-print="printer"]')!, SYSTEM_DIALOG)
     click($('button[data-pl="print"]'))
     expect(props.onPlainPrint).toHaveBeenCalledWith({ kind: 'all' })
     expect(props.onPrint).not.toHaveBeenCalled()
+  })
+
+  it('sends the in-app printer and duplex choice through onPrint even at default layout', () => {
+    const props = mount()
+    selectValue($<HTMLSelectElement>('select[data-print="duplex"]')!, 'longEdge')
+    click($('button[data-pl="print"]'))
+    expect(props.onPlainPrint).not.toHaveBeenCalled()
+    expect(props.onPrint).toHaveBeenCalledWith({ kind: 'all' }, createDefaultOptions(), {
+      ...DEFAULT_JOB,
+      duplex: 'longEdge',
+    })
   })
 
   it('takes the new route and shows save once an option is on', () => {
@@ -70,7 +91,7 @@ describe('SimplePrintDialog', () => {
     expect(props.onPlainPrint).not.toHaveBeenCalled()
     const expected = createDefaultOptions()
     expected.reverse = true
-    expect(props.onPrint).toHaveBeenCalledWith({ kind: 'all' }, expected)
+    expect(props.onPrint).toHaveBeenCalledWith({ kind: 'all' }, expected, DEFAULT_JOB)
     click($('button[data-pl="save-pdf"]'))
     expect(props.onSavePdf).toHaveBeenCalledWith({ kind: 'all' }, expected)
   })
@@ -78,6 +99,7 @@ describe('SimplePrintDialog', () => {
   it('reads a custom range and refuses a malformed one', () => {
     const onRangeChange = vi.fn()
     const props = mount({ onRangeChange })
+    selectValue($<HTMLSelectElement>('select[data-print="printer"]')!, SYSTEM_DIALOG)
     click($$<HTMLInputElement>('input[data-pl="range"]').find((r) => r.value === 'custom')!)
     const text = $<HTMLInputElement>('input[data-pl="range-text"]')!
     type(text, '3-1')
@@ -106,6 +128,7 @@ describe('SimplePrintDialog', () => {
 
   it('offers all pages and the current page for page-based editors', () => {
     const props = mount({ rangeChoice: 'all-current' })
+    selectValue($<HTMLSelectElement>('select[data-print="printer"]')!, SYSTEM_DIALOG)
     expect($$<HTMLInputElement>('input[data-pl="range"]').map((r) => r.value)).toEqual([
       'all',
       'current',

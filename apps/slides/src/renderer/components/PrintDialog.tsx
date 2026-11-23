@@ -14,10 +14,12 @@ import {
   normalizePanelOptions,
   printLayoutIssueText,
   printLayoutProblem,
+  PrintJobFields,
   PrintLayoutPanel,
   PrintLayoutSchematic,
   showsLayoutSchematic,
   takesNewPrintRoute,
+  usePrintJob,
   usePrintLayoutOptions,
   type PrintLabelSpecStore,
   type PrintLayoutCapabilities,
@@ -304,13 +306,23 @@ export function PrintDialog({
     }
   }
 
+  const listPrinters = useCallback(
+    () => window.slidesApi.printLayout.listPrinters?.() ?? Promise.resolve([]),
+    [],
+  )
+  const printJob = usePrintJob(effectiveOptions, listPrinters)
+
   const doPrint = async () => {
     const op = printOp()
     if (!op || printing || layoutRunning) return
-    if (newRoute) {
-      if (layoutProblem) return
+    if (newRoute || printJob.isSilent) {
+      if (newRoute && layoutProblem) return
       const r = await runLayoutJob(() =>
-        window.slidesApi.printLayout.print({ options: effectiveOptions, editor: op }),
+        window.slidesApi.printLayout.print({
+          options: effectiveOptions,
+          editor: op,
+          job: printJob.job,
+        }),
       )
       // canceled in the system dialog: keep the print dialog open
       if (r && !r.canceled) onClose()
@@ -413,6 +425,11 @@ export function PrintDialog({
             )}
           </div>
           <div className="print-options">
+            <PrintJobFields
+              lang={lang}
+              state={printJob}
+              disabled={!pngs || selected.length === 0 || printing || layoutRunning}
+            />
             <fieldset>
               <legend>{t('appPrintRange')}</legend>
               <label className="print-radio">

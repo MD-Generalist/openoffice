@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import type { PrintLayoutErrorCode, PrintLayoutOptions } from '@genoffice/print-layout/plan'
 import {
+  PrintJobFields,
   PrintLayoutPanel,
   PrintLayoutSchematic,
   createZoomWheelClassifier,
@@ -9,8 +10,10 @@ import {
   printLayoutProblem,
   showsLayoutSchematic,
   takesNewPrintRoute,
+  usePrintJob,
   usePrintLayoutOptions,
   wheelZoomStepPercent,
+  type PrintJobSelection,
   type PrintLabelSpecStore,
   type PrintLayoutPreviewRequest,
   type PrintLayoutProgress,
@@ -103,6 +106,7 @@ export function PrintPreview({
   const { t, lang } = useI18n()
   // every preview starts at the default layout: nothing carries over from the last print
   const [layout, setLayout] = usePrintLayoutOptions(true)
+  const printJob = usePrintJob(layout, printLayout.listPrinters)
   const [drawnSizes, setDrawnSizes] = useState<ReadonlyMap<number, PixelSize>>(new Map())
   /** every page's print size, asked for once a layout option is on; null until it comes */
   const [printSizes, setPrintSizes] = useState<readonly PixelSize[] | null>(null)
@@ -334,7 +338,11 @@ export function PrintPreview({
    * arranges it. Only the pages travel; the preview's own marks are not in them.
    */
   const runLayout = useCallback(
-    async (kind: 'print' | 'save', options: PrintLayoutOptions): Promise<void> => {
+    async (
+      kind: 'print' | 'save',
+      options: PrintLayoutOptions,
+      jobSelection?: PrintJobSelection,
+    ): Promise<void> => {
       if (printingRef.current || staleRef.current || pageCountRef.current === null) return
       printingRef.current = true
       layoutRunningRef.current = true
@@ -351,7 +359,11 @@ export function PrintPreview({
         })
         if (!mountedRef.current) return
         setProgress(null)
-        const request = { options, editor: job }
+        const request = {
+          options,
+          editor: job,
+          ...(kind === 'print' && jobSelection ? { job: jobSelection } : {}),
+        }
         const result =
           kind === 'print' ? await printLayout.print(request) : await printLayout.savePdf(request)
         if (!mountedRef.current) return
@@ -420,10 +432,11 @@ export function PrintPreview({
   const doPrint = useCallback(
     async (mode: PrintMode): Promise<void> => {
       if (printingRef.current || staleRef.current || pageCountRef.current === null) return
-      // a layout option on: the arranged route; all at their defaults: the print as it was
-      if (mode === 'print' && layoutOn) {
-        if (layoutProblem) return
-        await runLayout('print', layout)
+      // a layout option on or an in-app printer chosen: the arranged route;
+      // system dialog with all defaults keeps the plain print as it was
+      if (mode === 'print' && (layoutOn || printJob.isSilent)) {
+        if (layoutOn && layoutProblem) return
+        await runLayout('print', layout, printJob.job)
         return
       }
       printingRef.current = true
@@ -442,7 +455,7 @@ export function PrintPreview({
         }
       }
     },
-    [onPrint, layoutOn, layoutProblem, runLayout, layout],
+    [onPrint, layoutOn, layoutProblem, runLayout, layout, printJob.isSilent, printJob.job],
   )
 
   useEffect(() => {
@@ -799,6 +812,7 @@ export function PrintPreview({
         )}
       </div>
       <aside className="hwp-preview-layout">
+        <PrintJobFields lang={lang} state={printJob} disabled={printing} />
         <PrintLayoutPanel
           lang={lang}
           value={layout}

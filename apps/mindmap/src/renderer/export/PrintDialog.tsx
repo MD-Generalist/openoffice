@@ -20,6 +20,7 @@ import {
 import {
   SimplePrintDialog,
   printLayoutIssueText,
+  type PrintJobSelection,
   type PrintLabelSpecStore,
   type PrintLayoutProgress,
   type SimplePrintDialogProps,
@@ -69,7 +70,11 @@ export function MapPrintDialog(props: MapPrintDialogProps): ReactElement {
   }, [printLayout])
 
   const run = useCallback(
-    async (kind: 'print' | 'save', options: PrintLayoutOptions): Promise<void> => {
+    async (
+      kind: 'print' | 'save',
+      options: PrintLayoutOptions,
+      printJob?: PrintJobSelection,
+    ): Promise<void> => {
       if (running.current) return
       running.current = true
       setFailure(null)
@@ -78,7 +83,11 @@ export function MapPrintDialog(props: MapPrintDialogProps): ReactElement {
         if (mounted.current) setProgress(next)
       })
       try {
-        const request = { options, editor: job }
+        const request = {
+          options,
+          editor: job,
+          ...(kind === 'print' && printJob ? { job: printJob } : {}),
+        }
         const result =
           kind === 'print' ? await printLayout.print(request) : await printLayout.savePdf(request)
         if (!mounted.current) return
@@ -88,7 +97,7 @@ export function MapPrintDialog(props: MapPrintDialogProps): ReactElement {
           console.error('[mindmap] arranged print failed:', result.error)
           setFailure({ kind, detail: result.error, ...(result.code ? { code: result.code } : {}) })
         } else if (kind === 'print') {
-          onClose()
+          if (!('canceled' in result)) onClose()
         } else if ('path' in result) {
           onSaved()
           onClose()
@@ -150,8 +159,9 @@ export function MapPrintDialog(props: MapPrintDialogProps): ReactElement {
       rangeChoice="none"
       pages={MAP_PRINT_PAGES}
       capabilities={{ showPaperAndFit: true }}
+      listPrinters={printLayout.listPrinters}
       onPlainPrint={() => onPlainPrint(job.html)}
-      onPrint={(_range, options) => void run('print', options)}
+      onPrint={(_range, options, printJob) => void run('print', options, printJob)}
       onSavePdf={(_range, options) => void run('save', options)}
       onCancel={() => {
         if (running.current) void printLayout.cancel()

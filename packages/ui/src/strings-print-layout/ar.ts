@@ -94,4 +94,13 @@ export const ar = {
   rangeCurrentPage: 'الصفحة الحالية',
   print: 'طباعة',
   rangeInvalid: 'اكتب نطاق الصفحات بالشكل "1-3, 5".',
+  printer: 'الطابعة',
+  defaultPrinter: 'الطابعة الافتراضية',
+  systemDialog: 'مربع حوار الطباعة في النظام…',
+  copies: 'النسخ',
+  collate: 'ترتيب النسخ',
+  duplex: 'طباعة على الوجهين',
+  duplexOff: 'إيقاف',
+  duplexLong: 'قلب على الحافة الطويلة',
+  duplexShort: 'قلب على الحافة القصيرة',
 } satisfies Record<keyof typeof zh, string>

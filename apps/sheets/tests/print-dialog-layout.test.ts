@@ -127,8 +127,30 @@ describe('sheets Print dialog with the layout panel', () => {
       deviceName: '',
       copies: 1,
       collate: false,
+      duplex: 'simplex',
       pages: null,
     })
+  })
+
+  it('passes chosen duplex mode and couples duplex with booklet and odd/even', async () => {
+    const { host, print } = spiedHost()
+    await open(host)
+    const duplex = $<HTMLSelectElement>('select[data-print="duplex"]')!
+    expect(duplex).not.toBeNull()
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(
+        duplex,
+        'longEdge',
+      )
+      duplex.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    chooseMode('booklet')
+    expect(duplex.value).toBe('shortEdge')
+    chooseMode('single')
+    expect(duplex.value).toBe('longEdge')
+    clickPrint()
+    await settle(0)
+    expect(print.mock.calls[0]![1]).toMatchObject({ duplex: 'longEdge' })
   })
 
   it('a rearranging option locks collate on, swaps in the diagram and prints arranged', async () => {

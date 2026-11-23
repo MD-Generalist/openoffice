@@ -95,4 +95,13 @@ export const pl = {
   rangeCurrentPage: 'Bieżąca strona',
   print: 'Drukuj',
   rangeInvalid: 'Wpisz zakres stron w postaci „1-3, 5”.',
+  printer: 'Drukarka',
+  defaultPrinter: 'Drukarka domyślna',
+  systemDialog: 'Systemowe okno drukowania…',
+  copies: 'Kopie',
+  collate: 'Sortuj',
+  duplex: 'Dwustronnie',
+  duplexOff: 'Wyłączone',
+  duplexLong: 'Odwróć wzdłuż dłuższej krawędzi',
+  duplexShort: 'Odwróć wzdłuż krótszej krawędzi',
 } satisfies Record<keyof typeof zh, string>
