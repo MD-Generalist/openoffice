@@ -356,6 +356,10 @@ button {
   background: var(--accent);
 }
 
+.ribbon-band {
+  position: relative;
+}
+
 .ribbon-body {
   display: flex;
   align-items: stretch;
@@ -376,6 +380,60 @@ button {
      padding, keeping the 80px band and the content area unchanged; Chromium
      paints a thumb only while the row actually overflows. */
   padding-bottom: 1px;
+}
+
+/* Edge chevrons appear only when .ribbon-body actually overflows sideways,
+   giving a visible affordance and one-click scroll alongside the scrollbar
+   and mouse wheel. */
+.ribbon-scroll-btn {
+  position: absolute;
+  top: 0;
+  bottom: 5px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  padding: 0;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.ribbon-scroll-btn:hover {
+  color: var(--text-primary);
+}
+
+.ribbon-scroll-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.ribbon-scroll-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 28px;
+  border-radius: 4px;
+}
+
+.ribbon-scroll-btn:hover .ribbon-scroll-icon {
+  background: var(--hover);
+}
+
+.ribbon-scroll-left {
+  left: 0;
+  justify-content: flex-start;
+  padding-left: 2px;
+  background: linear-gradient(to right, var(--chrome-bg) 62%, transparent);
+}
+
+.ribbon-scroll-right {
+  right: 0;
+  justify-content: flex-end;
+  padding-right: 2px;
+  background: linear-gradient(to left, var(--chrome-bg) 62%, transparent);
 }
 
 .ribbon-body::-webkit-scrollbar {
@@ -518,7 +576,12 @@ button {
 .rb-col {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  justify-content: center;
+  gap: 2px;
+}
+
+.rb-col-3 {
+  gap: 1px;
 }
 
 .rb-row {
@@ -573,16 +636,53 @@ button {
   border: none;
   background: none;
   border-radius: 3px;
-  padding: 3px 8px;
+  padding: 4px 7px;
   font-size: 12px;
+  line-height: 1.25;
   text-align: left;
   cursor: pointer;
   color: var(--text);
   white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rb-col-3 .rb-small {
+  padding: 2px 7px;
+  line-height: 1.2;
+}
+
+.rb-small-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+
+.rb-small-icon svg {
+  width: 16px;
+  height: 16px;
+  /* Re-pin painted stroke when 24-unit ribbon icons scale down to 16px */
+  stroke-width: 1.8;
+}
+
+.rb-col-3 .rb-small-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
 }
 
 .rb-small:hover:not(:disabled) {
   background: var(--hover);
+}
+
+.rb-small.active {
+  background: var(--active-bg);
+}
+
+.rb-small:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* ---- Compact ribbon (⌥⌘K / Ctrl+Alt+K), docs parity, see #362 ----
@@ -598,6 +698,10 @@ button {
   height: 45px;
   padding-top: 5px;
   padding-bottom: 1px;
+}
+
+.ribbon-compact .ribbon-scroll-icon {
+  height: 22px;
 }
 
 .ribbon-compact .rb-big {
@@ -619,6 +723,29 @@ button {
  * hasText and getByRole(name) both read it) but take it out of the visual
  * flow. display: none here would strip the accessible name. */
 .ribbon-compact .rb-big > span:not(.rb-big-icon) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ribbon-compact .rb-small {
+  gap: 0;
+  padding: 3px 5px;
+}
+
+.ribbon-compact .rb-small-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.7;
+}
+
+.ribbon-compact .rb-small > span:not(.rb-small-icon) {
   position: absolute;
   width: 1px;
   height: 1px;

@@ -430,6 +430,7 @@ import { planEditOps, reduceBucket } from './edit-ops'
 import type { Bucket, Op, OpContext, PlanResult } from './edit-ops'
 import { rectsNear } from './edit-state'
 import { usePanDrag } from './pan-drag'
+import { useRibbonScroll } from './ribbon-scroll'
 import { useDragEdgeScroll } from './thumb-drag-scroll'
 import type {
   StampConfig,
@@ -743,6 +744,12 @@ export default function App() {
   /** One-shot prompt pushed by the ribbon AI buttons; the panel auto-runs it (docs preset pattern) */
   const [aiPreset, setAiPreset] = useState<{ text: string; nonce: number } | null>(null)
   const [ribbonTab, setRibbonTab] = useState<RibbonTab>('home')
+  const ribbonBodyRef = useRef<HTMLDivElement | null>(null)
+  const ribbonScroll = useRibbonScroll(
+    ribbonBodyRef,
+    ribbonTab,
+    `${lang}:${collapse.density}:${aiOn ? 1 : 0}`,
+  )
   const [spread, setSpread] = useState<1 | 2>(1)
   // side-by-side translation view; the revision rebuilds its tree after a save
   const [bilingualOn, setBilingualOn] = useState(false)
@@ -9750,39 +9757,41 @@ export default function App() {
             />
           )}
         </div>
-        <button
-          className="rb-big"
-          disabled={readOnly}
-          data-tip={t('underline')}
-          onClick={() => applyMarkup('underline')}
-        >
-          <span className="rb-big-icon">
-            <IconUnderline />
-          </span>
-          <span>{t('underline')}</span>
-        </button>
-        <button
-          className="rb-big"
-          disabled={readOnly}
-          data-tip={t('squiggly')}
-          onClick={() => applyMarkup('squiggly')}
-        >
-          <span className="rb-big-icon">
-            <IconSquiggly />
-          </span>
-          <span>{t('squiggly')}</span>
-        </button>
-        <button
-          className="rb-big"
-          disabled={readOnly}
-          data-tip={t('strikeout')}
-          onClick={() => applyMarkup('strikeout')}
-        >
-          <span className="rb-big-icon">
-            <IconStrike />
-          </span>
-          <span>{t('strikeout')}</span>
-        </button>
+        <div className="rb-col rb-col-3">
+          <button
+            className="rb-small"
+            disabled={readOnly}
+            data-tip={t('underline')}
+            onClick={() => applyMarkup('underline')}
+          >
+            <span className="rb-small-icon">
+              <IconUnderline />
+            </span>
+            <span>{t('underline')}</span>
+          </button>
+          <button
+            className="rb-small"
+            disabled={readOnly}
+            data-tip={t('squiggly')}
+            onClick={() => applyMarkup('squiggly')}
+          >
+            <span className="rb-small-icon">
+              <IconSquiggly />
+            </span>
+            <span>{t('squiggly')}</span>
+          </button>
+          <button
+            className="rb-small"
+            disabled={readOnly}
+            data-tip={t('strikeout')}
+            onClick={() => applyMarkup('strikeout')}
+          >
+            <span className="rb-small-icon">
+              <IconStrike />
+            </span>
+            <span>{t('strikeout')}</span>
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -10282,980 +10291,1074 @@ export default function App() {
             </span>
           )}
         </div>
-        <div className="ribbon-body" data-ribbon-body="">
-          {ribbonTab === 'home' && (
-            <>
-              {/* ---- AI (first slot: entry + one-click AI actions, docs parity) ---- */}
-              {aiOn && (
-                <>
-                  <div className="ribbon-group">
-                    <div className="ribbon-group-items">
-                      <button
-                        className={`rb-big ai-entry${aiCollapsed ? '' : ' active'}`}
-                        data-tip={t('aiOpenAssistant')}
-                        onClick={() => setAiCollapsed((v) => !v)}
-                      >
-                        <span className="rb-big-icon">
-                          <AiMark size={26} />
-                        </span>
-                        <span>{aiSubscriptionText(lang, 'aiAssistant')}</span>
-                      </button>
-                      <button
-                        className="rb-big ai-entry"
-                        data-tip={t('aiSummarizeBtn')}
-                        onClick={() =>
-                          runAiPreset(
-                            t(aiSelection ? 'aiQuickSummarySelPrompt' : 'aiQuickSummaryPrompt'),
-                          )
-                        }
-                      >
-                        <span className="rb-big-icon">
-                          <span className="ai-feature-icon" aria-hidden="true">
-                            <IconAiSummarize />
-                          </span>
-                        </span>
-                        <span>{t('aiSummarizeBtn')}</span>
-                      </button>
-                      <button
-                        className="rb-big ai-entry"
-                        data-tip={t('aiKeyPointsBtn')}
-                        onClick={() =>
-                          runAiPreset(
-                            t(aiSelection ? 'aiQuickKeyPointsSelPrompt' : 'aiQuickKeyPointsPrompt'),
-                          )
-                        }
-                      >
-                        <span className="rb-big-icon">
-                          <span className="ai-feature-icon" aria-hidden="true">
-                            <IconAiKeyPoints />
-                          </span>
-                        </span>
-                        <span>{t('aiKeyPointsBtn')}</span>
-                      </button>
-                      <div className="rb-drop-wrap" ref={aiReadWrapRef}>
+        <div className="ribbon-band" data-ribbon-body="">
+          <div className="ribbon-body" ref={ribbonBodyRef}>
+            {ribbonTab === 'home' && (
+              <>
+                {/* ---- AI (first slot: entry + one-click AI actions, docs parity) ---- */}
+                {aiOn && (
+                  <>
+                    <div className="ribbon-group">
+                      <div className="ribbon-group-items">
                         <button
-                          className={`rb-big ai-entry${aiReadMenuOpen ? ' active' : ''}`}
-                          data-tip={t('arButtonTip')}
-                          data-action="ai-read-menu"
-                          onClick={() => setAiReadMenuOpen((v) => !v)}
+                          className={`rb-big ai-entry${aiCollapsed ? '' : ' active'}`}
+                          data-tip={t('aiOpenAssistant')}
+                          onClick={() => setAiCollapsed((v) => !v)}
+                        >
+                          <span className="rb-big-icon">
+                            <AiMark size={26} />
+                          </span>
+                          <span>{aiSubscriptionText(lang, 'aiAssistant')}</span>
+                        </button>
+                        <button
+                          className="rb-big ai-entry"
+                          data-tip={t('aiSummarizeBtn')}
+                          onClick={() =>
+                            runAiPreset(
+                              t(aiSelection ? 'aiQuickSummarySelPrompt' : 'aiQuickSummaryPrompt'),
+                            )
+                          }
                         >
                           <span className="rb-big-icon">
                             <span className="ai-feature-icon" aria-hidden="true">
-                              <IconAiReadPages />
+                              <IconAiSummarize />
                             </span>
-                            <RbCaret />
                           </span>
-                          <span>{t('arButton')}</span>
+                          <span>{t('aiSummarizeBtn')}</span>
                         </button>
-                        {aiReadMenuOpen && (
-                          <div className="rb-drop rb-menu">
-                            <button
-                              data-action="ai-read-open"
-                              onClick={() => {
-                                setAiReadMenuOpen(false)
-                                const answer = aiReadRef.current?.requestOpen(null)
-                                if (answer && 'running' in answer)
-                                  showNotice(t('arBusy', answer.running))
-                                else if (!answer || 'unavailable' in answer)
-                                  showNotice(t('arUnavailable'))
-                              }}
-                            >
-                              {t('arMenuRead')}
-                            </button>
-                            <button
-                              data-action="ai-read-delete"
-                              onClick={() => {
-                                setAiReadMenuOpen(false)
-                                void aiReadRef.current?.deleteStored()
-                              }}
-                            >
-                              {t('arMenuDelete')}
-                            </button>
-                          </div>
-                        )}
+                        <button
+                          className="rb-big ai-entry"
+                          data-tip={t('aiKeyPointsBtn')}
+                          onClick={() =>
+                            runAiPreset(
+                              t(
+                                aiSelection
+                                  ? 'aiQuickKeyPointsSelPrompt'
+                                  : 'aiQuickKeyPointsPrompt',
+                              ),
+                            )
+                          }
+                        >
+                          <span className="rb-big-icon">
+                            <span className="ai-feature-icon" aria-hidden="true">
+                              <IconAiKeyPoints />
+                            </span>
+                          </span>
+                          <span>{t('aiKeyPointsBtn')}</span>
+                        </button>
+                        <div className="rb-drop-wrap" ref={aiReadWrapRef}>
+                          <button
+                            className={`rb-big ai-entry${aiReadMenuOpen ? ' active' : ''}`}
+                            data-tip={t('arButtonTip')}
+                            data-action="ai-read-menu"
+                            onClick={() => setAiReadMenuOpen((v) => !v)}
+                          >
+                            <span className="rb-big-icon">
+                              <span className="ai-feature-icon" aria-hidden="true">
+                                <IconAiReadPages />
+                              </span>
+                              <RbCaret />
+                            </span>
+                            <span>{t('arButton')}</span>
+                          </button>
+                          {aiReadMenuOpen && (
+                            <div className="rb-drop rb-menu">
+                              <button
+                                data-action="ai-read-open"
+                                onClick={() => {
+                                  setAiReadMenuOpen(false)
+                                  const answer = aiReadRef.current?.requestOpen(null)
+                                  if (answer && 'running' in answer)
+                                    showNotice(t('arBusy', answer.running))
+                                  else if (!answer || 'unavailable' in answer)
+                                    showNotice(t('arUnavailable'))
+                                }}
+                              >
+                                {t('arMenuRead')}
+                              </button>
+                              <button
+                                data-action="ai-read-delete"
+                                onClick={() => {
+                                  setAiReadMenuOpen(false)
+                                  void aiReadRef.current?.deleteStored()
+                                }}
+                              >
+                                {t('arMenuDelete')}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          className="rb-big ai-entry"
+                          data-tip={t('trButtonTip')}
+                          data-action="translate-open"
+                          onClick={() => {
+                            const answer = translateRef.current?.requestOpen({
+                              lang: null,
+                              pages: null,
+                            })
+                            if (answer && 'running' in answer)
+                              showNotice(t('arBusy', answer.running))
+                            else if (!answer || 'unavailable' in answer)
+                              showNotice(t('trUnavailable'))
+                          }}
+                        >
+                          <span className="rb-big-icon">
+                            <span className="ai-feature-icon" aria-hidden="true">
+                              <IconAiTranslate />
+                            </span>
+                          </span>
+                          <span>{t('trButton')}</span>
+                        </button>
+                        <button
+                          className="rb-big ai-entry"
+                          data-tip={readOnly ? t('hlReadOnly') : t('hlButtonTip')}
+                          data-action="highlight-open"
+                          onClick={() => {
+                            // opens the start window only; a read-only document shows why it cannot start
+                            const answer = highlightRef.current?.requestOpen()
+                            if (answer && 'running' in answer)
+                              showNotice(t('arBusy', answer.running))
+                            else if (!answer || 'unavailable' in answer)
+                              showNotice(t('hlUnavailable'))
+                          }}
+                        >
+                          <span className="rb-big-icon">
+                            <span className="ai-feature-icon" aria-hidden="true">
+                              <IconHighlightPreview />
+                            </span>
+                          </span>
+                          <span>{t('hlButton')}</span>
+                        </button>
                       </div>
-                      <button
-                        className="rb-big ai-entry"
-                        data-tip={t('trButtonTip')}
-                        data-action="translate-open"
-                        onClick={() => {
-                          const answer = translateRef.current?.requestOpen({
-                            lang: null,
-                            pages: null,
-                          })
-                          if (answer && 'running' in answer) showNotice(t('arBusy', answer.running))
-                          else if (!answer || 'unavailable' in answer)
-                            showNotice(t('trUnavailable'))
-                        }}
-                      >
-                        <span className="rb-big-icon">
-                          <span className="ai-feature-icon" aria-hidden="true">
-                            <IconAiTranslate />
-                          </span>
-                        </span>
-                        <span>{t('trButton')}</span>
-                      </button>
-                      <button
-                        className="rb-big ai-entry"
-                        data-tip={readOnly ? t('hlReadOnly') : t('hlButtonTip')}
-                        data-action="highlight-open"
-                        onClick={() => {
-                          // opens the start window only; a read-only document shows why it cannot start
-                          const answer = highlightRef.current?.requestOpen()
-                          if (answer && 'running' in answer) showNotice(t('arBusy', answer.running))
-                          else if (!answer || 'unavailable' in answer)
-                            showNotice(t('hlUnavailable'))
-                        }}
-                      >
-                        <span className="rb-big-icon">
-                          <span className="ai-feature-icon" aria-hidden="true">
-                            <IconHighlightPreview />
-                          </span>
-                        </span>
-                        <span>{t('hlButton')}</span>
-                      </button>
                     </div>
+                    <div className="ribbon-sep" />
+                  </>
+                )}
+                {markupGroup}
+                <div className="ribbon-sep" />
+                {/* Edit entries lead; Search moved after page/zoom (⌘F is the common path) */}
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    {editTextBtn}
+                    {insertTextBtn}
                   </div>
-                  <div className="ribbon-sep" />
-                </>
-              )}
-              {markupGroup}
-              <div className="ribbon-sep" />
-              {/* Edit entries lead; Search moved after page/zoom (⌘F is the common path) */}
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  {editTextBtn}
-                  {insertTextBtn}
                 </div>
-              </div>
-              <div className="ribbon-sep" />
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  <ConvertMenu
-                    t={t}
-                    busy={convertBusy || exporting !== null}
-                    label={
-                      exporting
-                        ? imagesProgress && imagesProgress.total > 0
-                          ? t('imgExportProgress', imagesProgress)
-                          : t('exporting')
-                        : t('convertPdf')
-                    }
-                    onConvert={(format) => void convertTo(format)}
-                    onReflow={(format) => void openConvertDialog(format)}
-                    onPageImages={(allPages, format) => void exportImages(allPages, format)}
-                    onEmbedded={exportPagePictures}
-                  />
-                </div>
-              </div>
-              <div className="ribbon-sep" />
-              {pageZoomGroup()}
-              <div className="ribbon-sep" />
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  {searchBtn}
-                  <button
-                    className="rb-big"
-                    data-tip={`${t('print')} (${platformShortcuts('⌘P')})`}
-                    disabled={printing}
-                    onClick={openPrintDlg}
-                  >
-                    <span className="rb-big-icon">
-                      <IconPrint />
-                    </span>
-                    <span>{printing ? t('printPreparing') : t('print')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    data-tip={t('propsTitle')}
-                    onClick={() => setPropsDlg(true)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconProps />
-                    </span>
-                    <span>{t('props')}</span>
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-          {ribbonTab === 'annotate' && (
-            <>
-              {aiOn && (
-                <>
-                  <div className="ribbon-group">
-                    <div className="ribbon-group-items">
-                      <button
-                        className="rb-big ai-entry"
-                        data-tip={t('aiReviewSummaryBtn')}
-                        onClick={() => runAiPreset(t('aiReviewSummaryPrompt'))}
-                      >
-                        <span className="rb-big-icon">
-                          <span className="ai-feature-icon" aria-hidden="true">
-                            <IconAiSummarize />
-                          </span>
-                        </span>
-                        <span>{t('aiReviewSummaryBtn')}</span>
-                      </button>
-                      <button
-                        className="rb-big ai-entry"
-                        disabled={readOnly}
-                        data-tip={t('aiProcessNotesBtn')}
-                        onClick={() => runAiPreset(t('aiProcessNotesPrompt'))}
-                      >
-                        <span className="rb-big-icon">
-                          <span className="ai-feature-icon" aria-hidden="true">
-                            <AiMark size={20} />
-                          </span>
-                        </span>
-                        <span>{t('aiProcessNotesBtn')}</span>
-                      </button>
-                    </div>
+                <div className="ribbon-sep" />
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    <ConvertMenu
+                      t={t}
+                      busy={convertBusy || exporting !== null}
+                      label={
+                        exporting
+                          ? imagesProgress && imagesProgress.total > 0
+                            ? t('imgExportProgress', imagesProgress)
+                            : t('exporting')
+                          : t('convertPdf')
+                      }
+                      onConvert={(format) => void convertTo(format)}
+                      onReflow={(format) => void openConvertDialog(format)}
+                      onPageImages={(allPages, format) => void exportImages(allPages, format)}
+                      onEmbedded={exportPagePictures}
+                    />
                   </div>
-                  <div className="ribbon-sep" />
-                </>
-              )}
-              {markupGroup}
-              <div className="ribbon-sep" />
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  {DRAW_TOOLS.map(({ tool, icon: DrawIcon, key }) => (
+                </div>
+                <div className="ribbon-sep" />
+                {pageZoomGroup()}
+                <div className="ribbon-sep" />
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    {searchBtn}
                     <button
-                      key={tool}
-                      className={`rb-big${drawTool === tool ? ' active' : ''}`}
+                      className="rb-big"
+                      data-tip={`${t('print')} (${platformShortcuts('⌘P')})`}
+                      disabled={printing}
+                      onClick={openPrintDlg}
+                    >
+                      <span className="rb-big-icon">
+                        <IconPrint />
+                      </span>
+                      <span>{printing ? t('printPreparing') : t('print')}</span>
+                    </button>
+                    <button
+                      className="rb-big"
+                      data-tip={t('propsTitle')}
+                      onClick={() => setPropsDlg(true)}
+                    >
+                      <span className="rb-big-icon">
+                        <IconProps />
+                      </span>
+                      <span>{t('props')}</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+            {ribbonTab === 'annotate' && (
+              <>
+                {aiOn && (
+                  <>
+                    <div className="ribbon-group">
+                      <div className="ribbon-group-items">
+                        <button
+                          className="rb-big ai-entry"
+                          data-tip={t('aiReviewSummaryBtn')}
+                          onClick={() => runAiPreset(t('aiReviewSummaryPrompt'))}
+                        >
+                          <span className="rb-big-icon">
+                            <span className="ai-feature-icon" aria-hidden="true">
+                              <IconAiSummarize />
+                            </span>
+                          </span>
+                          <span>{t('aiReviewSummaryBtn')}</span>
+                        </button>
+                        <button
+                          className="rb-big ai-entry"
+                          disabled={readOnly}
+                          data-tip={t('aiProcessNotesBtn')}
+                          onClick={() => runAiPreset(t('aiProcessNotesPrompt'))}
+                        >
+                          <span className="rb-big-icon">
+                            <span className="ai-feature-icon" aria-hidden="true">
+                              <AiMark size={20} />
+                            </span>
+                          </span>
+                          <span>{t('aiProcessNotesBtn')}</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="ribbon-sep" />
+                  </>
+                )}
+                {markupGroup}
+                <div className="ribbon-sep" />
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    {DRAW_TOOLS.map(({ tool, icon: DrawIcon, key }) => (
+                      <button
+                        key={tool}
+                        className={`rb-big${drawTool === tool ? ' active' : ''}`}
+                        disabled={readOnly}
+                        data-tip={t(key)}
+                        onClick={() => {
+                          setEditTextMode(false)
+                          setTextDraft(null)
+                          setPendingTextInsert(null)
+                          setImagePick(null)
+                          setEditImageMode(false)
+                          if (tool === 'measure' && drawTool === 'measure') {
+                            // a second click disarms the tool like every other
+                            // one and asks the next measure line to re-open the
+                            // scale dialog, so a wrong first entry is never
+                            // stuck for the session
+                            measureRecalibrateRef.current = true
+                            keepMeasureRecalibrateRef.current = true
+                          }
+                          setDrawTool((v) => (v === tool ? null : tool))
+                        }}
+                      >
+                        <span className="rb-big-icon">
+                          <DrawIcon />
+                        </span>
+                        <span>{t(key)}</span>
+                      </button>
+                    ))}
+                    <button
+                      className={`rb-big${drawTool === 'redact' ? ' active' : ''}`}
                       disabled={readOnly}
-                      data-tip={t(key)}
+                      data-tip={t('redactHint')}
+                      onClick={() => {
+                        setEditTextMode(false)
+                        setTextDraft(null)
+                        setEditImageMode(false)
+                        setDrawTool((tool) => (tool === 'redact' ? null : 'redact'))
+                      }}
+                    >
+                      <span className="rb-big-icon">
+                        <IconRect />
+                      </span>
+                      <span>{t('redact')}</span>
+                    </button>
+                    {redactions.length > 0 && (
+                      <>
+                        <button
+                          className="rb-big"
+                          data-tip={t('redactClear')}
+                          onClick={() => setRedactions([])}
+                        >
+                          {t('redactClear')}
+                        </button>
+                        <button
+                          className="rb-big"
+                          data-tip={t('redactApply')}
+                          onClick={requestRedactionSaveAs}
+                        >
+                          {t('redactApply')}
+                        </button>
+                      </>
+                    )}
+                    <button
+                      className={`rb-big${pendingSign ? ' active' : ''}`}
+                      disabled={readOnly}
+                      data-tip={t('signTitle')}
+                      onClick={() => {
+                        if (pendingSign) setPendingSign(null)
+                        else openSignatureDialog(null)
+                      }}
+                    >
+                      <span className="rb-big-icon">
+                        <IconSign />
+                      </span>
+                      <span>{t('sign')}</span>
+                    </button>
+                    <button
+                      className="rb-big"
+                      disabled={readOnly || status !== 'ready'}
+                      data-tip={t('certSignHint')}
+                      onClick={openCertSignDialog}
+                    >
+                      <span className="rb-big-icon">
+                        <IconCertSign />
+                      </span>
+                      <span>{t('certSign')}</span>
+                    </button>
+                    <button
+                      className="rb-big"
+                      disabled={!protectionEditable || status !== 'ready'}
+                      data-tip={t('protectHint')}
+                      onClick={() => setProtectionDlg(true)}
+                    >
+                      <span className="rb-big-icon">
+                        <IconProtect />
+                      </span>
+                      <span>{t('protect')}</span>
+                    </button>
+                    {digitalSignatures.length > 0 && (
+                      <button
+                        className="rb-big"
+                        data-tip={t('sigPanelHint')}
+                        onClick={() => setSignaturesDlg(true)}
+                      >
+                        <span className="rb-big-icon">
+                          <IconSignatures />
+                        </span>
+                        <span>{t('sigPanel')}</span>
+                      </button>
+                    )}
+                    <div ref={drawColorWrapRef} className="rb-drop-wrap">
+                      <button
+                        className={`rb-big${colorOpen ? ' active' : ''}`}
+                        disabled={readOnly}
+                        data-tip={t('drawColor')}
+                        onClick={() => setColorOpen((v) => !v)}
+                      >
+                        <span className="rb-big-icon">
+                          <span className="rb-big-icon-colored">
+                            <IconDrawColor />
+                            <span
+                              className="rb-color-bar"
+                              style={{ background: cssRgb(drawColor) }}
+                            />
+                          </span>
+                          <RbCaret />
+                        </span>
+                        <span>{t('drawColor')}</span>
+                      </button>
+                      {colorOpen && (
+                        <ColorPickerPopover
+                          className="rb-drop"
+                          value={rgbToHex(drawColor)}
+                          onPick={(hex) => setDrawColor(hexToRgb(hex))}
+                          onClose={() => setColorOpen(false)}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            {ribbonTab === 'edit' && (
+              <>
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    {editTextBtn}
+                    {insertTextBtn}
+                    <button
+                      className={`rb-big${imagePick && !pendingStaticFill ? ' active' : ''}`}
+                      disabled={readOnly}
+                      data-tip={t('insertImageHint')}
+                      onClick={() => (imagePick ? setImagePick(null) : pickInsertImage())}
+                    >
+                      <span className="rb-big-icon">
+                        <IconInsertImage />
+                      </span>
+                      <span>{t('insertImage')}</span>
+                    </button>
+                    <button
+                      className={`rb-big${editImageMode ? ' active' : ''}`}
+                      disabled={readOnly}
+                      data-tip={t('editImageHint')}
+                      onClick={() => {
+                        setEditTextMode(false)
+                        setTextDraft(null)
+                        setDrawTool(null)
+                        setPendingSign(null)
+                        setImagePick(null)
+                        setPendingTextInsert(null)
+                        setEditImageMode((v) => !v)
+                      }}
+                    >
+                      <span className="rb-big-icon">
+                        <IconEditImage />
+                      </span>
+                      <span>{t('editImage')}</span>
+                    </button>
+                    <button
+                      className={`rb-big${drawTool === 'link' ? ' active' : ''}`}
+                      disabled={readOnly}
+                      data-tip={t('editLinkHint')}
                       onClick={() => {
                         setEditTextMode(false)
                         setTextDraft(null)
                         setPendingTextInsert(null)
+                        setPendingSign(null)
                         setImagePick(null)
                         setEditImageMode(false)
-                        if (tool === 'measure' && drawTool === 'measure') {
-                          // a second click disarms the tool like every other
-                          // one and asks the next measure line to re-open the
-                          // scale dialog, so a wrong first entry is never
-                          // stuck for the session
-                          measureRecalibrateRef.current = true
-                          keepMeasureRecalibrateRef.current = true
-                        }
-                        setDrawTool((v) => (v === tool ? null : tool))
+                        setDrawTool((tool) => (tool === 'link' ? null : 'link'))
                       }}
                     >
                       <span className="rb-big-icon">
-                        <DrawIcon />
+                        <IconLink />
                       </span>
-                      <span>{t(key)}</span>
+                      <span>{t('editLink')}</span>
                     </button>
-                  ))}
-                  <button
-                    className={`rb-big${drawTool === 'redact' ? ' active' : ''}`}
-                    disabled={readOnly}
-                    data-tip={t('redactHint')}
-                    onClick={() => {
-                      setEditTextMode(false)
-                      setTextDraft(null)
-                      setEditImageMode(false)
-                      setDrawTool((tool) => (tool === 'redact' ? null : 'redact'))
-                    }}
-                  >
-                    <span className="rb-big-icon">
-                      <IconRect />
-                    </span>
-                    <span>{t('redact')}</span>
-                  </button>
-                  {redactions.length > 0 && (
-                    <>
-                      <button
-                        className="rb-big"
-                        data-tip={t('redactClear')}
-                        onClick={() => setRedactions([])}
-                      >
-                        {t('redactClear')}
-                      </button>
-                      <button
-                        className="rb-big"
-                        data-tip={t('redactApply')}
-                        onClick={requestRedactionSaveAs}
-                      >
-                        {t('redactApply')}
-                      </button>
-                    </>
-                  )}
-                  <button
-                    className={`rb-big${pendingSign ? ' active' : ''}`}
-                    disabled={readOnly}
-                    data-tip={t('signTitle')}
-                    onClick={() => {
-                      if (pendingSign) setPendingSign(null)
-                      else openSignatureDialog(null)
-                    }}
-                  >
-                    <span className="rb-big-icon">
-                      <IconSign />
-                    </span>
-                    <span>{t('sign')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={readOnly || status !== 'ready'}
-                    data-tip={t('certSignHint')}
-                    onClick={openCertSignDialog}
-                  >
-                    <span className="rb-big-icon">
-                      <IconCertSign />
-                    </span>
-                    <span>{t('certSign')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={!protectionEditable || status !== 'ready'}
-                    data-tip={t('protectHint')}
-                    onClick={() => setProtectionDlg(true)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconProtect />
-                    </span>
-                    <span>{t('protect')}</span>
-                  </button>
-                  {digitalSignatures.length > 0 && (
+                  </div>
+                </div>
+                <div className="ribbon-sep" />
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
                     <button
                       className="rb-big"
-                      data-tip={t('sigPanelHint')}
-                      onClick={() => setSignaturesDlg(true)}
-                    >
-                      <span className="rb-big-icon">
-                        <IconSignatures />
-                      </span>
-                      <span>{t('sigPanel')}</span>
-                    </button>
-                  )}
-                  <div ref={drawColorWrapRef} className="rb-drop-wrap">
-                    <button
-                      className={`rb-big${colorOpen ? ' active' : ''}`}
                       disabled={readOnly}
-                      data-tip={t('drawColor')}
-                      onClick={() => setColorOpen((v) => !v)}
+                      data-tip={t('stampTitle')}
+                      onClick={() => setStampDlg(true)}
                     >
                       <span className="rb-big-icon">
-                        <span className="rb-big-icon-colored">
-                          <IconDrawColor />
-                          <span
-                            className="rb-color-bar"
-                            style={{ background: cssRgb(drawColor) }}
-                          />
-                        </span>
-                        <RbCaret />
+                        <IconWatermark />
                       </span>
-                      <span>{t('drawColor')}</span>
+                      <span>{t('watermark')}</span>
                     </button>
-                    {colorOpen && (
-                      <ColorPickerPopover
-                        className="rb-drop"
-                        value={rgbToHex(drawColor)}
-                        onPick={(hex) => setDrawColor(hexToRgb(hex))}
-                        onClose={() => setColorOpen(false)}
-                      />
-                    )}
                   </div>
                 </div>
-              </div>
-            </>
-          )}
-          {ribbonTab === 'edit' && (
-            <>
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  {editTextBtn}
-                  {insertTextBtn}
-                  <button
-                    className={`rb-big${imagePick && !pendingStaticFill ? ' active' : ''}`}
-                    disabled={readOnly}
-                    data-tip={t('insertImageHint')}
-                    onClick={() => (imagePick ? setImagePick(null) : pickInsertImage())}
-                  >
-                    <span className="rb-big-icon">
-                      <IconInsertImage />
-                    </span>
-                    <span>{t('insertImage')}</span>
-                  </button>
-                  <button
-                    className={`rb-big${editImageMode ? ' active' : ''}`}
-                    disabled={readOnly}
-                    data-tip={t('editImageHint')}
-                    onClick={() => {
-                      setEditTextMode(false)
-                      setTextDraft(null)
-                      setDrawTool(null)
-                      setPendingSign(null)
-                      setImagePick(null)
-                      setPendingTextInsert(null)
-                      setEditImageMode((v) => !v)
-                    }}
-                  >
-                    <span className="rb-big-icon">
-                      <IconEditImage />
-                    </span>
-                    <span>{t('editImage')}</span>
-                  </button>
-                  <button
-                    className={`rb-big${drawTool === 'link' ? ' active' : ''}`}
-                    disabled={readOnly}
-                    data-tip={t('editLinkHint')}
-                    onClick={() => {
-                      setEditTextMode(false)
-                      setTextDraft(null)
-                      setPendingTextInsert(null)
-                      setPendingSign(null)
-                      setImagePick(null)
-                      setEditImageMode(false)
-                      setDrawTool((tool) => (tool === 'link' ? null : 'link'))
-                    }}
-                  >
-                    <span className="rb-big-icon">
-                      <IconLink />
-                    </span>
-                    <span>{t('editLink')}</span>
-                  </button>
-                </div>
-              </div>
-              <div className="ribbon-sep" />
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  <button
-                    className="rb-big"
-                    disabled={readOnly}
-                    data-tip={t('stampTitle')}
-                    onClick={() => setStampDlg(true)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconWatermark />
-                    </span>
-                    <span>{t('watermark')}</span>
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-          {ribbonTab === 'fillForm' && (
-            <>
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  {aiOn && (
+              </>
+            )}
+            {ribbonTab === 'fillForm' && (
+              <>
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    {aiOn && (
+                      <button
+                        className="rb-big ai-entry"
+                        disabled={readOnly}
+                        data-tip={t('aiFillFormBtn')}
+                        onClick={() => runAiPreset(t('aiFillFormPrompt'))}
+                      >
+                        <span className="rb-big-icon">
+                          <IconFormAiFill />
+                        </span>
+                        <span>{t('aiFillFormBtn')}</span>
+                      </button>
+                    )}
                     <button
-                      className="rb-big ai-entry"
+                      className={`rb-big${pendingStaticFill === 'text' ? ' active' : ''}`}
                       disabled={readOnly}
-                      data-tip={t('aiFillFormBtn')}
-                      onClick={() => runAiPreset(t('aiFillFormPrompt'))}
+                      data-tip={t('formAddTextHint')}
+                      onClick={() => {
+                        setImagePick(null)
+                        setPendingTextInsert(null)
+                        setStaticTextEditTarget(null)
+                        setStaticTextPurpose('form')
+                        setStaticText('')
+                        setStaticTextDialog(true)
+                      }}
                     >
                       <span className="rb-big-icon">
-                        <IconFormAiFill />
+                        <IconFormText />
                       </span>
-                      <span>{t('aiFillFormBtn')}</span>
+                      <span>{t('formAddText')}</span>
                     </button>
-                  )}
-                  <button
-                    className={`rb-big${pendingStaticFill === 'text' ? ' active' : ''}`}
-                    disabled={readOnly}
-                    data-tip={t('formAddTextHint')}
-                    onClick={() => {
-                      setImagePick(null)
-                      setPendingTextInsert(null)
-                      setStaticTextEditTarget(null)
-                      setStaticTextPurpose('form')
-                      setStaticText('')
-                      setStaticTextDialog(true)
-                    }}
-                  >
-                    <span className="rb-big-icon">
-                      <IconFormText />
-                    </span>
-                    <span>{t('formAddText')}</span>
-                  </button>
-                  <button
-                    className={`rb-big${pendingStaticFill === 'check' ? ' active' : ''}`}
-                    disabled={readOnly}
-                    data-tip={t('formAddCheckHint')}
-                    onClick={() => startStaticFormMark('check')}
-                  >
-                    <span className="rb-big-icon">
-                      <IconFormCheck />
-                    </span>
-                    <span>{t('formAddCheck')}</span>
-                  </button>
-                  <button
-                    className={`rb-big${pendingStaticFill === 'cross' ? ' active' : ''}`}
-                    disabled={readOnly}
-                    data-tip={t('formAddCrossHint')}
-                    onClick={() => startStaticFormMark('cross')}
-                  >
-                    <span className="rb-big-icon">
-                      <IconFormCross />
-                    </span>
-                    <span>{t('formAddCross')}</span>
-                  </button>
-                </div>
-              </div>
-              <div className="ribbon-sep" />
-              {hasFillableForm && (
-                <>
-                  <div className="ribbon-group">
-                    <div className="ribbon-group-items">
-                      <button
-                        className="rb-big"
-                        data-tip={t('formPreviousField')}
-                        onClick={() => stepFormWidget(-1)}
-                      >
-                        <span className="rb-big-icon">
-                          <IconPreviousField />
-                        </span>
-                        <span>{t('formPreviousField')}</span>
-                      </button>
-                      <button
-                        className="rb-big"
-                        data-tip={t('formNextField')}
-                        onClick={() => stepFormWidget(1)}
-                      >
-                        <span className="rb-big-icon">
-                          <IconNextField />
-                        </span>
-                        <span>{t('formNextField')}</span>
-                      </button>
-                      <span className="form-ribbon-progress">
-                        {t('formFieldProgress', {
-                          current: activeFormIndex >= 0 ? activeFormIndex + 1 : 0,
-                          total: formWidgets.length,
-                        })}
+                    <button
+                      className={`rb-big${pendingStaticFill === 'check' ? ' active' : ''}`}
+                      disabled={readOnly}
+                      data-tip={t('formAddCheckHint')}
+                      onClick={() => startStaticFormMark('check')}
+                    >
+                      <span className="rb-big-icon">
+                        <IconFormCheck />
                       </span>
+                      <span>{t('formAddCheck')}</span>
+                    </button>
+                    <button
+                      className={`rb-big${pendingStaticFill === 'cross' ? ' active' : ''}`}
+                      disabled={readOnly}
+                      data-tip={t('formAddCrossHint')}
+                      onClick={() => startStaticFormMark('cross')}
+                    >
+                      <span className="rb-big-icon">
+                        <IconFormCross />
+                      </span>
+                      <span>{t('formAddCross')}</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="ribbon-sep" />
+                {hasFillableForm && (
+                  <>
+                    <div className="ribbon-group">
+                      <div className="ribbon-group-items">
+                        <button
+                          className="rb-big"
+                          data-tip={t('formPreviousField')}
+                          onClick={() => stepFormWidget(-1)}
+                        >
+                          <span className="rb-big-icon">
+                            <IconPreviousField />
+                          </span>
+                          <span>{t('formPreviousField')}</span>
+                        </button>
+                        <button
+                          className="rb-big"
+                          data-tip={t('formNextField')}
+                          onClick={() => stepFormWidget(1)}
+                        >
+                          <span className="rb-big-icon">
+                            <IconNextField />
+                          </span>
+                          <span>{t('formNextField')}</span>
+                        </button>
+                        <span className="form-ribbon-progress">
+                          {t('formFieldProgress', {
+                            current: activeFormIndex >= 0 ? activeFormIndex + 1 : 0,
+                            total: formWidgets.length,
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="ribbon-sep" />
+                  </>
+                )}
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    <button
+                      className="rb-big"
+                      disabled={readOnly}
+                      data-tip={t('signTitle')}
+                      onClick={() =>
+                        openSignatureDialog(
+                          activeFormWidget?.kind === 'signature' &&
+                            !formWidgetSigned(activeFormWidget)
+                            ? activeFormWidget
+                            : firstSignatureWidget,
+                        )
+                      }
+                    >
+                      <span className="rb-big-icon">
+                        <IconSign />
+                      </span>
+                      <span>{t('sign')}</span>
+                    </button>
+                    <button
+                      className={`rb-big${imagePick && !pendingStaticFill ? ' active' : ''}`}
+                      disabled={readOnly}
+                      data-tip={t('insertImageHint')}
+                      onClick={() => (imagePick ? setImagePick(null) : pickInsertImage())}
+                    >
+                      <span className="rb-big-icon">
+                        <IconInsertImage />
+                      </span>
+                      <span>{t('insertImage')}</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="ribbon-sep" />
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    <button className="rb-big" onClick={completeForm}>
+                      <span className="rb-big-icon">
+                        <IconCompleteForm />
+                      </span>
+                      <span>{t('formComplete')}</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+            {ribbonTab === 'formDesign' && (
+              <>
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    {(
+                      [
+                        ['text', IconFieldText, 'formDesignText', 'formDesignTextHint'],
+                        ['date', IconFieldDate, 'formDesignDate', 'formDesignDateHint'],
+                        [
+                          'checkbox',
+                          IconFieldCheckbox,
+                          'formDesignCheckbox',
+                          'formDesignCheckboxHint',
+                        ],
+                        ['radio', IconFieldRadio, 'formDesignRadio', 'formDesignRadioHint'],
+                        ['choice', IconFieldChoice, 'formDesignChoice', 'formDesignChoiceHint'],
+                        [
+                          'signature',
+                          IconFieldSignature,
+                          'formDesignSignature',
+                          'formDesignSignatureHint',
+                        ],
+                      ] as const
+                    ).map(([kind, FieldIcon, labelKey, hintKey]) => (
+                      <button
+                        key={kind}
+                        className={`rb-big${formDesignTool === kind ? ' active' : ''}`}
+                        disabled={readOnly}
+                        data-tip={t(hintKey)}
+                        aria-pressed={formDesignTool === kind}
+                        onClick={() => startFormDesignTool(kind)}
+                      >
+                        <span className="rb-big-icon">
+                          <FieldIcon />
+                        </span>
+                        <span>{t(labelKey)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="ribbon-sep" />
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    <button
+                      className={`rb-big${formDesignKeepTool ? ' active' : ''}`}
+                      disabled={readOnly}
+                      data-tip={t('formDesignKeepToolHint')}
+                      aria-pressed={formDesignKeepTool}
+                      onClick={() => setFormDesignKeepTool((v) => !v)}
+                    >
+                      <span className="rb-big-icon">
+                        <IconFieldKeep />
+                      </span>
+                      <span>{t('formDesignKeepTool')}</span>
+                    </button>
+                    <button
+                      className={`rb-big${formDesignPreview ? ' active' : ''}`}
+                      disabled={readOnly}
+                      data-tip={t('formDesignPreviewHint')}
+                      aria-pressed={formDesignPreview}
+                      onClick={() => {
+                        setFormDesignTool(null)
+                        setSelectedFormFieldId(null)
+                        setFreshFormFieldId(null)
+                        setFormDesignPreview((v) => !v)
+                      }}
+                    >
+                      <span className="rb-big-icon">
+                        <IconFieldPreview />
+                      </span>
+                      <span>{t('formDesignPreview')}</span>
+                    </button>
+                    <button
+                      className="rb-big"
+                      disabled={readOnly || detectingFields || !doc}
+                      data-tip={t('formDesignDetectHint')}
+                      onClick={() => void detectFields()}
+                    >
+                      <span className="rb-big-icon">
+                        <IconFieldDetect />
+                      </span>
+                      <span>
+                        {detectingFields ? t('formDesignDetecting') : t('formDesignDetect')}
+                      </span>
+                    </button>
+                    <div className="rb-drop-wrap" ref={arrangeWrapRef}>
+                      <button
+                        className={`rb-big${arrangeOpen ? ' active' : ''}`}
+                        disabled={selectedFormFieldIds.length < 2}
+                        data-tip={t('formDesignArrangeHint')}
+                        onClick={() => setArrangeOpen((v) => !v)}
+                      >
+                        <span className="rb-big-icon">
+                          <IconFieldArrange />
+                          <RbCaret />
+                        </span>
+                        <span>{t('formDesignArrange')}</span>
+                      </button>
+                      {arrangeOpen && (
+                        <div className="rb-drop rb-menu">
+                          {arrangeItems.map(([how, label, min]) => (
+                            <button
+                              key={how}
+                              disabled={selectedFormFieldIds.length < min}
+                              onClick={() => {
+                                setArrangeOpen(false)
+                                arrangeSelected(how)
+                              }}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      className="rb-big"
+                      disabled={selectedFormFieldIds.length === 0}
+                      data-tip={t('formDesignDelete')}
+                      onClick={deleteSelectedFormFields}
+                    >
+                      <span className="rb-big-icon">
+                        <IconTrash />
+                      </span>
+                      <span>{t('formDesignDelete')}</span>
+                    </button>
+                    <span className="form-ribbon-progress">
+                      {formDesignPreview
+                        ? t('formDesignPreviewOn')
+                        : formDesignTool
+                          ? t('formDesignPlaceHint')
+                          : formFields.length + formWidgetEdits.size > 0
+                            ? t('formDesignPending', {
+                                count: formFields.length + formWidgetEdits.size,
+                              })
+                            : t('formDesignEmptyHint')}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+            {ribbonTab === 'page' && (
+              <>
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    <div className="rb-col rb-col-3">
+                      <button
+                        className="rb-small"
+                        disabled={curOrigIdx < 0 || readOnly}
+                        data-tip={t('rotateLeft')}
+                        onClick={() => rotatePages(ribbonPages, -90)}
+                      >
+                        <span className="rb-small-icon">
+                          <IconRotateL />
+                        </span>
+                        <span>{t('rotateLeft')}</span>
+                      </button>
+                      <button
+                        className="rb-small"
+                        disabled={curOrigIdx < 0 || readOnly}
+                        data-tip={t('rotateRight')}
+                        onClick={() => rotatePages(ribbonPages, 90)}
+                      >
+                        <span className="rb-small-icon">
+                          <IconRotateR />
+                        </span>
+                        <span>{t('rotateRight')}</span>
+                      </button>
+                      <button
+                        className="rb-small"
+                        disabled={pageCount === 0 || readOnly}
+                        data-tip={t('rotateAllPages')}
+                        onClick={() => rotateAllPages(90)}
+                      >
+                        <span className="rb-small-icon">
+                          <IconRotateAll />
+                        </span>
+                        <span>{t('rotateAllPages')}</span>
+                      </button>
                     </div>
                   </div>
-                  <div className="ribbon-sep" />
-                </>
-              )}
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  <button
-                    className="rb-big"
-                    disabled={readOnly}
-                    data-tip={t('signTitle')}
-                    onClick={() =>
-                      openSignatureDialog(
-                        activeFormWidget?.kind === 'signature' &&
-                          !formWidgetSigned(activeFormWidget)
-                          ? activeFormWidget
-                          : firstSignatureWidget,
-                      )
-                    }
-                  >
-                    <span className="rb-big-icon">
-                      <IconSign />
-                    </span>
-                    <span>{t('sign')}</span>
-                  </button>
-                  <button
-                    className={`rb-big${imagePick && !pendingStaticFill ? ' active' : ''}`}
-                    disabled={readOnly}
-                    data-tip={t('insertImageHint')}
-                    onClick={() => (imagePick ? setImagePick(null) : pickInsertImage())}
-                  >
-                    <span className="rb-big-icon">
-                      <IconInsertImage />
-                    </span>
-                    <span>{t('insertImage')}</span>
-                  </button>
                 </div>
-              </div>
-              <div className="ribbon-sep" />
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  <button className="rb-big" onClick={completeForm}>
-                    <span className="rb-big-icon">
-                      <IconCompleteForm />
-                    </span>
-                    <span>{t('formComplete')}</span>
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-          {ribbonTab === 'formDesign' && (
-            <>
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  {(
-                    [
-                      ['text', IconFieldText, 'formDesignText', 'formDesignTextHint'],
-                      ['date', IconFieldDate, 'formDesignDate', 'formDesignDateHint'],
-                      [
-                        'checkbox',
-                        IconFieldCheckbox,
-                        'formDesignCheckbox',
-                        'formDesignCheckboxHint',
-                      ],
-                      ['radio', IconFieldRadio, 'formDesignRadio', 'formDesignRadioHint'],
-                      ['choice', IconFieldChoice, 'formDesignChoice', 'formDesignChoiceHint'],
-                      [
-                        'signature',
-                        IconFieldSignature,
-                        'formDesignSignature',
-                        'formDesignSignatureHint',
-                      ],
-                    ] as const
-                  ).map(([kind, FieldIcon, labelKey, hintKey]) => (
+                <div className="ribbon-sep" />
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
                     <button
-                      key={kind}
-                      className={`rb-big${formDesignTool === kind ? ' active' : ''}`}
-                      disabled={readOnly}
-                      data-tip={t(hintKey)}
-                      aria-pressed={formDesignTool === kind}
-                      onClick={() => startFormDesignTool(kind)}
+                      className="rb-big"
+                      disabled={curOrigIdx < 0 || ribbonPages.length >= pageCount || readOnly}
+                      data-tip={
+                        ribbonPages.length > 1
+                          ? t('pageSelDelete', { n: ribbonPages.length })
+                          : t('deletePage')
+                      }
+                      onClick={() => deletePages(ribbonPages)}
                     >
                       <span className="rb-big-icon">
-                        <FieldIcon />
+                        <IconDeletePage />
                       </span>
-                      <span>{t(labelKey)}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="ribbon-sep" />
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  <button
-                    className={`rb-big${formDesignKeepTool ? ' active' : ''}`}
-                    disabled={readOnly}
-                    data-tip={t('formDesignKeepToolHint')}
-                    aria-pressed={formDesignKeepTool}
-                    onClick={() => setFormDesignKeepTool((v) => !v)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconFieldKeep />
-                    </span>
-                    <span>{t('formDesignKeepTool')}</span>
-                  </button>
-                  <button
-                    className={`rb-big${formDesignPreview ? ' active' : ''}`}
-                    disabled={readOnly}
-                    data-tip={t('formDesignPreviewHint')}
-                    aria-pressed={formDesignPreview}
-                    onClick={() => {
-                      setFormDesignTool(null)
-                      setSelectedFormFieldId(null)
-                      setFreshFormFieldId(null)
-                      setFormDesignPreview((v) => !v)
-                    }}
-                  >
-                    <span className="rb-big-icon">
-                      <IconFieldPreview />
-                    </span>
-                    <span>{t('formDesignPreview')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={readOnly || detectingFields || !doc}
-                    data-tip={t('formDesignDetectHint')}
-                    onClick={() => void detectFields()}
-                  >
-                    <span className="rb-big-icon">
-                      <IconFieldDetect />
-                    </span>
-                    <span>
-                      {detectingFields ? t('formDesignDetecting') : t('formDesignDetect')}
-                    </span>
-                  </button>
-                  <div className="rb-drop-wrap" ref={arrangeWrapRef}>
-                    <button
-                      className={`rb-big${arrangeOpen ? ' active' : ''}`}
-                      disabled={selectedFormFieldIds.length < 2}
-                      data-tip={t('formDesignArrangeHint')}
-                      onClick={() => setArrangeOpen((v) => !v)}
-                    >
-                      <span className="rb-big-icon">
-                        <IconFieldArrange />
-                        <RbCaret />
+                      <span>
+                        {ribbonPages.length > 1
+                          ? t('pageSelDelete', { n: ribbonPages.length })
+                          : t('deletePage')}
                       </span>
-                      <span>{t('formDesignArrange')}</span>
                     </button>
-                    {arrangeOpen && (
-                      <div className="rb-drop rb-menu">
-                        {arrangeItems.map(([how, label, min]) => (
-                          <button
-                            key={how}
-                            disabled={selectedFormFieldIds.length < min}
-                            onClick={() => {
-                              setArrangeOpen(false)
-                              arrangeSelected(how)
-                            }}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    className="rb-big"
-                    disabled={selectedFormFieldIds.length === 0}
-                    data-tip={t('formDesignDelete')}
-                    onClick={deleteSelectedFormFields}
-                  >
-                    <span className="rb-big-icon">
-                      <IconTrash />
-                    </span>
-                    <span>{t('formDesignDelete')}</span>
-                  </button>
-                  <span className="form-ribbon-progress">
-                    {formDesignPreview
-                      ? t('formDesignPreviewOn')
-                      : formDesignTool
-                        ? t('formDesignPlaceHint')
-                        : formFields.length + formWidgetEdits.size > 0
-                          ? t('formDesignPending', {
-                              count: formFields.length + formWidgetEdits.size,
-                            })
-                          : t('formDesignEmptyHint')}
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
-          {ribbonTab === 'page' && (
-            <>
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  <button
-                    className="rb-big"
-                    disabled={curOrigIdx < 0 || readOnly}
-                    onClick={() => rotatePages(ribbonPages, -90)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconRotateL />
-                    </span>
-                    <span>{t('rotateLeft')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={curOrigIdx < 0 || readOnly}
-                    onClick={() => rotatePages(ribbonPages, 90)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconRotateR />
-                    </span>
-                    <span>{t('rotateRight')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={pageCount === 0 || readOnly}
-                    onClick={() => rotateAllPages(90)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconRotateAll />
-                    </span>
-                    <span>{t('rotateAllPages')}</span>
-                  </button>
-                </div>
-              </div>
-              <div className="ribbon-sep" />
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  <button
-                    className="rb-big"
-                    disabled={curOrigIdx < 0 || ribbonPages.length >= pageCount || readOnly}
-                    onClick={() => deletePages(ribbonPages)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconDeletePage />
-                    </span>
-                    <span>
-                      {ribbonPages.length > 1
-                        ? t('pageSelDelete', { n: ribbonPages.length })
-                        : t('deletePage')}
-                    </span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={curOrigIdx < 0 || readOnly}
-                    onClick={openExtractDlg}
-                  >
-                    <span className="rb-big-icon">
-                      <IconExtract />
-                    </span>
-                    <span>{t('extractPage')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={readOnly}
-                    onClick={() => void insertPdf(curOrigIdx)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconInsertPdf />
-                    </span>
-                    <span>{t('insertPdf')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={status !== 'ready' || readOnly}
-                    data-tip={t('reduceHint')}
-                    onClick={() => void reduceFileSize()}
-                  >
-                    <span className="rb-big-icon">
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
+                    <div className="rb-col rb-col-3">
+                      <button
+                        className="rb-small"
+                        disabled={readOnly}
+                        data-tip={t('insertBlankPage')}
+                        onClick={() => insertBlankPage(curOrigIdx)}
                       >
-                        <path d="M15.5 4.5 A 8.5 8.5 0 1 0 19.5 11" />
-                        <path d="M15.5 2.5 L15.5 7.5 L10.5 7.5" />
-                      </svg>
-                    </span>
-                    <span>{t('reduce')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={readOnly}
-                    onClick={() => insertBlankPage(curOrigIdx)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconInsertBlank />
-                    </span>
-                    <span>{t('insertBlankPage')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={readOnly || pageCount === 0}
-                    data-tip={t('batesHint')}
-                    onClick={() => setBatesDlg(true)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconBates />
-                    </span>
-                    <span>{t('bates')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={curOrigIdx < 0 || readOnly}
-                    onClick={openReplaceDlg}
-                  >
-                    <span className="rb-big-icon">
-                      <IconReplacePages />
-                    </span>
-                    <span>{t('replacePages')}</span>
-                  </button>
-                </div>
-              </div>
-              <div className="ribbon-sep" />
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  <button
-                    className="rb-big"
-                    disabled={curOrigIdx < 0 || readOnly}
-                    onClick={() => void openPageCrop(curOrigIdx)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconCropPages />
-                    </span>
-                    <span>{t('cropPages')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={pageCount === 0 || readOnly}
-                    onClick={() => setPageSizeDlg(true)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconPageSize />
-                    </span>
-                    <span>{t('pageSize')}</span>
-                  </button>
-                </div>
-              </div>
-              <div className="ribbon-sep" />
-              <div className="ribbon-group">
-                <div className="ribbon-group-items">
-                  <button
-                    className="rb-big"
-                    disabled={pageCount <= 1 || readOnly}
-                    onClick={reversePages}
-                  >
-                    <span className="rb-big-icon">
-                      <IconReverse />
-                    </span>
-                    <span>{t('reversePages')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={pageCount <= 1 || readOnly}
-                    onClick={openSplitDlg}
-                  >
-                    <span className="rb-big-icon">
-                      <IconSplitPdf />
-                    </span>
-                    <span>{t('splitPdf')}</span>
-                  </button>
-                  <button className="rb-big" disabled={readOnly} onClick={() => void mergePdf()}>
-                    <span className="rb-big-icon">
-                      <IconMergePdf />
-                    </span>
-                    <span>{t('mergePdf')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={pageCount <= 1 || readOnly}
-                    onClick={openMergePagesDlg}
-                  >
-                    <span className="rb-big-icon">
-                      <IconMergePages />
-                    </span>
-                    <span>{t('mergePages')}</span>
-                  </button>
-                  <button
-                    className="rb-big"
-                    disabled={pageCount === 0 || readOnly}
-                    onClick={() => setSplitPagesDlg(true)}
-                  >
-                    <span className="rb-big-icon">
-                      <IconSplitPages />
-                    </span>
-                    <span>{t('splitPages')}</span>
-                  </button>
-                  <div className="rb-drop-wrap" ref={pdfToolsWrapRef}>
-                    <button
-                      className={`rb-big${pdfToolsOpen ? ' active' : ''}`}
-                      disabled={pageCount === 0 || readOnly || !filePath}
-                      data-tip={t('pdfToolsMenuHint')}
-                      onClick={() => setPdfToolsOpen((v) => !v)}
-                    >
-                      <span className="rb-big-icon">
-                        <IconPdfTools />
-                        <RbCaret />
-                      </span>
-                      <span>{t('pdfToolsMenu')}</span>
-                    </button>
-                    {pdfToolsOpen && (
-                      <div className="rb-drop rb-menu">
-                        {PDF_TOOLS_MENU.map(([tool, label]) => (
-                          <button key={tool} onClick={() => void openInPdfTools(tool)}>
-                            {t(label)}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                        <span className="rb-small-icon">
+                          <IconInsertBlank />
+                        </span>
+                        <span>{t('insertBlankPage')}</span>
+                      </button>
+                      <button
+                        className="rb-small"
+                        disabled={readOnly}
+                        data-tip={t('insertPdf')}
+                        onClick={() => void insertPdf(curOrigIdx)}
+                      >
+                        <span className="rb-small-icon">
+                          <IconInsertPdf />
+                        </span>
+                        <span>{t('insertPdf')}</span>
+                      </button>
+                      <button
+                        className="rb-small"
+                        disabled={curOrigIdx < 0 || readOnly}
+                        data-tip={t('replacePages')}
+                        onClick={openReplaceDlg}
+                      >
+                        <span className="rb-small-icon">
+                          <IconReplacePages />
+                        </span>
+                        <span>{t('replacePages')}</span>
+                      </button>
+                    </div>
+                    <div className="rb-col">
+                      <button
+                        className="rb-small"
+                        disabled={curOrigIdx < 0 || readOnly}
+                        data-tip={t('extractPage')}
+                        onClick={openExtractDlg}
+                      >
+                        <span className="rb-small-icon">
+                          <IconExtract />
+                        </span>
+                        <span>{t('extractPage')}</span>
+                      </button>
+                      <button
+                        className="rb-small"
+                        disabled={pageCount <= 1 || readOnly}
+                        data-tip={t('reversePages')}
+                        onClick={reversePages}
+                      >
+                        <span className="rb-small-icon">
+                          <IconReverse />
+                        </span>
+                        <span>{t('reversePages')}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </>
+                <div className="ribbon-sep" />
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    <div className="rb-col">
+                      <button
+                        className="rb-small"
+                        disabled={curOrigIdx < 0 || readOnly}
+                        data-tip={t('cropPages')}
+                        onClick={() => void openPageCrop(curOrigIdx)}
+                      >
+                        <span className="rb-small-icon">
+                          <IconCropPages />
+                        </span>
+                        <span>{t('cropPages')}</span>
+                      </button>
+                      <button
+                        className="rb-small"
+                        disabled={pageCount === 0 || readOnly}
+                        data-tip={t('pageSize')}
+                        onClick={() => setPageSizeDlg(true)}
+                      >
+                        <span className="rb-small-icon">
+                          <IconPageSize />
+                        </span>
+                        <span>{t('pageSize')}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="ribbon-sep" />
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    <div className="rb-col">
+                      <button
+                        className="rb-small"
+                        disabled={pageCount <= 1 || readOnly}
+                        data-tip={t('splitPdf')}
+                        onClick={openSplitDlg}
+                      >
+                        <span className="rb-small-icon">
+                          <IconSplitPdf />
+                        </span>
+                        <span>{t('splitPdf')}</span>
+                      </button>
+                      <button
+                        className="rb-small"
+                        disabled={readOnly}
+                        data-tip={t('mergePdf')}
+                        onClick={() => void mergePdf()}
+                      >
+                        <span className="rb-small-icon">
+                          <IconMergePdf />
+                        </span>
+                        <span>{t('mergePdf')}</span>
+                      </button>
+                    </div>
+                    <div className="rb-col">
+                      <button
+                        className="rb-small"
+                        disabled={pageCount <= 1 || readOnly}
+                        data-tip={t('mergePages')}
+                        onClick={openMergePagesDlg}
+                      >
+                        <span className="rb-small-icon">
+                          <IconMergePages />
+                        </span>
+                        <span>{t('mergePages')}</span>
+                      </button>
+                      <button
+                        className="rb-small"
+                        disabled={pageCount === 0 || readOnly}
+                        data-tip={t('splitPages')}
+                        onClick={() => setSplitPagesDlg(true)}
+                      >
+                        <span className="rb-small-icon">
+                          <IconSplitPages />
+                        </span>
+                        <span>{t('splitPages')}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="ribbon-sep" />
+                <div className="ribbon-group">
+                  <div className="ribbon-group-items">
+                    <div className="rb-col">
+                      <button
+                        className="rb-small"
+                        disabled={status !== 'ready' || readOnly}
+                        data-tip={t('reduceHint')}
+                        onClick={() => void reduceFileSize()}
+                      >
+                        <span className="rb-small-icon">
+                          <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M15.5 4.5 A 8.5 8.5 0 1 0 19.5 11" />
+                            <path d="M15.5 2.5 L15.5 7.5 L10.5 7.5" />
+                          </svg>
+                        </span>
+                        <span>{t('reduce')}</span>
+                      </button>
+                      <button
+                        className="rb-small"
+                        disabled={readOnly || pageCount === 0}
+                        data-tip={t('batesHint')}
+                        onClick={() => setBatesDlg(true)}
+                      >
+                        <span className="rb-small-icon">
+                          <IconBates />
+                        </span>
+                        <span>{t('bates')}</span>
+                      </button>
+                    </div>
+                    <div className="rb-drop-wrap" ref={pdfToolsWrapRef}>
+                      <button
+                        className={`rb-big${pdfToolsOpen ? ' active' : ''}`}
+                        disabled={pageCount === 0 || readOnly || !filePath}
+                        data-tip={t('pdfToolsMenuHint')}
+                        onClick={() => setPdfToolsOpen((v) => !v)}
+                      >
+                        <span className="rb-big-icon">
+                          <IconPdfTools />
+                          <RbCaret />
+                        </span>
+                        <span>{t('pdfToolsMenu')}</span>
+                      </button>
+                      {pdfToolsOpen && (
+                        <div className="rb-drop rb-menu">
+                          {PDF_TOOLS_MENU.map(([tool, label]) => (
+                            <button key={tool} onClick={() => void openInPdfTools(tool)}>
+                              {t(label)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            {ribbonTab === 'view' && (
+              <>
+                {viewNavGroup}
+                <div className="ribbon-sep" />
+                {pageZoomGroup(true)}
+              </>
+            )}
+          </div>
+          {ribbonScroll.canLeft && (
+            <button
+              type="button"
+              className="ribbon-scroll-btn ribbon-scroll-left"
+              aria-label={t('ribbonScrollLeft')}
+              data-tip={t('ribbonScrollLeft')}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => ribbonScroll.scrollByDir(-1)}
+            >
+              <span className="ribbon-scroll-icon" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M10 3.5 5.5 8 10 12.5"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+            </button>
           )}
-          {ribbonTab === 'view' && (
-            <>
-              {viewNavGroup}
-              <div className="ribbon-sep" />
-              {pageZoomGroup(true)}
-            </>
+          {ribbonScroll.canRight && (
+            <button
+              type="button"
+              className="ribbon-scroll-btn ribbon-scroll-right"
+              aria-label={t('ribbonScrollRight')}
+              data-tip={t('ribbonScrollRight')}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => ribbonScroll.scrollByDir(1)}
+            >
+              <span className="ribbon-scroll-icon" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M6 3.5 10.5 8 6 12.5"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+            </button>
           )}
         </div>
       </div>

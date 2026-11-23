@@ -10,6 +10,7 @@ import { highlightStrings } from './strings-highlight'
 import { notesStrings } from './strings-notes'
 import { pageSelectStrings } from './strings-page-select'
 import { handPanStrings } from './strings-hand-pan'
+import { ribbonScrollStrings } from './strings-ribbon-scroll'
 import { diskChangeStrings } from './strings-disk-change'
 import { protectStringsFor } from './protect-strings'
 
@@ -2420,6 +2421,8 @@ export const strings = {
     ...notesStrings.zh,
     ...pageSelectStrings.zh,
     ...handPanStrings.zh,
+
+    ...ribbonScrollStrings.zh,
     ...diskChangeStrings.zh,
     ...protectStringsFor('zh'),
     ribbonTabHome: '开始',
@@ -2882,6 +2885,8 @@ export const strings = {
     ...notesStrings.en,
     ...pageSelectStrings.en,
     ...handPanStrings.en,
+
+    ...ribbonScrollStrings.en,
     ...diskChangeStrings.en,
     ...protectStringsFor('en'),
     ribbonTabHome: 'Home',
@@ -3357,6 +3362,8 @@ export const strings = {
     ...notesStrings.vi,
     ...pageSelectStrings.vi,
     ...handPanStrings.vi,
+
+    ...ribbonScrollStrings.vi,
     ...diskChangeStrings.vi,
     ...protectStringsFor('vi'),
     ribbonTabHome: 'Trang chủ',
@@ -3836,6 +3843,8 @@ export const strings = {
     ...notesStrings.tr,
     ...pageSelectStrings.tr,
     ...handPanStrings.tr,
+
+    ...ribbonScrollStrings.tr,
     ...diskChangeStrings.tr,
     ...protectStringsFor('tr'),
     ribbonTabHome: 'Giriş',
@@ -4312,6 +4321,8 @@ export const strings = {
     ...notesStrings.ja,
     ...pageSelectStrings.ja,
     ...handPanStrings.ja,
+
+    ...ribbonScrollStrings.ja,
     ...diskChangeStrings.ja,
     ...protectStringsFor('ja'),
     ribbonTabHome: 'ホーム',
@@ -4786,6 +4797,8 @@ export const strings = {
     ...notesStrings.ko,
     ...pageSelectStrings.ko,
     ...handPanStrings.ko,
+
+    ...ribbonScrollStrings.ko,
     ...diskChangeStrings.ko,
     ...protectStringsFor('ko'),
     ribbonTabHome: '홈',
@@ -5259,6 +5272,8 @@ export const strings = {
     ...notesStrings.fr,
     ...pageSelectStrings.fr,
     ...handPanStrings.fr,
+
+    ...ribbonScrollStrings.fr,
     ...diskChangeStrings.fr,
     ...protectStringsFor('fr'),
     ribbonTabHome: 'Accueil',
@@ -5745,6 +5760,8 @@ export const strings = {
     ...notesStrings.de,
     ...pageSelectStrings.de,
     ...handPanStrings.de,
+
+    ...ribbonScrollStrings.de,
     ...diskChangeStrings.de,
     ...protectStringsFor('de'),
     ribbonTabHome: 'Start',
@@ -6229,6 +6246,8 @@ export const strings = {
     ...notesStrings.es,
     ...pageSelectStrings.es,
     ...handPanStrings.es,
+
+    ...ribbonScrollStrings.es,
     ...diskChangeStrings.es,
     ...protectStringsFor('es'),
     ribbonTabHome: 'Inicio',
@@ -6711,6 +6730,8 @@ export const strings = {
     ...notesStrings.th,
     ...pageSelectStrings.th,
     ...handPanStrings.th,
+
+    ...ribbonScrollStrings.th,
     ...diskChangeStrings.th,
     ...protectStringsFor('th'),
     ribbonTabHome: 'หน้าแรก',
@@ -7182,6 +7203,8 @@ export const strings = {
     ...notesStrings.id,
     ...pageSelectStrings.id,
     ...handPanStrings.id,
+
+    ...ribbonScrollStrings.id,
     ...diskChangeStrings.id,
     ...protectStringsFor('id'),
     ribbonTabHome: 'Beranda',
@@ -7661,6 +7684,8 @@ export const strings = {
     ...notesStrings.ru,
     ...pageSelectStrings.ru,
     ...handPanStrings.ru,
+
+    ...ribbonScrollStrings.ru,
     ...diskChangeStrings.ru,
     ...protectStringsFor('ru'),
     ribbonTabHome: 'Главная',
@@ -8142,6 +8167,8 @@ export const strings = {
     ...notesStrings.ar,
     ...pageSelectStrings.ar,
     ...handPanStrings.ar,
+
+    ...ribbonScrollStrings.ar,
     ...diskChangeStrings.ar,
     ...protectStringsFor('ar'),
     ribbonTabHome: 'الشريط الرئيسي',
@@ -8613,6 +8640,8 @@ export const strings = {
     ...notesStrings.pt,
     ...pageSelectStrings.pt,
     ...handPanStrings.pt,
+
+    ...ribbonScrollStrings.pt,
     ...diskChangeStrings.pt,
     ...protectStringsFor('pt'),
     ribbonTabHome: 'Página Inicial',
@@ -9094,6 +9123,8 @@ export const strings = {
     ...notesStrings.it,
     ...pageSelectStrings.it,
     ...handPanStrings.it,
+
+    ...ribbonScrollStrings.it,
     ...diskChangeStrings.it,
     ...protectStringsFor('it'),
     ribbonTabHome: 'Home',
@@ -9579,6 +9610,8 @@ export const strings = {
     ...notesStrings.pl,
     ...pageSelectStrings.pl,
     ...handPanStrings.pl,
+
+    ...ribbonScrollStrings.pl,
     ...diskChangeStrings.pl,
     ...protectStringsFor('pl'),
     ribbonTabHome: 'Narzędzia główne',
@@ -10059,6 +10092,8 @@ export const strings = {
     ...notesStrings.cs,
     ...pageSelectStrings.cs,
     ...handPanStrings.cs,
+
+    ...ribbonScrollStrings.cs,
     ...diskChangeStrings.cs,
     ...protectStringsFor('cs'),
     ribbonTabHome: 'Domů',
@@ -10536,6 +10571,8 @@ export const strings = {
     ...notesStrings.nl,
     ...pageSelectStrings.nl,
     ...handPanStrings.nl,
+
+    ...ribbonScrollStrings.nl,
     ...diskChangeStrings.nl,
     ...protectStringsFor('nl'),
     ribbonTabHome: 'Start',
@@ -11018,6 +11055,8 @@ export const strings = {
     ...notesStrings.ms,
     ...pageSelectStrings.ms,
     ...handPanStrings.ms,
+
+    ...ribbonScrollStrings.ms,
     ...diskChangeStrings.ms,
     ...protectStringsFor('ms'),
     ribbonTabHome: 'Laman Utama',
@@ -11497,6 +11536,8 @@ export const strings = {
     ...notesStrings.he,
     ...pageSelectStrings.he,
     ...handPanStrings.he,
+
+    ...ribbonScrollStrings.he,
     ...diskChangeStrings.he,
     ...protectStringsFor('he'),
     ribbonTabHome: 'בית',
@@ -11961,6 +12002,8 @@ export const strings = {
     ...notesStrings.hi,
     ...pageSelectStrings.hi,
     ...handPanStrings.hi,
+
+    ...ribbonScrollStrings.hi,
     ...diskChangeStrings.hi,
     ...protectStringsFor('hi'),
     ribbonTabHome: 'होम',
@@ -12437,6 +12480,8 @@ export const strings = {
     ...notesStrings['zh-TW'],
     ...pageSelectStrings['zh-TW'],
     ...handPanStrings['zh-TW'],
+
+    ...ribbonScrollStrings['zh-TW'],
     ...diskChangeStrings['zh-TW'],
     ...protectStringsFor('zh-TW'),
     ribbonTabHome: '常用',
