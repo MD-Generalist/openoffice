@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { IconClose } from './MobileIcons'
 
 export interface BottomSheetProps {
   readonly open: boolean
@@ -34,11 +35,12 @@ export function BottomSheet({ open, title, onClose, closeLabel, children }: Bott
           <h2 className="mobile-sheet-title">{title}</h2>
           <button
             type="button"
-            className="mobile-touch-btn mobile-btn-ghost"
+            className="mobile-icon-btn"
             onClick={onClose}
             aria-label={closeLabel}
+            title={closeLabel}
           >
-            {closeLabel}
+            <IconClose size={20} />
           </button>
         </header>
         <div className="mobile-sheet-body">{children}</div>

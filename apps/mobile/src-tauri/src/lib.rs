@@ -14,7 +14,8 @@ use tauri_plugin_ieum_mobile::{resolve_auth_bridge, resolve_file_bridge};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_ieum_mobile::init())
+        .plugin(tauri_plugin_ieum_mobile::init_file())
+        .plugin(tauri_plugin_ieum_mobile::init_auth())
         .setup(|app| {
             let app_data_dir = app
                 .path()

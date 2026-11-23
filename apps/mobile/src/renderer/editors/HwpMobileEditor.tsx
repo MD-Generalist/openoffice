@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { createEditor, type RhwpEditor } from '@rhwp/editor'
+import { createStudio, type RhwpEditor } from '@rhwp/editor'
 import type { Lang } from '@genoffice/i18n'
 import type { DocumentMode } from '@genoffice/mobile-bridge/view-edit-gate'
 import type { MobileTheme } from '@genoffice/mobile-bridge/transport'
@@ -9,6 +9,7 @@ import {
   seedMobileHwpStudioSettings,
   type MobileHwpEditorPort,
 } from '@genoffice/mobile-bridge/hwp'
+import blankHwpUrl from '../../../../hwp/src/renderer/assets/blank.hwp?url'
 import { registerMobileKoreanFonts } from '../assets/fonts'
 
 export type HwpQuickAction = 'undo' | 'redo' | 'bold' | 'italic' | 'underline'
@@ -30,9 +31,16 @@ export interface HwpMobileEditorProps {
   readonly onError?: (message: string) => void
 }
 
-const PASSWORD_FLAG = 'ieumPasswordProtected'
+/** Matches `PASSWORD_FLAG` in `apps/hwp/scripts/rhwp-patches.mjs`. */
+const PASSWORD_FLAG = 'passwordProtected'
 const STUDIO_DIRTY_EVENT = 'ieum:dirty'
 const DIRTY_POLL_MS = 2000
+
+const MOBILE_HIDDEN_CHROME = {
+  menu: false,
+  toolbar: false,
+  statusbar: false,
+} as const
 
 export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditorProps>(
   function HwpMobileEditor(
@@ -41,6 +49,7 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
   ) {
     const containerRef = useRef<HTMLDivElement | null>(null)
     const editorRef = useRef<RhwpEditor | null>(null)
+    const [loading, setLoading] = useState(true)
     const [zoom, setZoom] = useState(1)
 
     // Keep callback props in refs so parent re-renders never tear down and reload rhwp-studio.
@@ -58,6 +67,7 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
       let lastReportedDirty = false
       const container = containerRef.current
       if (!container) return
+      setLoading(true)
 
       const onFrameDirty = (event: Event) => {
         const isDirty = (event as CustomEvent<unknown>).detail === true
@@ -81,8 +91,10 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           if (cancelled) return
 
           const studioUrl = mobileHwpStudioUrl(lang)
-          const editor = await createEditor(container, {
+          const editor = await createStudio(container, {
             studioUrl,
+            renderer: 'canvas2d',
+            chrome: MOBILE_HIDDEN_CHROME,
           })
           if (cancelled) {
             editor.destroy()
@@ -90,9 +102,22 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           }
           editorRef.current = editor
 
+          // Ensure desktop menu/toolbar/statusbar chrome stays hidden on mobile viewports.
+          await editor.chrome.set(MOBILE_HIDDEN_CHROME).catch(() => {})
+          if (cancelled) return
+
           if (documentBytes && documentBytes.byteLength > 0) {
             await editor.loadFile(documentBytes, fileName, { skipUnsavedGuard: true })
+          } else {
+            const resp = await fetch(blankHwpUrl)
+            const blankBytes = new Uint8Array(await resp.arrayBuffer())
+            if (cancelled) return
+            await editor.loadFile(blankBytes, fileName || 'blank.hwp', { skipUnsavedGuard: true })
           }
+          if (cancelled) return
+
+          // Fit the page cleanly to the narrow mobile viewport width.
+          await editor.commands.execute('view:zoom-fit-width').catch(() => {})
           if (cancelled) return
 
           frameWindow = editor.element?.contentWindow ?? null
@@ -110,9 +135,11 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
               .catch(() => {})
           }, DIRTY_POLL_MS)
 
+          setLoading(false)
           onReadyRef.current?.()
         } catch (err) {
           if (!cancelled) {
+            setLoading(false)
             onErrorRef.current?.(err instanceof Error ? err.message : String(err))
           }
         }
@@ -131,17 +158,6 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
         }
       }
     }, [documentBytes, fileName, lang, theme])
-
-    // Sync view/read-only state inside rhwp-studio without blocking touch scroll or pinch zoom.
-    useEffect(() => {
-      const editor = editorRef.current
-      if (!editor) return
-      const readOnly = mode === 'view'
-      const raw = editor.commands as unknown as {
-        execute: (id: string, payload?: Record<string, unknown>) => Promise<unknown>
-      }
-      void raw.execute('view.setReadOnly', { readOnly }).catch(() => {})
-    }, [mode])
 
     useImperativeHandle(
       ref,
@@ -169,7 +185,6 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
               const ed = requireEditor()
               const raw = ed as unknown as {
                 getText?: () => Promise<string>
-                commands: { execute: (id: string) => Promise<unknown> }
               }
               if (typeof raw.getText === 'function') {
                 return raw.getText()
@@ -178,13 +193,8 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
             },
             async replaceText(find, replace) {
               const ed = requireEditor()
-              const raw = ed as unknown as {
-                commands: {
-                  execute: (id: string, payload?: Record<string, unknown>) => Promise<unknown>
-                }
-              }
               try {
-                await raw.commands.execute('edit.replace', { find, replace })
+                await ed.commands.execute('edit:find-replace', { find, replace })
                 onDirtyRef.current()
                 return true
               } catch {
@@ -193,8 +203,7 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
             },
             async notifySaved(savedName) {
               const ed = requireEditor()
-              const raw = ed as unknown as { notifySaved?: (name?: string) => Promise<void> }
-              await raw.notifySaved?.(savedName)
+              await ed.notifySaved(savedName)
             },
           }
         },
@@ -202,11 +211,11 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           const ed = editorRef.current
           if (!ed) return
           const map: Record<HwpQuickAction, string> = {
-            undo: 'edit.undo',
-            redo: 'edit.redo',
-            bold: 'format.bold',
-            italic: 'format.italic',
-            underline: 'format.underline',
+            undo: 'edit:undo',
+            redo: 'edit:redo',
+            bold: 'format:bold',
+            italic: 'format:italic',
+            underline: 'format:underline',
           }
           void ed.commands
             .execute(map[action])
@@ -215,6 +224,7 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
         },
         fitToWidth() {
           setZoom(1)
+          void editorRef.current?.commands.execute('view:zoom-fit-width').catch(() => {})
         },
       }),
       [],
@@ -222,11 +232,16 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
 
     return (
       <div
-        className="mobile-doc-viewport"
+        className="mobile-hwp-viewport"
         data-editor="hwp"
         data-renderer="canvas2d"
         data-mode={mode}
       >
+        {loading && (
+          <div className="mobile-hwp-loading" aria-live="polite">
+            <div className="mobile-spinner" aria-hidden="true" />
+          </div>
+        )}
         <div
           ref={containerRef}
           className="mobile-hwp-frame-host"

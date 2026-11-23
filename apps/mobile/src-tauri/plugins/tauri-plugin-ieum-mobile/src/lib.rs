@@ -210,22 +210,26 @@ mod mobile_bridge {
     }
 }
 
-/// Managed wrapper holding the platform-selected native file and auth bridges.
-pub struct MobileBridgeHandles {
+/// Managed wrapper holding the platform-selected native file bridge.
+pub struct MobileFileBridgeHandle {
     pub file_bridge: Arc<dyn NativeFileBridge>,
+}
+
+/// Managed wrapper holding the platform-selected native auth/keystore bridge.
+pub struct MobileAuthBridgeHandle {
     pub auth_bridge: Arc<dyn NativeAuthBridge>,
 }
 
-/// Returns the active file/share bridge registered by `init()`, or a host stub in tests.
+/// Returns the active file/share bridge registered by `init_file()`, or a host stub in tests.
 pub fn resolve_file_bridge<R: Runtime>(app: &AppHandle<R>) -> Arc<dyn NativeFileBridge> {
-    app.try_state::<MobileBridgeHandles>()
+    app.try_state::<MobileFileBridgeHandle>()
         .map(|s| s.file_bridge.clone())
         .unwrap_or_else(|| Arc::new(HostFileBridge::new()))
 }
 
-/// Returns the active keystore/auth browser bridge registered by `init()`, or a host stub in tests.
+/// Returns the active keystore/auth browser bridge registered by `init_auth()`, or a host stub in tests.
 pub fn resolve_auth_bridge<R: Runtime>(app: &AppHandle<R>) -> Arc<dyn NativeAuthBridge> {
-    app.try_state::<MobileBridgeHandles>()
+    app.try_state::<MobileAuthBridgeHandle>()
         .map(|s| s.auth_bridge.clone())
         .unwrap_or_else(|| Arc::new(HostAuthBridge::default()))
 }
@@ -235,42 +239,55 @@ tauri::ios_plugin_binding!(init_plugin_ieum_file);
 #[cfg(target_os = "ios")]
 tauri::ios_plugin_binding!(init_plugin_ieum_auth);
 
-/// Initializes the local IeumOffice mobile OS bridge plugin.
-/// On Android and iOS, registers the native Kotlin/Swift plugins and stores live
-/// `NativeFileBridge` / `NativeAuthBridge` handles backed by OS Keystore/Keychain,
-/// SAF/UIDocumentPicker, FileProvider/UIActivityViewController, and Custom Tabs/ASWebAuthenticationSession.
-pub fn init<R: Runtime>() -> TauriPlugin<R> {
-    Builder::new("ieum-mobile")
+/// Initializes the native OS file/SAF/FileProvider bridge plugin (`ieum-file`).
+/// Must be registered under its own plugin name so Android/iOS `PluginManager`
+/// keeps both `IeumFilePlugin` and `IeumAuthPlugin` registered simultaneously.
+pub fn init_file<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("ieum-file")
         .setup(|app, api| {
             #[cfg(target_os = "android")]
-            let handles = {
+            let file_bridge: Arc<dyn NativeFileBridge> = {
                 let file_handle =
                     api.register_android_plugin("com.ieumoffice.mobile.plugin", "IeumFilePlugin")?;
-                let auth_handle =
-                    api.register_android_plugin("com.ieumoffice.mobile.plugin", "IeumAuthPlugin")?;
-                MobileBridgeHandles {
-                    file_bridge: Arc::new(mobile_bridge::MobilePluginFileBridge::new(file_handle)),
-                    auth_bridge: Arc::new(mobile_bridge::MobilePluginAuthBridge::new(auth_handle)),
-                }
+                Arc::new(mobile_bridge::MobilePluginFileBridge::new(file_handle))
             };
             #[cfg(target_os = "ios")]
-            let handles = {
+            let file_bridge: Arc<dyn NativeFileBridge> = {
                 let file_handle = api.register_ios_plugin(init_plugin_ieum_file)?;
-                let auth_handle = api.register_ios_plugin(init_plugin_ieum_auth)?;
-                MobileBridgeHandles {
-                    file_bridge: Arc::new(mobile_bridge::MobilePluginFileBridge::new(file_handle)),
-                    auth_bridge: Arc::new(mobile_bridge::MobilePluginAuthBridge::new(auth_handle)),
-                }
+                Arc::new(mobile_bridge::MobilePluginFileBridge::new(file_handle))
             };
             #[cfg(not(mobile))]
-            let handles = {
+            let file_bridge: Arc<dyn NativeFileBridge> = {
                 let _ = api;
-                MobileBridgeHandles {
-                    file_bridge: Arc::new(HostFileBridge::new()),
-                    auth_bridge: Arc::new(HostAuthBridge::default()),
-                }
+                Arc::new(HostFileBridge::new())
             };
-            app.manage(handles);
+            app.manage(MobileFileBridgeHandle { file_bridge });
+            Ok(())
+        })
+        .build()
+}
+
+/// Initializes the native OS Keystore/Keychain and Custom Tabs auth plugin (`ieum-auth`).
+pub fn init_auth<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("ieum-auth")
+        .setup(|app, api| {
+            #[cfg(target_os = "android")]
+            let auth_bridge: Arc<dyn NativeAuthBridge> = {
+                let auth_handle =
+                    api.register_android_plugin("com.ieumoffice.mobile.plugin", "IeumAuthPlugin")?;
+                Arc::new(mobile_bridge::MobilePluginAuthBridge::new(auth_handle))
+            };
+            #[cfg(target_os = "ios")]
+            let auth_bridge: Arc<dyn NativeAuthBridge> = {
+                let auth_handle = api.register_ios_plugin(init_plugin_ieum_auth)?;
+                Arc::new(mobile_bridge::MobilePluginAuthBridge::new(auth_handle))
+            };
+            #[cfg(not(mobile))]
+            let auth_bridge: Arc<dyn NativeAuthBridge> = {
+                let _ = api;
+                Arc::new(HostAuthBridge::default())
+            };
+            app.manage(MobileAuthBridgeHandle { auth_bridge });
             Ok(())
         })
         .build()

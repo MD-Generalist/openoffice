@@ -11,6 +11,32 @@ import type {
   MobileTheme,
 } from '@genoffice/mobile-bridge/transport'
 import { useMobileLocale } from '../i18n'
+import { IconBack, IconChevronDown, IconChevronRight } from '../components/MobileIcons'
+
+const LANG_NATIVE_LABELS: Record<Lang, string> = {
+  ar: 'العربية',
+  cs: 'Čeština',
+  de: 'Deutsch',
+  en: 'English',
+  es: 'Español',
+  fr: 'Français',
+  he: 'עברית',
+  hi: 'हिन्दी',
+  id: 'Bahasa Indonesia',
+  it: 'Italiano',
+  ja: '日本語',
+  ko: '한국어',
+  ms: 'Bahasa Melayu',
+  nl: 'Nederlands',
+  pl: 'Polski',
+  pt: 'Português',
+  ru: 'Русский',
+  th: 'ไทย',
+  tr: 'Türkçe',
+  vi: 'Tiếng Việt',
+  zh: '简体中文',
+  'zh-TW': '繁體中文',
+}
 
 const BYOK_PROVIDERS = [
   { id: 'openai', label: 'OpenAI' },
@@ -58,11 +84,16 @@ export function SettingsScreen({
 }: SettingsScreenProps) {
   const { t } = useMobileLocale()
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({})
+  const [expandedSlot, setExpandedSlot] = useState<string | null>(null)
   const [busyProvider, setBusyProvider] = useState<string | null>(null)
   const [keyError, setKeyError] = useState<string | null>(null)
 
   const setDraft = (slot: string, value: string) => {
     setKeyDrafts((prev) => ({ ...prev, [slot]: value }))
+  }
+
+  const toggleSlot = (slot: string) => {
+    setExpandedSlot((prev) => (prev === slot ? null : slot))
   }
 
   const saveKey = async (slot: string, provider: string, freeOnly?: boolean) => {
@@ -73,6 +104,7 @@ export function SettingsScreen({
     try {
       await onValidateAndSaveKey({ provider, apiKey, freeOnly })
       setDraft(slot, '')
+      setExpandedSlot(null)
     } catch (err) {
       setKeyError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -83,332 +115,311 @@ export function SettingsScreen({
   const openRouterConfigured = aiSettings.configuredProviders.openrouter
   const geminiConfigured = aiSettings.configuredProviders.gemini
 
-  return (
-    <main className="mobile-settings" data-testid="mobile-settings-screen">
-      <header className="mobile-editor-header">
-        <button type="button" className="mobile-touch-btn mobile-btn-ghost" onClick={onBack}>
-          {t('back')}
+  const renderProviderAccordion = (opts: {
+    slot: string
+    providerId: string
+    label: string
+    connected: boolean
+    freeOnly?: boolean
+  }) => {
+    const isExpanded = expandedSlot === opts.slot
+    return (
+      <div key={opts.slot} className="mobile-accordion-item">
+        <button
+          type="button"
+          className="mobile-accordion-trigger"
+          onClick={() => toggleSlot(opts.slot)}
+          aria-expanded={isExpanded}
+        >
+          <span className="mobile-accordion-title">{opts.label}</span>
+          <span className="mobile-accordion-right">
+            {opts.connected && <span className="mobile-badge mobile-badge-ok">{t('settingsKeyConnected')}</span>}
+            {isExpanded ? (
+              <IconChevronDown size={17} className="mobile-chevron" />
+            ) : (
+              <IconChevronRight size={17} className="mobile-chevron" />
+            )}
+          </span>
         </button>
-        <h1 className="mobile-header-title">{t('settingsTitle')}</h1>
-        <span className="mobile-header-spacer" />
+
+        {isExpanded && (
+          <div className="mobile-accordion-body">
+            {opts.connected ? (
+              <div className="mobile-row-actions">
+                <button
+                  type="button"
+                  className="mobile-touch-btn mobile-btn-secondary"
+                  onClick={() => onSelectProvider(opts.providerId)}
+                >
+                  {opts.label}
+                </button>
+                <button
+                  type="button"
+                  className="mobile-touch-btn mobile-btn-ghost"
+                  onClick={() => void onRemoveKey(opts.providerId)}
+                >
+                  {t('settingsKeyRemove')}
+                </button>
+              </div>
+            ) : (
+              <div className="mobile-key-form">
+                <input
+                  type="password"
+                  className="mobile-input"
+                  value={keyDrafts[opts.slot] ?? ''}
+                  onChange={(e) => setDraft(opts.slot, e.target.value)}
+                  placeholder={t('settingsApiKeyPlaceholder')}
+                  aria-label={opts.label}
+                />
+                <button
+                  type="button"
+                  className="mobile-touch-btn mobile-btn-primary"
+                  disabled={busyProvider === opts.slot || !(keyDrafts[opts.slot] ?? '').trim()}
+                  onClick={() => void saveKey(opts.slot, opts.providerId, opts.freeOnly)}
+                >
+                  {t('settingsValidateAndSave')}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="mobile-page" data-testid="mobile-settings-screen">
+      <header className="mobile-appbar">
+        <button
+          type="button"
+          className="mobile-icon-btn"
+          onClick={onBack}
+          aria-label={t('back')}
+          title={t('back')}
+        >
+          <IconBack size={22} />
+        </button>
+        <h1 className="mobile-appbar-title">{t('settingsTitle')}</h1>
+        <span className="mobile-header-spacer" aria-hidden="true" />
       </header>
 
-      <section className="mobile-card">
-        <label className="mobile-field">
-          <span>{t('settingsLanguage')}</span>
-          <select
-            className="mobile-select"
-            value={prefs.lang}
-            onChange={(e) => onUpdatePrefs({ lang: e.target.value as Lang })}
-            data-testid="settings-lang-select"
-          >
-            {LANGS.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </label>
+      <main className="mobile-page-body">
+        <section className="mobile-card">
+          <label className="mobile-field">
+            <span className="mobile-field-label">{t('settingsLanguage')}</span>
+            <select
+              className="mobile-select"
+              value={prefs.lang}
+              onChange={(e) => onUpdatePrefs({ lang: e.target.value as Lang })}
+              data-testid="settings-lang-select"
+            >
+              {LANGS.map((code) => (
+                <option key={code} value={code}>
+                  {LANG_NATIVE_LABELS[code] ?? code}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="mobile-field">
-          <span>{t('settingsTheme')}</span>
-          <select
-            className="mobile-select"
-            value={prefs.theme}
-            onChange={(e) => onUpdatePrefs({ theme: e.target.value as MobileTheme })}
-            data-testid="settings-theme-select"
-          >
-            <option value="light">{t('themeLight')}</option>
-            <option value="dark">{t('themeDark')}</option>
-            <option value="system">{t('themeSystem')}</option>
-          </select>
-        </label>
+          <label className="mobile-field">
+            <span className="mobile-field-label">{t('settingsTheme')}</span>
+            <select
+              className="mobile-select"
+              value={prefs.theme}
+              onChange={(e) => onUpdatePrefs({ theme: e.target.value as MobileTheme })}
+              data-testid="settings-theme-select"
+            >
+              <option value="system">{t('themeSystem')}</option>
+              <option value="light">{t('themeLight')}</option>
+              <option value="dark">{t('themeDark')}</option>
+            </select>
+          </label>
 
-        <label className="mobile-field">
-          <span>{t('settingsHwpFormat')}</span>
-          <select
-            className="mobile-select"
-            value={prefs.hwpDefaultFormat}
-            onChange={(e) => onUpdatePrefs({ hwpDefaultFormat: e.target.value as 'hwp' | 'hwpx' })}
-            data-testid="settings-hwp-format-select"
-          >
-            <option value="hwp">.hwp</option>
-            <option value="hwpx">.hwpx</option>
-          </select>
-        </label>
+          <label className="mobile-field">
+            <span className="mobile-field-label">{t('settingsHwpFormat')}</span>
+            <select
+              className="mobile-select"
+              value={prefs.hwpDefaultFormat}
+              onChange={(e) =>
+                onUpdatePrefs({ hwpDefaultFormat: e.target.value as 'hwp' | 'hwpx' })
+              }
+              data-testid="settings-hwp-format-select"
+            >
+              <option value="hwp">.hwp</option>
+              <option value="hwpx">.hwpx</option>
+            </select>
+          </label>
 
-        <label className="mobile-toggle-row">
-          <span>{t('settingsAiEnabled')}</span>
-          <input
-            type="checkbox"
-            checked={prefs.aiEnabled}
-            onChange={(e) => onUpdatePrefs({ aiEnabled: e.target.checked })}
-            data-testid="settings-ai-enabled-toggle"
-          />
-        </label>
-      </section>
+          <label className="mobile-toggle-row">
+            <span className="mobile-field-label">{t('settingsAiEnabled')}</span>
+            <input
+              type="checkbox"
+              className="mobile-switch"
+              checked={prefs.aiEnabled}
+              onChange={(e) => onUpdatePrefs({ aiEnabled: e.target.checked })}
+              data-testid="settings-ai-enabled-toggle"
+            />
+          </label>
+        </section>
 
-      {prefs.aiEnabled && (
-        <section className="mobile-card" aria-label={t('settingsAiSection')}>
-          <h2 className="mobile-section-title">{t('settingsAiSection')}</h2>
-          {keyError && (
-            <div className="mobile-inline-alert" role="alert">
-              {keyError}
-            </div>
-          )}
-
-          {aiSettings.chatgptVisible && (
-            <div className="mobile-subcard" data-testid="settings-chatgpt-card">
-              <div className="mobile-list-row">
-                <strong>{t('settingsChatgptCard')}</strong>
-                <span className="mobile-badge">{chatgptStatus.state}</span>
+        {prefs.aiEnabled && (
+          <section className="mobile-section" aria-label={t('settingsAiSection')}>
+            <h2 className="mobile-section-heading">{t('settingsAiSection')}</h2>
+            {keyError && (
+              <div className="mobile-inline-alert" role="alert">
+                {keyError}
               </div>
-              {chatgptStatus.state === 'ready' ? (
-                <>
-                  <p className="mobile-muted">
-                    {chatgptStatus.account ? `${chatgptStatus.account} · ` : ''}
-                    {t('settingsChatgptConnectedPlan')}
-                  </p>
-                  <div className="mobile-row-actions">
-                    <a
-                      href={SUBSCRIPTION_CHATGPT_USAGE_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mobile-link-btn"
-                      data-testid="chatgpt-manage-usage-link"
-                    >
-                      {t('aiManageUsage')}
-                    </a>
-                    <button
-                      type="button"
-                      className="mobile-touch-btn mobile-btn-secondary"
-                      onClick={() => onSelectProvider('chatgpt')}
-                    >
-                      {t('settingsChatgptCard')}
-                    </button>
-                    <button
-                      type="button"
-                      className="mobile-touch-btn mobile-btn-ghost"
-                      onClick={() => void onChatgptSignOut()}
-                    >
-                      {t('settingsChatgptDisconnect')}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {chatgptStatus.loginFailure?.reason === 'no-plan' && (
-                    <div className="mobile-inline-alert" role="alert">
-                      <strong>{t('aiSharingDeclinedTitle')}</strong>
-                      <p>{t('aiSharingDeclinedDesc')}</p>
-                      <button
-                        type="button"
-                        className="mobile-touch-btn mobile-btn-primary"
-                        onClick={() => void onChatgptSignIn(true)}
-                      >
-                        {t('aiEnableSharing')}
-                      </button>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    className="mobile-touch-btn mobile-btn-primary"
-                    onClick={() => void onChatgptSignIn(false)}
-                  >
-                    {t('settingsChatgptContinue')}
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+            )}
 
-          <div className="mobile-subcard" data-testid="settings-free-ai-section">
-            <h3>{t('settingsFreeAiSection')}</h3>
-
-            <div className="mobile-provider-row">
-              <strong>{t('settingsOpenRouterFree')}</strong>
-              {openRouterConfigured?.hasKey && openRouterConfigured.freeOnly ? (
-                <div className="mobile-row-actions">
-                  <span className="mobile-badge">{t('settingsKeyConnected')}</span>
-                  <button
-                    type="button"
-                    className="mobile-touch-btn mobile-btn-secondary"
-                    onClick={() => onSelectProvider('openrouter')}
-                  >
-                    {t('settingsOpenRouterFree')}
-                  </button>
-                  <button
-                    type="button"
-                    className="mobile-touch-btn mobile-btn-ghost"
-                    onClick={() => void onRemoveKey('openrouter')}
-                  >
-                    {t('settingsKeyRemove')}
-                  </button>
+            {aiSettings.chatgptVisible && (
+              <div className="mobile-card" data-testid="settings-chatgpt-card">
+                <div className="mobile-list-row">
+                  <strong>{t('settingsChatgptCard')}</strong>
+                  <span className="mobile-badge">{chatgptStatus.state}</span>
                 </div>
-              ) : (
-                <div className="mobile-row-actions">
-                  <input
-                    type="password"
-                    className="mobile-input"
-                    value={keyDrafts['openrouter-free'] ?? ''}
-                    onChange={(e) => setDraft('openrouter-free', e.target.value)}
-                    placeholder={t('settingsApiKeyPlaceholder')}
-                    aria-label={t('settingsOpenRouterFree')}
-                  />
-                  <button
-                    type="button"
-                    className="mobile-touch-btn mobile-btn-primary"
-                    disabled={busyProvider === 'openrouter-free'}
-                    onClick={() => void saveKey('openrouter-free', 'openrouter', true)}
-                  >
-                    {t('settingsValidateAndSave')}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="mobile-provider-row">
-              <strong>{t('settingsGeminiFree')}</strong>
-              {geminiConfigured?.hasKey ? (
-                <div className="mobile-row-actions">
-                  <span className="mobile-badge">{t('settingsKeyConnected')}</span>
-                  <button
-                    type="button"
-                    className="mobile-touch-btn mobile-btn-secondary"
-                    onClick={() => onSelectProvider('gemini')}
-                  >
-                    {t('settingsGeminiFree')}
-                  </button>
-                  <button
-                    type="button"
-                    className="mobile-touch-btn mobile-btn-ghost"
-                    onClick={() => void onRemoveKey('gemini')}
-                  >
-                    {t('settingsKeyRemove')}
-                  </button>
-                </div>
-              ) : (
-                <div className="mobile-row-actions">
-                  <input
-                    type="password"
-                    className="mobile-input"
-                    value={keyDrafts['gemini-free'] ?? ''}
-                    onChange={(e) => setDraft('gemini-free', e.target.value)}
-                    placeholder={t('settingsApiKeyPlaceholder')}
-                    aria-label={t('settingsGeminiFree')}
-                  />
-                  <button
-                    type="button"
-                    className="mobile-touch-btn mobile-btn-primary"
-                    disabled={busyProvider === 'gemini-free'}
-                    onClick={() => void saveKey('gemini-free', 'gemini')}
-                  >
-                    {t('settingsValidateAndSave')}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="mobile-subcard" data-testid="settings-byok-section">
-            <h3>{t('settingsByokSection')}</h3>
-            {BYOK_PROVIDERS.map(({ id, label }) => {
-              const info = aiSettings.configuredProviders[id]
-              const isConnected =
-                id === 'openrouter'
-                  ? Boolean(info?.hasKey && !info.freeOnly)
-                  : Boolean(info?.hasKey)
-              const slot = `byok-${id}`
-              return (
-                <div key={id} className="mobile-provider-row">
-                  <strong>{label}</strong>
-                  {isConnected ? (
+                {chatgptStatus.state === 'ready' ? (
+                  <>
+                    <p className="mobile-muted">
+                      {chatgptStatus.account ? `${chatgptStatus.account} · ` : ''}
+                      {t('settingsChatgptConnectedPlan')}
+                    </p>
                     <div className="mobile-row-actions">
-                      <span className="mobile-badge">{t('settingsKeyConnected')}</span>
+                      <a
+                        href={SUBSCRIPTION_CHATGPT_USAGE_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mobile-link-btn"
+                        data-testid="chatgpt-manage-usage-link"
+                      >
+                        {t('aiManageUsage')}
+                      </a>
                       <button
                         type="button"
                         className="mobile-touch-btn mobile-btn-secondary"
-                        onClick={() => onSelectProvider(id)}
+                        onClick={() => onSelectProvider('chatgpt')}
                       >
-                        {label}
+                        {t('settingsChatgptCard')}
                       </button>
                       <button
                         type="button"
                         className="mobile-touch-btn mobile-btn-ghost"
-                        onClick={() => void onRemoveKey(id)}
+                        onClick={() => void onChatgptSignOut()}
                       >
-                        {t('settingsKeyRemove')}
+                        {t('settingsChatgptDisconnect')}
                       </button>
                     </div>
-                  ) : (
+                  </>
+                ) : (
+                  <>
+                    {chatgptStatus.loginFailure?.reason === 'no-plan' && (
+                      <div className="mobile-inline-alert" role="alert">
+                        <strong>{t('aiSharingDeclinedTitle')}</strong>
+                        <p className="mobile-alert-text">{t('aiSharingDeclinedDesc')}</p>
+                        <button
+                          type="button"
+                          className="mobile-touch-btn mobile-btn-primary"
+                          onClick={() => void onChatgptSignIn(true)}
+                        >
+                          {t('aiEnableSharing')}
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      className="mobile-touch-btn mobile-btn-primary"
+                      onClick={() => void onChatgptSignIn(false)}
+                    >
+                      {t('settingsChatgptContinue')}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="mobile-card" data-testid="settings-free-ai-section">
+              <h3 className="mobile-card-subtitle">{t('settingsFreeAiSection')}</h3>
+              <div className="mobile-accordion-group">
+                {renderProviderAccordion({
+                  slot: 'openrouter-free',
+                  providerId: 'openrouter',
+                  label: t('settingsOpenRouterFree'),
+                  connected: Boolean(openRouterConfigured?.hasKey && openRouterConfigured.freeOnly),
+                  freeOnly: true,
+                })}
+                {renderProviderAccordion({
+                  slot: 'gemini-free',
+                  providerId: 'gemini',
+                  label: t('settingsGeminiFree'),
+                  connected: Boolean(geminiConfigured?.hasKey),
+                })}
+              </div>
+            </div>
+
+            <div className="mobile-card" data-testid="settings-byok-section">
+              <h3 className="mobile-card-subtitle">{t('settingsByokSection')}</h3>
+              <div className="mobile-accordion-group">
+                {BYOK_PROVIDERS.map(({ id, label }) => {
+                  const info = aiSettings.configuredProviders[id]
+                  const isConnected =
+                    id === 'openrouter'
+                      ? Boolean(info?.hasKey && !info.freeOnly)
+                      : Boolean(info?.hasKey)
+                  return renderProviderAccordion({
+                    slot: `byok-${id}`,
+                    providerId: id,
+                    label,
+                    connected: isConnected,
+                    freeOnly: id === 'openrouter' ? false : undefined,
+                  })
+                })}
+              </div>
+            </div>
+          </section>
+        )}
+
+        <section className="mobile-section" aria-label={t('settingsBackupsSection')}>
+          <h2 className="mobile-section-heading">{t('settingsBackupsSection')}</h2>
+          <div className="mobile-card">
+            {backups.length === 0 ? (
+              <p className="mobile-muted">{t('settingsBackupsEmpty')}</p>
+            ) : (
+              <ul className="mobile-list" data-testid="settings-backup-list">
+                {backups.map((item) => (
+                  <li key={item.backupId} className="mobile-list-item-col">
+                    <div className="mobile-list-row">
+                      <span className="mobile-list-name">{item.originalName}</span>
+                      <span className="mobile-badge">{item.format.toUpperCase()}</span>
+                    </div>
                     <div className="mobile-row-actions">
-                      <input
-                        type="password"
-                        className="mobile-input"
-                        value={keyDrafts[slot] ?? ''}
-                        onChange={(e) => setDraft(slot, e.target.value)}
-                        placeholder={t('settingsApiKeyPlaceholder')}
-                        aria-label={label}
-                      />
                       <button
                         type="button"
-                        className="mobile-touch-btn mobile-btn-primary"
-                        disabled={busyProvider === slot}
-                        onClick={() =>
-                          void saveKey(slot, id, id === 'openrouter' ? false : undefined)
-                        }
+                        className="mobile-touch-btn mobile-btn-secondary"
+                        onClick={() => void onRestoreBackup(item.backupId, 'in-place')}
                       >
-                        {t('settingsValidateAndSave')}
+                        {t('backupRestoreInPlace')}
+                      </button>
+                      <button
+                        type="button"
+                        className="mobile-touch-btn mobile-btn-secondary"
+                        onClick={() => void onRestoreBackup(item.backupId, 'save-as')}
+                      >
+                        {t('backupRestoreSaveAs')}
+                      </button>
+                      <button
+                        type="button"
+                        className="mobile-touch-btn mobile-btn-ghost"
+                        onClick={() => void onDeleteBackup(item.backupId)}
+                      >
+                        {t('backupDelete')}
                       </button>
                     </div>
-                  )}
-                </div>
-              )
-            })}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
-      )}
-
-      <section className="mobile-card" aria-label={t('settingsBackupsSection')}>
-        <h2 className="mobile-section-title">{t('settingsBackupsSection')}</h2>
-        {backups.length === 0 ? (
-          <p className="mobile-muted">{t('settingsBackupsEmpty')}</p>
-        ) : (
-          <ul className="mobile-list" data-testid="settings-backup-list">
-            {backups.map((item) => (
-              <li key={item.backupId} className="mobile-list-item-col">
-                <div className="mobile-list-row">
-                  <span className="mobile-list-name">{item.originalName}</span>
-                  <span className="mobile-badge">{item.format.toUpperCase()}</span>
-                </div>
-                <div className="mobile-row-actions">
-                  <button
-                    type="button"
-                    className="mobile-touch-btn mobile-btn-secondary"
-                    onClick={() => void onRestoreBackup(item.backupId, 'in-place')}
-                  >
-                    {t('backupRestoreInPlace')}
-                  </button>
-                  <button
-                    type="button"
-                    className="mobile-touch-btn mobile-btn-secondary"
-                    onClick={() => void onRestoreBackup(item.backupId, 'save-as')}
-                  >
-                    {t('backupRestoreSaveAs')}
-                  </button>
-                  <button
-                    type="button"
-                    className="mobile-touch-btn mobile-btn-ghost"
-                    onClick={() => void onDeleteBackup(item.backupId)}
-                  >
-                    {t('backupDelete')}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+      </main>
+    </div>
   )
 }

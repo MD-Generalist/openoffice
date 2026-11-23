@@ -1,4 +1,4 @@
-use crate::error::MobileResult;
+use crate::error::{MobileError, MobileErrorCode, MobileResult};
 use crate::hwp::{HwpFixPayload, TabSpot};
 use crate::storage::{
     HwpBackupEntry, MobileDocFormat, MobileDocSession, MobileFileService, MobileShareMode,
@@ -14,6 +14,16 @@ pub struct OkResult {
     pub ok: bool,
 }
 
+async fn run_blocking_file_op<T, F>(op: F) -> MobileResult<T>
+where
+    T: Send + 'static,
+    F: FnOnce() -> MobileResult<T> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(op)
+        .await
+        .map_err(|e| MobileError::with_detail(MobileErrorCode::InternalError, "mobile.internalError", e.to_string()))?
+}
+
 #[tauri::command]
 pub fn mobile_create_untitled_session(
     state: State<'_, Arc<MobileFileService>>,
@@ -23,19 +33,21 @@ pub fn mobile_create_untitled_session(
 }
 
 #[tauri::command]
-pub fn mobile_pick_open_file(
+pub async fn mobile_pick_open_file(
     state: State<'_, Arc<MobileFileService>>,
     exts: Vec<String>,
 ) -> MobileResult<MobileDocSession> {
-    state.pick_open_file(&exts)
+    let svc = state.inner().clone();
+    run_blocking_file_op(move || svc.pick_open_file(&exts)).await
 }
 
 #[tauri::command]
-pub fn mobile_open_recent_doc(
+pub async fn mobile_open_recent_doc(
     state: State<'_, Arc<MobileFileService>>,
     id: String,
 ) -> MobileResult<MobileDocSession> {
-    state.open_recent_doc(&id)
+    let svc = state.inner().clone();
+    run_blocking_file_op(move || svc.open_recent_doc(&id)).await
 }
 
 #[tauri::command]
@@ -46,35 +58,38 @@ pub fn mobile_consume_pending_open_intent(
 }
 
 #[tauri::command]
-pub fn mobile_read_file_bytes(
+pub async fn mobile_read_file_bytes(
     state: State<'_, Arc<MobileFileService>>,
     session_id: String,
 ) -> MobileResult<ReadFileBytesResult> {
-    state.read_file_bytes(&session_id)
+    let svc = state.inner().clone();
+    run_blocking_file_op(move || svc.read_file_bytes(&session_id)).await
 }
 
 #[tauri::command]
-pub fn mobile_hwp_new_tabs(
+pub async fn mobile_hwp_new_tabs(
     state: State<'_, Arc<MobileFileService>>,
     session_id: String,
     bytes_base64: String,
     format: MobileDocFormat,
 ) -> MobileResult<Vec<TabSpot>> {
-    state.hwp_new_tabs(&session_id, &bytes_base64, format)
+    let svc = state.inner().clone();
+    run_blocking_file_op(move || svc.hwp_new_tabs(&session_id, &bytes_base64, format)).await
 }
 
 #[tauri::command]
-pub fn mobile_save_file_bytes(
+pub async fn mobile_save_file_bytes(
     state: State<'_, Arc<MobileFileService>>,
     session_id: String,
     bytes_base64: String,
     hwp_fix: Option<HwpFixPayload>,
 ) -> MobileResult<SaveFileBytesResult> {
-    state.save_file_bytes(&session_id, &bytes_base64, hwp_fix)
+    let svc = state.inner().clone();
+    run_blocking_file_op(move || svc.save_file_bytes(&session_id, &bytes_base64, hwp_fix)).await
 }
 
 #[tauri::command]
-pub fn mobile_save_as_file_bytes(
+pub async fn mobile_save_as_file_bytes(
     state: State<'_, Arc<MobileFileService>>,
     session_id: Option<String>,
     suggested_name: String,
@@ -82,25 +97,33 @@ pub fn mobile_save_as_file_bytes(
     bytes_base64: String,
     hwp_fix: Option<HwpFixPayload>,
 ) -> MobileResult<MobileDocSession> {
-    state.save_as_file_bytes(
-        session_id.as_deref(),
-        &suggested_name,
-        format,
-        &bytes_base64,
-        hwp_fix,
-    )
+    let svc = state.inner().clone();
+    run_blocking_file_op(move || {
+        svc.save_as_file_bytes(
+            session_id.as_deref(),
+            &suggested_name,
+            format,
+            &bytes_base64,
+            hwp_fix,
+        )
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn mobile_share_file(
+pub async fn mobile_share_file(
     state: State<'_, Arc<MobileFileService>>,
     session_id: String,
     suggested_name: String,
     mode: MobileShareMode,
     bytes_base64: Option<String>,
 ) -> MobileResult<OkResult> {
-    state.share_file(&session_id, &suggested_name, mode, bytes_base64.as_deref())?;
-    Ok(OkResult { ok: true })
+    let svc = state.inner().clone();
+    run_blocking_file_op(move || {
+        svc.share_file(&session_id, &suggested_name, mode, bytes_base64.as_deref())?;
+        Ok(OkResult { ok: true })
+    })
+    .await
 }
 
 #[tauri::command]
@@ -163,12 +186,13 @@ pub fn mobile_hwp_backup_list(
 }
 
 #[tauri::command]
-pub fn mobile_hwp_backup_restore(
+pub async fn mobile_hwp_backup_restore(
     state: State<'_, Arc<MobileFileService>>,
     backup_id: String,
     target: RestoreTarget,
 ) -> MobileResult<RestoreBackupResult> {
-    state.hwp_backup_restore(&backup_id, target)
+    let svc = state.inner().clone();
+    run_blocking_file_op(move || svc.hwp_backup_restore(&backup_id, target)).await
 }
 
 #[tauri::command]

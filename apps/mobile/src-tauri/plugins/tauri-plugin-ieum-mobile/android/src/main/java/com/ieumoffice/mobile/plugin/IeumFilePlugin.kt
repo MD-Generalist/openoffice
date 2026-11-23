@@ -2,11 +2,17 @@ package com.ieumoffice.mobile.plugin
 
 import android.app.Activity
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
+import android.view.View
+import android.webkit.WebView
 import androidx.activity.result.ActivityResult
 import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -52,6 +58,37 @@ class ShareArgs {
 @TauriPlugin
 class IeumFilePlugin(private val activity: Activity) : Plugin(activity) {
     private val pendingIntents = ConcurrentLinkedQueue<JSObject>()
+
+    override fun load(webView: WebView) {
+        super.load(webView)
+        applySystemBarInsets()
+        captureIncomingIntent(activity.intent)
+    }
+
+    private fun applySystemBarInsets() {
+        activity.runOnUiThread {
+            val window = activity.window ?: return@runOnUiThread
+            val decorView = window.decorView
+            val isNight =
+                (activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                    Configuration.UI_MODE_NIGHT_YES
+            val insetsController = WindowInsetsControllerCompat(window, decorView)
+            insetsController.isAppearanceLightStatusBars = !isNight
+            insetsController.isAppearanceLightNavigationBars = !isNight
+
+            val content = decorView.findViewById<View>(android.R.id.content) ?: return@runOnUiThread
+            ViewCompat.setOnApplyWindowInsetsListener(content) { view, windowInsets ->
+                val insets = windowInsets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() or
+                        WindowInsetsCompat.Type.displayCutout() or
+                        WindowInsetsCompat.Type.ime()
+                )
+                view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
+                windowInsets
+            }
+            ViewCompat.requestApplyInsets(content)
+        }
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

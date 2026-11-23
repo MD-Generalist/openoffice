@@ -194,7 +194,7 @@ export const MarkdownMobileEditor = forwardRef<
   )
 
   return (
-    <div className="mobile-doc-viewport" data-editor="markdown" data-mode={mode}>
+    <div className="mobile-md-viewport" data-editor="markdown" data-mode={mode}>
       <input
         ref={fileInputRef}
         type="file"
@@ -218,6 +218,7 @@ export const MarkdownMobileEditor = forwardRef<
           value={value}
           onChange={(e) => commitValue(e.target.value)}
           spellCheck={false}
+          placeholder="# "
           aria-label="Markdown document editor"
         />
       )}

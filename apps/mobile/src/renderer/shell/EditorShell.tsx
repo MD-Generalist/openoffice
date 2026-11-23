@@ -3,6 +3,25 @@ import type { DocumentMode } from '@genoffice/mobile-bridge/view-edit-gate'
 import type { MobileDocFormat } from '@genoffice/mobile-bridge/transport'
 import { useMobileLocale } from '../i18n'
 import { BottomSheet } from '../components/BottomSheet'
+import {
+  IconBack,
+  IconBold,
+  IconCheck,
+  IconClose,
+  IconEdit,
+  IconFitWidth,
+  IconHeading,
+  IconHistory,
+  IconImage,
+  IconItalic,
+  IconMore,
+  IconRedo,
+  IconSave,
+  IconShare,
+  IconSparkles,
+  IconUnderline,
+  IconUndo,
+} from '../components/MobileIcons'
 import { useViewportLayout } from './useViewportLayout'
 
 export interface EditorQuickActionItem {
@@ -29,6 +48,27 @@ export interface EditorShellProps {
   readonly onFitToWidth: () => void
   readonly onOpenBackups: () => void
   readonly children: ReactNode
+}
+
+function renderQuickActionIcon(id: string): ReactNode {
+  switch (id) {
+    case 'undo':
+      return <IconUndo size={19} />
+    case 'redo':
+      return <IconRedo size={19} />
+    case 'bold':
+      return <IconBold size={18} />
+    case 'italic':
+      return <IconItalic size={18} />
+    case 'underline':
+      return <IconUnderline size={18} />
+    case 'heading':
+      return <IconHeading size={19} />
+    case 'image':
+      return <IconImage size={19} />
+    default:
+      return null
+  }
 }
 
 export function EditorShell({
@@ -64,11 +104,13 @@ export function EditorShell({
       <header className="mobile-editor-header" data-testid="editor-header">
         <button
           type="button"
-          className="mobile-touch-btn mobile-btn-ghost"
+          className="mobile-icon-btn"
           onClick={onBack}
+          aria-label={t('back')}
+          title={t('back')}
           data-testid="editor-back-btn"
         >
-          {t('back')}
+          <IconBack size={22} />
         </button>
 
         <div className="mobile-header-title-wrap">
@@ -80,59 +122,71 @@ export function EditorShell({
           {canEdit && (
             <button
               type="button"
-              className="mobile-touch-btn mobile-btn-secondary"
+              className="mobile-pill-btn mobile-btn-secondary"
               onClick={onToggleMode}
               data-testid="editor-mode-toggle"
             >
-              {mode === 'view' ? t('switchToEdit') : t('switchToView')}
+              {mode === 'view' ? <IconEdit size={15} /> : <IconCheck size={15} />}
+              <span>{mode === 'view' ? t('switchToEdit') : t('switchToView')}</span>
             </button>
           )}
           <button
             type="button"
-            className="mobile-touch-btn mobile-btn-primary"
+            className="mobile-pill-btn mobile-btn-primary"
             onClick={onSave}
+            aria-label={t('save')}
             data-testid="editor-save-btn"
           >
-            {t('save')}
+            <IconSave size={15} />
+            <span>{t('save')}</span>
           </button>
           {isTablet && aiEnabled && (
             <button
               type="button"
-              className="mobile-touch-btn mobile-btn-secondary"
+              className="mobile-pill-btn mobile-btn-ai"
               onClick={() => setAiOpen((prev) => !prev)}
               data-testid="tablet-ai-toggle"
             >
-              {t('aiTitle')}
+              <IconSparkles size={15} />
+              <span>{t('aiTitle')}</span>
             </button>
           )}
           <button
             type="button"
-            className="mobile-touch-btn mobile-btn-ghost"
+            className="mobile-icon-btn"
             onClick={() => setMoreOpen(true)}
+            aria-label={t('more')}
+            title={t('more')}
             data-testid="editor-more-btn"
           >
-            {t('more')}
+            <IconMore size={20} />
           </button>
         </div>
       </header>
 
       {isTablet && mode === 'edit' && quickActions.length > 0 && (
         <div className="mobile-tablet-toolbar" role="toolbar" data-testid="tablet-toolbar">
-          {quickActions.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="mobile-touch-btn mobile-btn-ghost"
-              onClick={item.onPress}
-            >
-              {item.label}
-            </button>
-          ))}
+          {quickActions.map((item) => {
+            const icon = renderQuickActionIcon(item.id)
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className="mobile-toolbar-btn"
+                onClick={item.onPress}
+                aria-label={item.label}
+                title={item.label}
+              >
+                {icon}
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
         </div>
       )}
 
       {noticeBanner && (
-        <div className="mobile-inline-info" role="status" data-testid="editor-notice-banner">
+        <div className="mobile-editor-banner" role="status" data-testid="editor-notice-banner">
           {noticeBanner}
         </div>
       )}
@@ -146,10 +200,11 @@ export function EditorShell({
               <h2 className="mobile-sheet-title">{t('aiTitle')}</h2>
               <button
                 type="button"
-                className="mobile-touch-btn mobile-btn-ghost"
+                className="mobile-icon-btn"
                 onClick={() => setAiOpen(false)}
+                aria-label={t('cancel')}
               >
-                {t('cancel')}
+                <IconClose size={20} />
               </button>
             </header>
             {aiPanelContent}
@@ -160,28 +215,37 @@ export function EditorShell({
       {!isTablet && mode === 'edit' && (
         <nav
           className="mobile-quick-toolbar"
-          style={{ bottom: `${keyboardInsetPx}px` }}
+          style={keyboardInsetPx > 0 ? { marginBottom: `${keyboardInsetPx}px` } : undefined}
           aria-label="Quick formatting"
           data-testid="phone-quick-toolbar"
         >
-          {quickActions.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="mobile-touch-btn mobile-btn-ghost"
-              onClick={item.onPress}
-            >
-              {item.label}
-            </button>
-          ))}
+          <div className="mobile-quick-scroll">
+            {quickActions.map((item) => {
+              const icon = renderQuickActionIcon(item.id)
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="mobile-quick-icon-btn"
+                  onClick={item.onPress}
+                  aria-label={item.label}
+                  title={item.label}
+                >
+                  {icon ?? <span>{item.label}</span>}
+                </button>
+              )
+            })}
+          </div>
           {aiEnabled && (
             <button
               type="button"
-              className="mobile-touch-btn mobile-btn-primary"
+              className="mobile-pill-btn mobile-btn-ai mobile-quick-ai-btn"
               onClick={() => setAiOpen(true)}
+              aria-label={t('aiTitle')}
               data-testid="phone-ai-open-btn"
             >
-              {t('aiTitle')}
+              <IconSparkles size={15} />
+              <span>AI</span>
             </button>
           )}
         </nav>
@@ -191,11 +255,12 @@ export function EditorShell({
         <div className="mobile-view-fab-bar">
           <button
             type="button"
-            className="mobile-touch-btn mobile-btn-primary"
+            className="mobile-fab-btn mobile-btn-ai"
             onClick={() => setAiOpen(true)}
             data-testid="phone-view-ai-btn"
           >
-            {t('aiTitle')}
+            <IconSparkles size={17} />
+            <span>{t('aiTitle')}</span>
           </button>
         </div>
       )}
@@ -220,44 +285,48 @@ export function EditorShell({
         <div className="mobile-menu-stack">
           <button
             type="button"
-            className="mobile-touch-btn mobile-btn-secondary"
+            className="mobile-menu-row-btn"
             onClick={() => {
               setMoreOpen(false)
               onSaveAs()
             }}
           >
-            {t('saveAs')}
+            <IconSave size={19} />
+            <span>{t('saveAs')}</span>
           </button>
           <button
             type="button"
-            className="mobile-touch-btn mobile-btn-secondary"
+            className="mobile-menu-row-btn"
             onClick={() => {
               setMoreOpen(false)
               onShare()
             }}
           >
-            {t('share')}
+            <IconShare size={19} />
+            <span>{t('share')}</span>
           </button>
           <button
             type="button"
-            className="mobile-touch-btn mobile-btn-secondary"
+            className="mobile-menu-row-btn"
             onClick={() => {
               setMoreOpen(false)
               onFitToWidth()
             }}
           >
-            {t('fitToWidth')}
+            <IconFitWidth size={19} />
+            <span>{t('fitToWidth')}</span>
           </button>
           {(docFormat === 'hwp' || docFormat === 'hwpx') && (
             <button
               type="button"
-              className="mobile-touch-btn mobile-btn-secondary"
+              className="mobile-menu-row-btn"
               onClick={() => {
                 setMoreOpen(false)
                 onOpenBackups()
               }}
             >
-              {t('settingsBackupsSection')}
+              <IconHistory size={19} />
+              <span>{t('settingsBackupsSection')}</span>
             </button>
           )}
         </div>

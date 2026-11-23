@@ -1,3 +1,8 @@
+declare module '*.hwp?url' {
+  const url: string
+  export default url
+}
+
 declare module '../hwp/scripts/rhwp-patches.mjs' {
   export function rhwpPatches(...names: string[]): unknown
 }
