@@ -1714,6 +1714,8 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
+ "cfb 0.15.0",
+ "flate2",
  "futures-util",
  "hwp5-wasm",
  "rand 0.8.8",

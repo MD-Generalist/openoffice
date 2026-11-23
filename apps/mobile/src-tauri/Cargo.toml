@@ -34,6 +34,8 @@ uuid = { version = "1", features = ["v4"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
+cfb = "0.15"
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 tempfile = "3"
 
 [features]
