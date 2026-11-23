@@ -130,6 +130,9 @@ export const keyRunsToStyleRuns = (
 export interface LocalTextEdit {
   id: string
   input: TextEditInput
+  /** Deletes a scan's invisible OCR run (it went with a scan edit): nothing to
+      preview, the patch over the picture already shows the change */
+  scanLayer?: true
   /** Matched run's ink bounds from validation (PDF user space). The edit rect is a pdf.js
       layout box; glyph ink can poke out of it, so the preview covers this instead */
   cover?: [number, number, number, number]
@@ -731,6 +734,26 @@ export const textEditPreviewContent = (te: LocalTextEdit, scale: number): ReactN
     te.input.newText
   )
 
+/** Pending text-insert preview body: its selection styles as styled segments */
+export const textInsertPreviewContent = (insert: LocalTextInsert, scale: number): ReactNode =>
+  insert.input.styleRuns?.length ? (
+    <span>
+      {colorSegments(
+        insert.input.text,
+        runsToColors(insert.input.text.length, styleRunsToKeyRuns(insert.input.styleRuns)),
+      ).map((seg, i) => {
+        if (!seg.color) return <Fragment key={i}>{seg.text}</Fragment>
+        return (
+          <span key={i} style={styleSegCss(decodeStyle(seg.color), scale, insert.input.font)}>
+            {seg.text}
+          </span>
+        )
+      })}
+    </span>
+  ) : (
+    insert.input.text
+  )
+
 /** Editor state for the floating text-edit box; editId set when re-opening a pending edit */
 export interface TextDraft {
   origIdx: number
@@ -791,6 +814,12 @@ export interface TextDraft {
   /** Carried from a reopened moved edit: the floating editor draws at rect + moveBy
       (where the preview sits) while rect itself stays the save-time match key */
   moveBy?: [number, number]
+  /** The words are part of a page picture (auto-OCR, or an invisible OCR layer the
+      engine reported): the commit covers them with a paper patch and inserts the new
+      text instead of rewriting a text object (scan-edit.ts) */
+  scan?: true
+  /** A scan draft over the file's own invisible OCR run: the commit deletes it */
+  scanRun?: { rect: [number, number, number, number]; oldText: string; fontSize: number }
 }
 
 export const draftOwnedEditIds = (
@@ -802,7 +831,7 @@ export const previewsTextEdit = (
   te: LocalTextEdit,
   pageIndex: number,
   draftOwned: ReadonlySet<string>,
-): boolean => te.input.pageIndex === pageIndex && !draftOwned.has(te.id)
+): boolean => te.input.pageIndex === pageIndex && !draftOwned.has(te.id) && !te.scanLayer
 
 /** Seed a fresh draft's colors from the open probe's report of what the document
     already draws: the run's base ink (display-only) plus earlier saved selection

@@ -42,6 +42,25 @@ describe('buildOcrBakeInserts', () => {
     expect(insert.fontSize).toBeGreaterThan(4)
   })
 
+  it('splits a form row at its wide gap so each cell starts where its words do', () => {
+    const inserts = buildOcrBakeInserts(
+      0,
+      [
+        word('안전', 50, 700, 30, 12),
+        word('교육', 86, 700, 30, 12),
+        // the hours cell, far to the right of the label
+        word('3시간', 300, 700, 40, 12),
+      ],
+      geom,
+    )
+    expect(inserts.map((i) => i.text)).toEqual(['안전 교육', '3시간'])
+    expect(inserts[0]!.origin[0]).toBe(50)
+    expect(inserts[1]!.origin[0]).toBe(300)
+    // each run is stretched to its recognized width: highlights sit on the ink
+    expect(inserts[0]!.fitWidth).toBeCloseTo(66)
+    expect(inserts[1]!.fitWidth).toBeCloseTo(40)
+  })
+
   it('keeps cjk words unspaced', () => {
     const inserts = buildOcrBakeInserts(
       0,
