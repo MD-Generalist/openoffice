@@ -1,0 +1,200 @@
+name: Mobile Build
+
+# Verifies the IeumOffice Mobile (Android and iOS, Tauri 2 Mobile) Rust backend,
+# bridge/renderer tests, studio bundling, and unsigned Android/iOS builds.
+# Path-filtered so desktop-only changes do not trigger mobile builds.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/mobile-bridge/**'
+      - 'packages/hwp5-wasm/**'
+      - 'packages/ai-provider/**'
+      - 'packages/agent-core/**'
+      - 'packages/i18n/**'
+      - 'packages/ui/**'
+      - 'apps/hwp/scripts/rhwp-patches.mjs'
+      - 'apps/hwp/scripts/build-studio.mjs'
+      - '.github/workflows/mobile-build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/mobile-bridge/**'
+      - 'packages/hwp5-wasm/**'
+      - 'packages/ai-provider/**'
+      - 'packages/agent-core/**'
+      - 'packages/i18n/**'
+      - 'packages/ui/**'
+      - 'apps/hwp/scripts/rhwp-patches.mjs'
+      - 'apps/hwp/scripts/build-studio.mjs'
+      - '.github/workflows/mobile-build.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable branch, 2026-07
+        with:
+          toolchain: stable
+
+      - name: Cache cargo (mobile)
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            apps/mobile/src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check Rust dependency licenses (mobile)
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check licenses
+          manifest-path: apps/mobile/src-tauri/Cargo.toml
+
+      - name: Run Rust mobile backend tests
+        run: cargo test --manifest-path apps/mobile/src-tauri/Cargo.toml
+
+      - name: Typecheck and test mobile packages
+        run: |
+          npm run typecheck -w @genoffice/mobile-bridge
+          npm run test -w @genoffice/mobile-bridge
+          npm run typecheck -w @genoffice/mobile
+          npm run test -w @genoffice/mobile
+
+      - name: Run repository hygiene checks
+        run: |
+          npm run check:theme-colors
+          npm run check:lang-count
+          npm run check:english-comments
+          npm run check:no-genspark
+
+      - name: Build rhwp studio and mobile web bundle
+        run: |
+          npm run studio -w @genoffice/hwp
+          npm run build -w @genoffice/mobile
+          test -f apps/mobile/dist/studio/index.html
+
+  android-build:
+    needs: mobile-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Rust (Android aarch64)
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable branch, 2026-07
+        with:
+          toolchain: stable
+          targets: aarch64-linux-android
+
+      - name: Cache cargo (Android)
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            apps/mobile/src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend and rhwp studio bundle
+        run: |
+          npm run studio -w @genoffice/hwp
+          npm run build -w @genoffice/mobile
+          test -f apps/mobile/dist/studio/index.html
+
+      - name: Initialize Android project and inject native config
+        working-directory: apps/mobile
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT || '/usr/local/lib/android/sdk' }}
+          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME || env.ANDROID_NDK_HOME }}
+        run: |
+          npx --yes @tauri-apps/cli@2 android init --ci
+          node scripts/apply-native-config.mjs android
+
+      - name: Build Android unsigned APK (release features, no dev loopback)
+        working-directory: apps/mobile
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT || '/usr/local/lib/android/sdk' }}
+          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME || env.ANDROID_NDK_HOME }}
+        run: |
+          npx --yes @tauri-apps/cli@2 android build --apk --target aarch64 --ci
+
+  ios-build:
+    needs: mobile-checks
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Rust (iOS aarch64)
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable branch, 2026-07
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios
+
+      - name: Cache cargo (iOS)
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            apps/mobile/src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend and rhwp studio bundle
+        run: |
+          npm run studio -w @genoffice/hwp
+          npm run build -w @genoffice/mobile
+          test -f apps/mobile/dist/studio/index.html
+
+      - name: Initialize iOS project and inject native config
+        working-directory: apps/mobile
+        run: |
+          npx --yes @tauri-apps/cli@2 ios init --ci
+          node scripts/apply-native-config.mjs ios
+
+      - name: Verify iOS Rust compilation (release features, no dev loopback)
+        run: |
+          cargo build --release --target aarch64-apple-ios --manifest-path apps/mobile/src-tauri/Cargo.toml
