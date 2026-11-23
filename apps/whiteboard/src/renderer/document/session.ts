@@ -14,11 +14,15 @@ import {
   type BoardDocument,
   type BoardObject,
   type BoardTableView,
+  type ConnectorEnd,
+  type ConnectorProps,
   type EditError,
   type EditPlanResult,
   type ExcalidrawImportSummary,
   type Page,
+  type PageBackground,
   type PageFormat,
+  type Point,
   type TemplateApplyResult,
   type WhiteboardArchiveHandle,
 } from '@genoffice/whiteboard-engine'
@@ -548,6 +552,445 @@ export class WhiteboardSession implements WhiteboardAiHost {
     })
     if (!res.ok) return false
     this.commitDocument(res.doc)
+    return true
+  }
+
+  /** Executes a batch of editor operations as a single user undo step. */
+  applyUserOps(
+    ops: readonly Record<string, unknown>[],
+    options: { defaultPageId?: string; selectIds?: readonly string[] } = {},
+  ): EditPlanResult {
+    const res = planBoardEdit(this.doc, ops, {
+      defaultPageId: options.defaultPageId ?? this.activePageId,
+      mode: 'all_or_nothing',
+    })
+    if (res.ok && res.changed) {
+      this.commitDocument(res.doc)
+      if (options.selectIds) {
+        this.selectedIds = [...new Set(options.selectIds)]
+        this.emit()
+      }
+    }
+    return res
+  }
+
+  /** Applies a declarative template as a single user undo step (never marked as an AI step). */
+  applyUserTemplate(
+    template: Record<string, unknown>,
+  ): { ok: true; result: TemplateApplyResult } | { ok: false; error: EditError } {
+    const res = wasmApplyTemplate(this.doc, template, this.activePageId)
+    if (res.ok) {
+      const nextPageId = res.result.createdPageIds[0] ?? this.activePageId
+      this.commitDocument(res.result.doc, { nextPageId })
+    }
+    return res
+  }
+
+  /** Inserts a user-supplied raster image (file pick / drop / clipboard paste) as a user undo step. */
+  async insertUserImage(input: InsertImageInput): Promise<InsertImageResult> {
+    try {
+      const { resourceId, meta } = this.addImageResource(input.bytes)
+      const maxW = 480
+      const scale = meta.width > maxW ? maxW / meta.width : 1
+      const width = input.width ?? Math.max(80, Math.round(meta.width * scale))
+      const height = input.height ?? Math.max(60, Math.round(meta.height * scale))
+      const op: Record<string, unknown> = {
+        op: 'add',
+        kind: 'image',
+        resourceId,
+        width,
+        height,
+        ...(input.alt ? { alt: input.alt } : {}),
+        ...(input.x !== undefined ? { x: input.x } : {}),
+        ...(input.y !== undefined ? { y: input.y } : {}),
+      }
+      const res = planBoardEdit(this.doc, [op], {
+        defaultPageId: this.activePageId,
+        mode: 'all_or_nothing',
+      })
+      if (!res.ok) {
+        return { ok: false, error: res.failures?.[0]?.error?.message ?? 'failed to insert image' }
+      }
+      this.commitDocument(res.doc)
+      if (res.created[0]) {
+        this.selectedIds = [res.created[0]]
+        this.emit()
+      }
+      return { ok: true, objectId: res.created[0]!, resourceId }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  /** Updates the board document title in a single undo step. */
+  setTitle(title: string): boolean {
+    const trimmed = title.trim()
+    if (trimmed === this.doc.title) return false
+    const nextDoc = structuredClone(this.doc)
+    nextDoc.title = trimmed
+    this.commitDocument(nextDoc)
+    return true
+  }
+
+  /** Updates multiple objects atomically in a single user undo step. */
+  updateObjectsBatch(
+    updates: ReadonlyArray<{ id: string; patch: Record<string, unknown> }>,
+  ): boolean {
+    if (updates.length === 0) return false
+    const ops = updates.map(({ id, patch }) => ({ op: 'update', id, ...patch }))
+    const res = planBoardEdit(this.doc, ops, {
+      defaultPageId: this.activePageId,
+      mode: 'all_or_nothing',
+    })
+    if (!res.ok || !res.changed) return false
+    this.commitDocument(res.doc)
+    return true
+  }
+
+  /** Deletes an explicit list of object IDs in a single user undo step. */
+  deleteObjects(ids: readonly string[]): boolean {
+    const unique = [...new Set(ids)].filter((id) => this.doc.objects.some((o) => o.id === id))
+    if (unique.length === 0) return false
+    const ops = unique.map((id) => ({ op: 'delete', id }))
+    const res = planBoardEdit(this.doc, ops, {
+      defaultPageId: this.activePageId,
+      mode: 'all_or_nothing',
+    })
+    if (!res.ok || !res.changed) return false
+    this.commitDocument(res.doc)
+    return true
+  }
+
+  /** Updates a table object via the engine's `tablePatch` in a single undo step. */
+  updateTable(
+    id: string,
+    tablePatch: {
+      rows?: number
+      cols?: number
+      headerRow?: boolean
+      fontSize?: number
+      cells?: Array<{ row: number; col: number; text: string }>
+    },
+  ): boolean {
+    return this.updateObject(id, { tablePatch })
+  }
+
+  /** Toggles or sets `locked` extra metadata on the given object IDs in a single undo step. */
+  toggleLock(ids: readonly string[], locked?: boolean): boolean {
+    const idSet = new Set(ids)
+    const targets = this.doc.objects.filter((o) => idSet.has(o.id))
+    if (targets.length === 0) return false
+    const nextLocked = locked ?? !targets.every((o) => o.locked === true)
+    const nextDoc = structuredClone(this.doc)
+    let changed = false
+    for (const o of nextDoc.objects) {
+      if (!idSet.has(o.id)) continue
+      if (nextLocked) {
+        if (o.locked !== true) {
+          o.locked = true
+          changed = true
+        }
+      } else if ('locked' in o) {
+        delete o.locked
+        changed = true
+      }
+    }
+    if (!changed) return false
+    this.commitDocument(nextDoc)
+    return true
+  }
+
+  /** Assigns a fresh shared `groupId` to 2+ objects on the active page. */
+  groupObjects(ids: readonly string[]): string | null {
+    const unique = [...new Set(ids)].filter((id) =>
+      this.doc.objects.some((o) => o.id === id && o.pageId === this.activePageId),
+    )
+    if (unique.length < 2) return null
+    const groupId = `grp-${crypto.randomUUID().slice(0, 8)}`
+    const ops = unique.map((id) => ({ op: 'update', id, groupId }))
+    const res = planBoardEdit(this.doc, ops, {
+      defaultPageId: this.activePageId,
+      mode: 'all_or_nothing',
+    })
+    if (!res.ok || !res.changed) return null
+    this.commitDocument(res.doc)
+    this.selectedIds = unique
+    this.emit()
+    return groupId
+  }
+
+  /** Clears `groupId` from all given objects in a single undo step. */
+  ungroupObjects(ids: readonly string[]): boolean {
+    const unique = [...new Set(ids)].filter((id) => {
+      const o = this.doc.objects.find((x) => x.id === id)
+      return Boolean(o?.groupId)
+    })
+    if (unique.length === 0) return false
+    const ops = unique.map((id) => ({ op: 'update', id, groupId: null }))
+    const res = planBoardEdit(this.doc, ops, {
+      defaultPageId: this.activePageId,
+      mode: 'all_or_nothing',
+    })
+    if (!res.ok || !res.changed) return false
+    this.commitDocument(res.doc)
+    return true
+  }
+
+  /** Adjusts z-order for one or more objects on the active page in a single undo step. */
+  stepLayerOrder(
+    ids: readonly string[],
+    direction: 'front' | 'forward' | 'backward' | 'back',
+  ): boolean {
+    const idSet = new Set(ids)
+    const pageObjs = this.doc.objects
+      .filter((o) => o.pageId === this.activePageId)
+      .sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
+    const selected = pageObjs.filter((o) => idSet.has(o.id))
+    if (selected.length === 0 || selected.length === pageObjs.length) return false
+
+    let reordered: BoardObject[]
+    if (direction === 'front') {
+      const rest = pageObjs.filter((o) => !idSet.has(o.id))
+      reordered = [...rest, ...selected]
+    } else if (direction === 'back') {
+      const rest = pageObjs.filter((o) => !idSet.has(o.id))
+      reordered = [...selected, ...rest]
+    } else if (direction === 'forward') {
+      reordered = [...pageObjs]
+      for (let i = reordered.length - 2; i >= 0; i -= 1) {
+        if (idSet.has(reordered[i]!.id) && !idSet.has(reordered[i + 1]!.id)) {
+          const tmp = reordered[i]!
+          reordered[i] = reordered[i + 1]!
+          reordered[i + 1] = tmp
+        }
+      }
+    } else {
+      reordered = [...pageObjs]
+      for (let i = 1; i < reordered.length; i += 1) {
+        if (idSet.has(reordered[i]!.id) && !idSet.has(reordered[i - 1]!.id)) {
+          const tmp = reordered[i]!
+          reordered[i] = reordered[i - 1]!
+          reordered[i - 1] = tmp
+        }
+      }
+    }
+
+    const changedOrder = reordered.some((o, i) => o.id !== pageObjs[i]!.id)
+    if (!changedOrder) return false
+
+    const nextDoc = structuredClone(this.doc)
+    const keyMap = new Map<string, string>()
+    let prevKey: string | null = null
+    for (const o of reordered) {
+      const k = orderBetween(prevKey, null)
+      keyMap.set(o.id, k)
+      prevKey = k
+    }
+    for (const o of nextDoc.objects) {
+      const k = keyMap.get(o.id)
+      if (k) o.orderKey = k
+    }
+    this.commitDocument(nextDoc)
+    return true
+  }
+
+  /** Clones a list of objects onto the active page with offset, remapping connector anchors & groups. */
+  pasteObjects(
+    sourceObjects: readonly BoardObject[],
+    offset: Point = { x: 28, y: 28 },
+  ): BoardObject[] {
+    if (sourceObjects.length === 0) return []
+    const nextDoc = structuredClone(this.doc)
+    const idMap = new Map<string, string>()
+    const groupMap = new Map<string, string>()
+
+    const usedIds = new Set<string>([
+      ...nextDoc.pages.map((p) => p.id),
+      ...nextDoc.objects.map((o) => o.id),
+    ])
+    const makeId = (): string => {
+      for (;;) {
+        const candidate = `obj-${crypto.randomUUID().slice(0, 8)}`
+        if (!usedIds.has(candidate)) {
+          usedIds.add(candidate)
+          return candidate
+        }
+      }
+    }
+
+    // Filter out images whose resource is missing from this document.
+    const validSources = sourceObjects.filter((o) => {
+      if (o.kind === 'image') {
+        const rid = (o.props as { resourceId?: string }).resourceId
+        return Boolean(rid && nextDoc.resources[rid])
+      }
+      return true
+    })
+    if (validSources.length === 0) return []
+
+    for (const src of validSources) {
+      idMap.set(src.id, makeId())
+      if (src.groupId && !groupMap.has(src.groupId)) {
+        groupMap.set(src.groupId, `grp-${crypto.randomUUID().slice(0, 8)}`)
+      }
+    }
+
+    let lastKey =
+      nextDoc.objects
+        .filter((o) => o.pageId === this.activePageId)
+        .map((o) => o.orderKey)
+        .sort()
+        .at(-1) ?? null
+
+    const createdIds: string[] = []
+    for (const src of validSources) {
+      const clone = structuredClone(src)
+      const newId = idMap.get(src.id)!
+      lastKey = orderBetween(lastKey, null)
+      clone.id = newId
+      clone.pageId = this.activePageId
+      clone.orderKey = lastKey
+      if (clone.groupId) clone.groupId = groupMap.get(clone.groupId)
+      delete clone.locked
+
+      if (clone.kind === 'connector') {
+        const cp = clone.props as unknown as ConnectorProps
+        const remapEnd = (end: ConnectorEnd): ConnectorEnd => {
+          if ('objectId' in end) {
+            const mapped = idMap.get(end.objectId)
+            if (mapped) return { ...end, objectId: mapped }
+            // Keep attachment if target exists on active page, otherwise convert to shifted point.
+            const existingTarget = this.doc.objects.find(
+              (o) => o.id === end.objectId && o.pageId === this.activePageId,
+            )
+            if (existingTarget) {
+              return {
+                x: Math.round(
+                  existingTarget.x + existingTarget.width * (end.anchorX ?? 0.5) + offset.x,
+                ),
+                y: Math.round(
+                  existingTarget.y + existingTarget.height * (end.anchorY ?? 0.5) + offset.y,
+                ),
+              }
+            }
+            return { x: offset.x, y: offset.y }
+          }
+          return { x: end.x + offset.x, y: end.y + offset.y }
+        }
+        cp.start = remapEnd(cp.start)
+        cp.end = remapEnd(cp.end)
+        if (cp.waypoints) {
+          cp.waypoints = cp.waypoints.map((pt) => ({ x: pt.x + offset.x, y: pt.y + offset.y }))
+        }
+      } else {
+        clone.x = Math.round(clone.x + offset.x)
+        clone.y = Math.round(clone.y + offset.y)
+      }
+
+      nextDoc.objects.push(clone)
+      createdIds.push(newId)
+    }
+
+    this.commitDocument(nextDoc)
+    this.selectedIds = createdIds
+    this.emit()
+    return this.doc.objects.filter((o) => createdIds.includes(o.id))
+  }
+
+  /** Duplicates the given object IDs on the active page in a single undo step. */
+  duplicateObjects(ids: readonly string[], offset: Point = { x: 28, y: 28 }): BoardObject[] {
+    const idSet = new Set(ids)
+    const sources = this.doc.objects
+      .filter((o) => o.pageId === this.activePageId && idSet.has(o.id))
+      .sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
+    return this.pasteObjects(sources, offset)
+  }
+
+  /** Duplicates a page along with all of its objects (remapping IDs, connectors, and groups). */
+  duplicatePage(pageId: string): Page | null {
+    const pageIdx = this.doc.pages.findIndex((p) => p.id === pageId)
+    if (pageIdx < 0) return null
+    const srcPage = this.doc.pages[pageIdx]!
+    const nextDoc = structuredClone(this.doc)
+    const newPageId = `page-${crypto.randomUUID().slice(0, 8)}`
+    const afterKey = nextDoc.pages[pageIdx + 1]?.orderKey ?? null
+    const newOrderKey = orderBetween(srcPage.orderKey, afterKey)
+
+    const newPage: Page = {
+      ...structuredClone(srcPage),
+      id: newPageId,
+      title: srcPage.title ? `${srcPage.title} (2)` : '',
+      orderKey: newOrderKey,
+    }
+    nextDoc.pages.splice(pageIdx + 1, 0, newPage)
+
+    const pageObjs = nextDoc.objects.filter((o) => o.pageId === pageId)
+    const idMap = new Map<string, string>()
+    const groupMap = new Map<string, string>()
+    for (const o of pageObjs) {
+      idMap.set(o.id, `obj-${crypto.randomUUID().slice(0, 8)}`)
+      if (o.groupId && !groupMap.has(o.groupId)) {
+        groupMap.set(o.groupId, `grp-${crypto.randomUUID().slice(0, 8)}`)
+      }
+    }
+    for (const o of pageObjs) {
+      const clone = structuredClone(o)
+      clone.id = idMap.get(o.id)!
+      clone.pageId = newPageId
+      if (clone.groupId) clone.groupId = groupMap.get(clone.groupId)
+      if (clone.kind === 'connector') {
+        const cp = clone.props as unknown as ConnectorProps
+        if ('objectId' in cp.start && idMap.has(cp.start.objectId)) {
+          cp.start = { ...cp.start, objectId: idMap.get(cp.start.objectId)! }
+        }
+        if ('objectId' in cp.end && idMap.has(cp.end.objectId)) {
+          cp.end = { ...cp.end, objectId: idMap.get(cp.end.objectId)! }
+        }
+      }
+      nextDoc.objects.push(clone)
+    }
+
+    this.commitDocument(nextDoc, { nextPageId: newPageId })
+    return this.doc.pages.find((p) => p.id === newPageId) ?? null
+  }
+
+  /** Moves a page to a new index in the document in a single undo step. */
+  reorderPage(pageId: string, toIndex: number): boolean {
+    const fromIdx = this.doc.pages.findIndex((p) => p.id === pageId)
+    if (fromIdx < 0) return false
+    const clamped = Math.max(0, Math.min(this.doc.pages.length - 1, toIndex))
+    if (fromIdx === clamped) return false
+    const nextDoc = structuredClone(this.doc)
+    const [moved] = nextDoc.pages.splice(fromIdx, 1)
+    nextDoc.pages.splice(clamped, 0, moved!)
+    let prevKey: string | null = null
+    for (const p of nextDoc.pages) {
+      const k = orderBetween(prevKey, null)
+      p.orderKey = k
+      prevKey = k
+    }
+    this.commitDocument(nextDoc)
+    return true
+  }
+
+  /** Sets a page's background grid mode (dot, line, or blank solid) while preserving image backgrounds. */
+  setPageGridMode(pageId: string, mode: 'dot' | 'line' | 'blank'): boolean {
+    const page = this.doc.pages.find((p) => p.id === pageId)
+    if (!page || page.background.kind === 'image') return false
+    const nextDoc = structuredClone(this.doc)
+    const target = nextDoc.pages.find((p) => p.id === pageId)!
+    const color =
+      target.background.kind === 'solid' || target.background.kind === 'grid'
+        ? target.background.color
+        : '#FFFFFF'
+    if (mode === 'blank') {
+      target.background = { kind: 'solid', color } as PageBackground
+      target.gridHidden = true
+    } else {
+      target.background = { kind: 'grid', color, pattern: mode } as PageBackground
+      delete target.gridHidden
+    }
+    this.commitDocument(nextDoc)
     return true
   }
 }

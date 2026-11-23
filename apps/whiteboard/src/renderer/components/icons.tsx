@@ -259,6 +259,147 @@ export const TextBgIcon = makeIcon(
     <path d="M8 9.5h8M12 9.5v5.5" />
   </>,
 )
+export const HandIcon = makeIcon(
+  <>
+    <path d="M18 11V6a1.5 1.5 0 0 0-3 0v4" />
+    <path d="M15 10V5a1.5 1.5 0 0 0-3 0v5" />
+    <path d="M12 10V6a1.5 1.5 0 0 0-3 0v6" />
+    <path d="M9 12v-1a1.5 1.5 0 0 0-3 0v4a6 6 0 0 0 6 6h2a5 5 0 0 0 5-5v-5a1.5 1.5 0 0 0-3 0" />
+  </>,
+)
+export const TemplateIcon = makeIcon(
+  <>
+    <rect x="3.5" y="4" width="17" height="16" rx="2" />
+    <path d="M3.5 9.5h17M10 9.5V20" />
+  </>,
+)
+export const SearchIcon = makeIcon(
+  <>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="M16 16l4.5 4.5" />
+  </>,
+)
+export const GroupIcon = makeIcon(
+  <>
+    <rect x="4" y="4" width="7" height="7" rx="1.5" />
+    <rect x="13" y="13" width="7" height="7" rx="1.5" />
+    <path d="M11 7.5h4a1.5 1.5 0 0 1 1.5 1.5v4" />
+    <path d="M13 16.5H9a1.5 1.5 0 0 1-1.5-1.5v-4" />
+  </>,
+)
+export const UngroupIcon = makeIcon(
+  <>
+    <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+    <path d="M14 5l5 5M19 5l-5 5" />
+  </>,
+)
+export const LockIcon = makeIcon(
+  <>
+    <rect x="5" y="11" width="14" height="9.5" rx="2" />
+    <path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
+  </>,
+)
+export const UnlockIcon = makeIcon(
+  <>
+    <rect x="5" y="11" width="14" height="9.5" rx="2" />
+    <path d="M8 11V7.5a4 4 0 0 1 7.4-2" />
+  </>,
+)
+export const AlignObjLeftIcon = makeIcon(
+  <>
+    <path d="M4 4v16" />
+    <rect x="7.5" y="6" width="12" height="4" rx="1" />
+    <rect x="7.5" y="14" width="8" height="4" rx="1" />
+  </>,
+)
+export const AlignObjCenterHIcon = makeIcon(
+  <>
+    <path d="M12 4v16" />
+    <rect x="5" y="6" width="14" height="4" rx="1" />
+    <rect x="7.5" y="14" width="9" height="4" rx="1" />
+  </>,
+)
+export const AlignObjRightIcon = makeIcon(
+  <>
+    <path d="M20 4v16" />
+    <rect x="4.5" y="6" width="12" height="4" rx="1" />
+    <rect x="8.5" y="14" width="8" height="4" rx="1" />
+  </>,
+)
+export const AlignObjTopIcon = makeIcon(
+  <>
+    <path d="M4 4h16" />
+    <rect x="6" y="7.5" width="4" height="12" rx="1" />
+    <rect x="14" y="7.5" width="4" height="8" rx="1" />
+  </>,
+)
+export const AlignObjMiddleVIcon = makeIcon(
+  <>
+    <path d="M4 12h16" />
+    <rect x="6" y="5" width="4" height="14" rx="1" />
+    <rect x="14" y="7.5" width="4" height="9" rx="1" />
+  </>,
+)
+export const AlignObjBottomIcon = makeIcon(
+  <>
+    <path d="M4 20h16" />
+    <rect x="6" y="4.5" width="4" height="12" rx="1" />
+    <rect x="14" y="8.5" width="4" height="8" rx="1" />
+  </>,
+)
+export const DistributeHIcon = makeIcon(
+  <>
+    <path d="M4 4v16M20 4v16" />
+    <rect x="9.5" y="6.5" width="5" height="11" rx="1" />
+  </>,
+)
+export const DistributeVIcon = makeIcon(
+  <>
+    <path d="M4 4h16M4 20h16" />
+    <rect x="6.5" y="9.5" width="11" height="5" rx="1" />
+  </>,
+)
+export const GridDotIcon = makeIcon(
+  <>
+    <circle cx="6" cy="6" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="6" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="18" cy="6" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="6" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="18" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="6" cy="18" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="18" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="18" cy="18" r="1.2" fill="currentColor" stroke="none" />
+  </>,
+)
+export const GridLineIcon = makeIcon(
+  <>
+    <path d="M4 9h16M4 15h16M9 4v16M15 4v16" />
+  </>,
+)
+export const GridBlankIcon = makeIcon(<rect x="4" y="4" width="16" height="16" rx="2" />)
+export const MinimapIcon = makeIcon(
+  <>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+    <rect x="11" y="10" width="6.5" height="6.5" rx="1" />
+  </>,
+)
+export const ChevronUpIcon = makeIcon(<path d="M6 15l6-6 6 6" />)
+export const ChevronDownIcon = makeIcon(<path d="M6 9l6 6 6-6" />)
+export const CloseIcon = makeIcon(<path d="M6 6l12 12M18 6L6 18" />)
+export const CopyIcon = makeIcon(
+  <>
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+  </>,
+)
+export const RotateIcon = makeIcon(
+  <>
+    <path d="M20 12a8 8 0 1 1-2.3-5.7" />
+    <path d="M20 4v5h-5" />
+  </>,
+)
 
 export function ShapeKindGlyph({
   kind,

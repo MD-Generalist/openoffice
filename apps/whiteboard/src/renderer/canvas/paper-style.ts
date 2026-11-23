@@ -92,7 +92,18 @@ export const PAPER_INK_SWATCHES = [
 
 export const FONT_SIZE_PRESETS = [14, 16, 20, 24, 32, 48] as const
 export const LINE_WIDTH_PRESETS = [2, 4, 8] as const
+export const HIGHLIGHTER_WIDTH_PRESETS = [16, 22, 32] as const
 export const CONNECTOR_WIDTH_PRESETS = [1.5, 2.5, 4] as const
+
+/** Curated translucent highlighter ink colors. */
+export const HIGHLIGHTER_SWATCHES = [
+  '#FFE066', // sunny yellow
+  '#FFAFCC', // soft rose
+  '#A7F3D0', // mint green
+  '#93C5FD', // sky blue
+  '#FDBA74', // warm apricot
+  '#DDD6FE', // soft lavender
+] as const
 
 export const STICKY_DEFAULT_SIZE = 208
 export const STICKY_DEFAULT_FONT_SIZE = 16
