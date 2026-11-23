@@ -50,12 +50,12 @@ export function computeNextSteps(ctx: NextStepContext): NextStepDescriptor[] {
   return chips.slice(0, MAX_NEXT_STEPS)
 }
 
-/** Invokes the editor-only generate-window bridge exposed by editor preloads (T3/T9). */
+/** Invokes the editor-only generate-window bridge exposed by editor preloads. */
 export function openGenerateForCurrentDocument(): void {
   const api = (
     window as unknown as {
-      aiOfficeGenerateEditor?: { openForCurrentDocument(): Promise<boolean> }
+      aiOfficeGenerateEditor?: { openForCurrentTab(): Promise<unknown> }
     }
   ).aiOfficeGenerateEditor
-  void api?.openForCurrentDocument().catch(() => {})
+  void api?.openForCurrentTab().catch(() => {})
 }

@@ -4862,6 +4862,35 @@ export function registerSlidesIpc(): void {
     return buildAllRenderSlides(session.opened, session.fitWidthPx)
   })
 
+  ipcMain.handle('slides:timeline-restore-bytes', async (e, raw: unknown) => {
+    const session = sessions.get(e.sender.id)
+    if (!session || session.masterEdit || session.historyBatch) return null
+    const bytes =
+      raw instanceof Uint8Array
+        ? raw
+        : ArrayBuffer.isView(raw)
+          ? new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength)
+          : null
+    if (!bytes || bytes.byteLength === 0) return null
+    try {
+      const opened = await openPptx(bytes)
+      settleStaleHistoryBatch(session)
+      session.undoStack.push(takeSnapshot(session))
+      session.redoStack.length = 0
+      restoreSnapshot(session, {
+        slides: opened.deck.slides,
+        entries: new Map(opened.archive.entries),
+        size: { ...opened.deck.size },
+        metaDirty: true,
+      })
+      scheduleHistoryNotify(session)
+      scheduleDeckBroadcast(session)
+      return buildAllRenderSlides(session.opened, session.fitWidthPx)
+    } catch {
+      return null
+    }
+  })
+
   // Which AI rollback points are still in the ring: the panel tells a point
   // pushed out by newer runs from one that only cannot be used right now
   ipcMain.handle('slides:ai-snapshot-alive', (e, ids: unknown) => {

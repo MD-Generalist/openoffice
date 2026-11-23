@@ -1713,7 +1713,7 @@ export default function App() {
       VERSION_TIMELINE_BRIDGE_KEY
     ]
     return new HtmlTimelineAdapter(bridge, {
-      docKey: path || 'html:untitled',
+      docKey: path || 'html_untitled',
       getHtml: () => textRef.current,
       applyRestorePatch: (patch) => {
         flushPending()

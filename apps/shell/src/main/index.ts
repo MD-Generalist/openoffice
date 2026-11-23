@@ -4,15 +4,17 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
   statSync,
   writeFileSync,
+  type Dirent,
 } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { release } from 'node:os'
-import { basename, dirname, extname, join, resolve } from 'node:path'
+import { basename, dirname, extname, join, relative, resolve } from 'node:path'
 import {
   BrowserWindow,
   Menu,
@@ -145,6 +147,7 @@ import { VersionTimelineStore } from '@genoffice/electron-utils'
 import { registerVersionTimelineIpc } from './version-timeline-ipc'
 import { registerDiagnosticsIpc } from './diagnostics-bundle'
 import { openQuickSwitcherWindow, registerQuickSwitcherIpc } from './quick-switcher-window'
+import { quickSwitcherCommandText } from '../shared/quick-switcher-commands-i18n'
 import { registerGenerateEditorIpc } from './generate/generate-editor-ipc'
 import { openGenerateWindowForDocument } from './generate/generate-window'
 import { builtinCraftDirFor } from './user-skills/builtin-craft-dir'
@@ -5533,6 +5536,60 @@ function installUiScale(): void {
  * well, with preventDefault, keeps one press from closing two tabs; Home falls
  * through to its File > Close, which still closes the window.
  */
+const QUICK_SWITCHER_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'build', '.cache'])
+
+function collectProjectFilesForQuickSwitcher(
+  roots: readonly string[],
+  query: string,
+  limit = 40,
+): Array<{ path: string; relPath: string; name: string }> {
+  const q = query.trim().toLowerCase()
+  const out: Array<{ path: string; relPath: string; name: string }> = []
+  const walk = (root: string, rootLabel: string, dir: string, depth: number): void => {
+    if (out.length >= limit || depth > 3) return
+    let entries: Dirent[]
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (out.length >= limit) return
+      if (entry.name.startsWith('.')) continue
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (!QUICK_SWITCHER_SKIP_DIRS.has(entry.name)) walk(root, rootLabel, full, depth + 1)
+        continue
+      }
+      if (!entry.isFile()) continue
+      const rel = `${rootLabel}/${relative(root, full).replace(/\\/g, '/')}`
+      if (q && !entry.name.toLowerCase().includes(q) && !rel.toLowerCase().includes(q)) continue
+      out.push({ path: full, relPath: rel, name: entry.name })
+    }
+  }
+  for (const root of roots) {
+    if (out.length >= limit) break
+    walk(root, basename(root), root, 0)
+  }
+  return out
+}
+
+const HOME_KIND_TO_EDITOR: Record<Exclude<HomeKind, 'pdfTools'>, string> = {
+  docx: 'docs',
+  xlsx: 'sheets',
+  pptx: 'slides',
+  md: 'markdown',
+  html: 'html',
+  xmind: 'mindmap',
+  drawio: 'diagram',
+  whiteboard: 'whiteboard',
+  hwp: 'hwp',
+  pdf: 'pdf',
+}
+
+/**
+ * Install keyboard shortcuts for tab switching across every WebContents.
+ */
 function installTabShortcuts(): void {
   app.on('web-contents-created', (_event, contents) => {
     contents.on('before-input-event', (event, input) => {
@@ -5566,59 +5623,40 @@ function installTabShortcuts(): void {
             readRecentFiles()
               .slice(0, 20)
               .map((filePath) => ({ path: filePath, title: basename(filePath) })),
-          listProjectFiles: async () => [],
+          listProjectFiles: async (q) =>
+            collectProjectFilesForQuickSwitcher(projectFolderRoots(APP_SETTINGS_PATH()), q),
           openFile: (filePath) => {
             void openMadeDocument(filePath)
           },
-          listCommands: () => [
-            {
-              id: 'settings',
-              title: 'Settings',
-              run: () => openHomeSettings({ section: 'general' }),
-            },
-            {
-              id: 'ai-settings',
-              title: 'AI Settings',
-              aiOnly: true,
-              run: () => openHomeSettings({ section: 'ai' }),
-            },
-            {
-              id: 'new-docs',
-              title: 'New Word Document',
-              editorKind: 'docs',
-              run: () => void entrances.makeAndOpen('docs'),
-            },
-            {
-              id: 'new-sheets',
-              title: 'New Spreadsheet',
-              editorKind: 'sheets',
-              run: () => void entrances.makeAndOpen('sheets'),
-            },
-            {
-              id: 'new-slides',
-              title: 'New Presentation',
-              editorKind: 'slides',
-              run: () => void entrances.makeAndOpen('slides'),
-            },
-            {
-              id: 'new-html',
-              title: 'New HTML Document',
-              editorKind: 'html',
-              run: () => void entrances.makeAndOpen('html'),
-            },
-            {
-              id: 'new-hwp',
-              title: 'New HWP Document',
-              editorKind: 'hwp',
-              run: () => void entrances.makeAndOpen('hwp'),
-            },
-            {
-              id: 'new-whiteboard',
-              title: 'New Whiteboard',
-              editorKind: 'whiteboard',
-              run: () => void entrances.makeAndOpen('whiteboard'),
-            },
-          ],
+          listCommands: () => {
+            const lang = currentLang()
+            const newDocCommands = visibleHomeKinds(readHomeKinds()).flatMap((kind) => {
+              if (kind === 'pdfTools') return []
+              const entry = NEW_KIND_MENU[kind]
+              return [
+                {
+                  id: `new-${kind}`,
+                  title: tm(entry.label),
+                  editorKind: HOME_KIND_TO_EDITOR[kind],
+                  run: entry.open,
+                },
+              ]
+            })
+            return [
+              {
+                id: 'settings',
+                title: quickSwitcherCommandText(lang, 'cmdSettings'),
+                run: () => openHomeSettings({ section: 'general' }),
+              },
+              {
+                id: 'ai-settings',
+                title: quickSwitcherCommandText(lang, 'cmdAiSettings'),
+                aiOnly: true,
+                run: () => openHomeSettings({ section: 'aiModel' }),
+              },
+              ...newDocCommands,
+            ]
+          },
         })
         return
       }
@@ -10609,14 +10647,28 @@ registerResultStoreIpc(ipcMain, () => app.getPath('userData'))
 registerVersionTimelineIpc(ipcMain, new VersionTimelineStore({ baseDir: app.getPath('userData') }))
 registerDiagnosticsIpc(ipcMain, {
   userDataDir: () => app.getPath('userData'),
-  collectInput: () => ({
-    appVersion: app.getVersion(),
-    platform: process.platform,
-    arch: process.arch,
-    osRelease: release(),
-    uiLang: currentLang(),
-    subscriptions: {},
-  }),
+  collectInput: () => {
+    const rawSubs = sharedSubscriptionStatuses() as Record<
+      string,
+      { state?: unknown; version?: unknown } | undefined
+    >
+    const subscriptions: Record<string, { state: string; version?: string }> = {}
+    for (const [provider, status] of Object.entries(rawSubs)) {
+      if (!status || typeof status.state !== 'string') continue
+      subscriptions[provider] = {
+        state: status.state,
+        ...(typeof status.version === 'string' ? { version: status.version } : {}),
+      }
+    }
+    return {
+      appVersion: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      osRelease: release(),
+      uiLang: currentLang(),
+      subscriptions,
+    }
+  },
   pickSavePath: async (defaultName) => {
     const parent = BrowserWindow.getFocusedWindow() ?? shellWindow ?? undefined
     const opts = {
@@ -10633,15 +10685,24 @@ registerQuickSwitcherIpc(ipcMain)
 registerGenerateEditorIpc(ipcMain, {
   resolveTabForSender: (senderId) => {
     const tabId = tabManager?.tabIdForWebContents(senderId)
-    if (!tabId) return null
-    const list = tabManager?.list() ?? []
-    const found = list.find((t) => t.id === tabId)
-    if (!found) return null
+    if (tabId) {
+      const list = tabManager?.list() ?? []
+      const found = list.find((t) => t.id === tabId)
+      if (!found) return null
+      return {
+        webContentsId: senderId,
+        filePath: found.filePath ?? undefined,
+        title: found.title,
+        parent: shellWindow,
+      }
+    }
+    const detached = detachedDocumentFor(senderId)
+    if (!detached) return null
     return {
       webContentsId: senderId,
-      filePath: found.filePath ?? undefined,
-      title: found.title,
-      parent: shellWindow,
+      filePath: detached.filePath ?? undefined,
+      title: detached.title,
+      parent: detachedWindowForWebContents(senderId) ?? shellWindow,
     }
   },
   openForDocument: (doc) => openGenerateWindowForDocument(doc),

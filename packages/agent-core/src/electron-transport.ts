@@ -197,8 +197,8 @@ export interface IpcTransportOptions<S> {
  */
 export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTransport {
   const timeoutText = () =>
-    options.errorText?.({ kind: 'timeout' }) ??
     options.timeoutErrorText?.() ??
+    options.errorText?.({ kind: 'timeout' }) ??
     options.unknownErrorText()
   const causeText = (cause: IpcStreamErrorCause, carried: string | undefined): string => {
     if (cause.kind === 'timeout') return timeoutText()

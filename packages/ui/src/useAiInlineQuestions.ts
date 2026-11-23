@@ -6,9 +6,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   createAskQuestionsSkill,
-  type AgentSkill,
   type AskQuestionsRequest,
   type AskQuestionsResponse,
+  type AskQuestionsSkill,
 } from '@genoffice/agent-core'
 import {
   formatQuestionFormAnswers,
@@ -49,7 +49,7 @@ export function useAiInlineQuestions() {
   >({})
   const resolverRef = useRef<((res: AskQuestionsResponse) => void) | null>(null)
 
-  const askQuestionsSkill: AgentSkill = useMemo(
+  const askQuestionsSkill: AskQuestionsSkill = useMemo(
     () =>
       createAskQuestionsSkill({
         ask: (req, signal) =>
@@ -97,6 +97,7 @@ export function useAiInlineQuestions() {
   }, [])
 
   const supersedeOpen = useCallback(() => {
+    askQuestionsSkill.resetTurn()
     if (resolverRef.current) {
       const resolve = resolverRef.current
       resolverRef.current = null
@@ -118,7 +119,7 @@ export function useAiInlineQuestions() {
       }
       return changed ? next : prev
     })
-  }, [])
+  }, [askQuestionsSkill])
 
   const markTextCard = useCallback(
     (cardKey: string, status: QuestionCardStatus, answers?: QuestionFormAnswers) => {

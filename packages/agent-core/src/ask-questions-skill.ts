@@ -132,12 +132,20 @@ const SYSTEM_PROMPT = [
   '- Ask at most ONCE per turn, with 1-5 concise questions and sensible defaults.',
 ].join('\n')
 
-export function createAskQuestionsSkill(deps: AskQuestionsDeps): AgentSkill {
+export interface AskQuestionsSkill extends AgentSkill {
+  /** Resets the per-turn 1-question-round limit when a new user turn begins. */
+  resetTurn(): void
+}
+
+export function createAskQuestionsSkill(deps: AskQuestionsDeps): AskQuestionsSkill {
   let askedInRun = false
   return {
     id: 'ask-questions',
     systemPrompt: SYSTEM_PROMPT,
     tools: [TOOL_DEF],
+    resetTurn() {
+      askedInRun = false
+    },
     async executeTool(call: AgentToolCall, signal?: AbortSignal): Promise<ToolExecution> {
       if (call.name !== ASK_QUESTIONS_TOOL) {
         return { output: `Unknown tool: ${call.name}`, isError: true, summary: call.name }

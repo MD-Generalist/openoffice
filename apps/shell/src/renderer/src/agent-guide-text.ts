@@ -1,4 +1,4 @@
-import type { Lang } from '@genoffice/i18n'
+import { brandText, type Lang } from '@genoffice/i18n'
 
 /**
  * Generates a structured markdown guide for external coding agents covering
@@ -9,7 +9,7 @@ import type { Lang } from '@genoffice/i18n'
 export function buildCodingAgentGuide(lang: Lang): string {
   if (lang === 'ko') {
     return [
-      '# 이음오피스 코딩 에이전트 연동 안내',
+      `# ${brandText(lang, 'GenOffice')} 코딩 에이전트 연동 안내`,
       '',
       '## 1. 터미널 명령어 (`ieumoffice`)',
       '- 도움말 확인: `ieumoffice --help`',
@@ -27,7 +27,7 @@ export function buildCodingAgentGuide(lang: Lang): string {
   }
 
   return [
-    '# GenOffice Coding Agent Integration Guide',
+    `# ${brandText(lang, 'GenOffice')} Coding Agent Integration Guide`,
     '',
     '## 1. Command-line interface (`ieumoffice`)',
     '- Inspect available commands: `ieumoffice --help`',

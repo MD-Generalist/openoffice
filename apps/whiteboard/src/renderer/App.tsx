@@ -89,7 +89,8 @@ export default function App(): ReactElement {
     const bridge = (window as unknown as Record<string, VersionTimelineBridge | undefined>)[
       VERSION_TIMELINE_BRIDGE_KEY
     ]
-    const docKey = session?.getFilePath() || `whiteboard:${session?.getDocument().id ?? 'untitled'}`
+    const rawId = (session?.getDocument().id ?? 'untitled').replace(/[^a-zA-Z0-9_-]/g, '_')
+    const docKey = session?.getFilePath() || `whiteboard_${rawId}`
     return new WhiteboardTimelineAdapter(bridge, docKey, () => sessionRef.current)
   }, [session])
   const timelineAdapterRef = useRef(timelineAdapter)

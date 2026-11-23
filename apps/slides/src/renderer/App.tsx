@@ -137,7 +137,7 @@ import {
 } from '@genoffice/electron-utils/version-timeline-channels'
 import {
   DEFAULT_SLIDES_TWEAKS,
-  buildSlidesTweaksTxn,
+  buildSlidesTweaksTxnChunks,
   type SlidesTweaksState,
 } from './tweaks/slides-tweaks'
 import { SlidesTweaksPanel } from './tweaks/SlidesTweaksPanel'
@@ -1003,40 +1003,24 @@ export function App() {
     const bridge = (window as unknown as Record<string, VersionTimelineBridge | undefined>)[
       VERSION_TIMELINE_BRIDGE_KEY
     ]
-    const encoder = new TextEncoder()
-    const decoder = new TextDecoder('utf-8')
     return new SlidesTimelineAdapter(bridge, {
-      docKey: path || 'slides:untitled',
+      docKey: path || 'slides_untitled',
       isEncrypted: () => isEncryptedRef.current,
-      captureSnapshot: () => {
+      captureSnapshot: async () => {
         const cur = ctxRef.current?.slides ?? []
-        const payload = JSON.stringify({
-          slideCount: cur.length,
-          capturedAt: Date.now(),
-        })
+        const res = await window.slidesApi.templateBytes?.()
         return {
-          bytes: encoder.encode(payload),
+          bytes: res?.bytes ?? new Uint8Array(),
           slideCount: cur.length,
         }
       },
       applySnapshot: async (bytes) => {
         try {
-          const parsed = JSON.parse(decoder.decode(bytes)) as { snapshotId?: number }
-          if (typeof parsed.snapshotId === 'number') {
-            const restored = await window.slidesApi.aiSnapshotRestore(parsed.snapshotId)
-            if (restored) {
-              setSlides(restored)
-              setDirty(true)
-              return true
-            }
-          }
-          const undone = await window.slidesApi.undo()
-          if (undone) {
-            setSlides(undone)
-            setDirty(true)
-            return true
-          }
-          return false
+          const restored = await window.slidesApi.restoreTimelineBytes?.(bytes)
+          if (!restored) return false
+          setSlides(restored)
+          setDirty(true)
+          return true
         } catch {
           return false
         }
@@ -1056,14 +1040,24 @@ export function App() {
     setTweaksState(next)
     const curSlides = ctxRef.current?.slides ?? []
     if (curSlides.length === 0) return
-    const txn = buildSlidesTweaksTxn(curSlides, ctxRef.current?.current ?? 0, next)
-    if (txn.ops.length === 0) return
-    void window.slidesApi.applyTxn(txn).then((res) => {
-      if (res?.applied && res.slides) {
-        setSlides(res.slides)
+    const chunks = buildSlidesTweaksTxnChunks(curSlides, ctxRef.current?.current ?? 0, next)
+    if (chunks.length === 0) return
+    void (async () => {
+      await window.slidesApi.beginHistoryBatch()
+      let latestSlides: RenderSlide[] | null = null
+      try {
+        for (const txn of chunks) {
+          const res = await window.slidesApi.applyTxn(txn)
+          if (res?.applied && res.slides) latestSlides = res.slides
+        }
+      } finally {
+        await window.slidesApi.endHistoryBatch()
+      }
+      if (latestSlides) {
+        setSlides(latestSlides)
         setDirty(true)
       }
-    })
+    })()
   }, [])
 
   const resetSlidesTweaks = useCallback(() => {
@@ -1088,8 +1082,14 @@ export function App() {
   const askOpenRef = useRef(false)
 
   const save = useCallback(
-    (auto = false): Promise<boolean> => fileActions.save(() => ctxRef.current, auto),
-    [],
+    async (auto = false): Promise<boolean> => {
+      const ok = await fileActions.save(() => ctxRef.current, auto)
+      if (ok) {
+        void slidesTimelineAdapter.record('save').then(() => refreshSlidesTimeline())
+      }
+      return ok
+    },
+    [slidesTimelineAdapter, refreshSlidesTimeline],
   )
 
   // Close guard (closing tab/window) chose "Save": run the full save flow and report the result

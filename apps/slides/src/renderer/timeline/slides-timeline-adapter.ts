@@ -69,6 +69,7 @@ export class SlidesTimelineAdapter {
     meta: { promptSummary?: string; label?: string; changeSummary?: string } = {},
   ): Promise<VersionEntry | null> {
     const snap = await this.target.captureSnapshot()
+    if (snap.bytes.byteLength === 0) return null
     const summary = meta.changeSummary ?? `${snap.slideCount} slides`
 
     if (this.target.isEncrypted() || !this.bridge) {
@@ -103,7 +104,7 @@ export class SlidesTimelineAdapter {
       editorKind: 'slides',
       source,
       content: snap.bytes,
-      ext: '.json',
+      ext: '.pptx',
       encrypted: false,
       changeSummary: summary,
       ...(meta.promptSummary ? { promptSummary: meta.promptSummary } : {}),

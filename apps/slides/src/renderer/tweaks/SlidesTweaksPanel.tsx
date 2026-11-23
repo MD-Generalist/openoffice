@@ -8,7 +8,6 @@ import { tweaksText, type TweaksStringKey } from '@genoffice/ui'
 import {
   SLIDES_TWEAKS_PALETTES,
   type SlidesTweaksPaletteId,
-  type SlidesTweaksRadius,
   type SlidesTweaksScope,
   type SlidesTweaksState,
 } from './slides-tweaks'
@@ -41,11 +40,6 @@ export function SlidesTweaksPanel({
   const scopes: readonly [SlidesTweaksScope, TweaksStringKey][] = [
     ['current', 'scopeCurrentSlide'],
     ['deck', 'scopeWholeDeck'],
-  ]
-  const radii: readonly [SlidesTweaksRadius, TweaksStringKey][] = [
-    ['sharp', 'radiusSharp'],
-    ['normal', 'radiusNormal'],
-    ['rounded', 'radiusRounded'],
   ]
 
   return (
@@ -107,23 +101,6 @@ export function SlidesTweaksPanel({
           value={value.fontScalePct}
           onChange={(e) => onChange({ ...value, fontScalePct: Number(e.target.value) })}
         />
-      </div>
-
-      <div className="ieum-tweaks-group">
-        <span className="ieum-tweaks-label">{t('radius')}</span>
-        <div className="ieum-tweaks-seg">
-          {radii.map(([id, key]) => (
-            <button
-              key={id}
-              type="button"
-              className={`ieum-tweaks-chip${value.radius === id ? ' is-active' : ''}`}
-              aria-pressed={value.radius === id}
-              onClick={() => onChange({ ...value, radius: id })}
-            >
-              {t(key)}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="ieum-tweaks-foot">

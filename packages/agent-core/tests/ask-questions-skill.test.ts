@@ -33,6 +33,19 @@ describe('createAskQuestionsSkill', () => {
     expect(secondExec.isError).toBe(true)
     expect(JSON.parse(secondExec.output).message).toContain('Already asked once in this turn')
     expect(ask).toHaveBeenCalledTimes(1)
+
+    // Starting a new user turn resets the single-call guard
+    skill.resetTurn()
+    const nextTurnExec = await skill.executeTool({
+      id: 'c2b',
+      name: ASK_QUESTIONS_TOOL,
+      input: {
+        title: 'Next turn',
+        questions: [{ id: 'q3', label: 'Audience?', type: 'text' }],
+      },
+    })
+    expect(nextTurnExec.isError).toBeUndefined()
+    expect(ask).toHaveBeenCalledTimes(2)
   })
 
   it('rejects invalid question counts without invoking UI', async () => {

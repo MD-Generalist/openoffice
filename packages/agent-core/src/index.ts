@@ -20,6 +20,7 @@ export type {
   AskQuestionsDeps,
   AskQuestionsRequest,
   AskQuestionsResponse,
+  AskQuestionsSkill,
 } from './ask-questions-skill'
 export {
   DEFAULT_FOOTER_RAIL_RATIO,

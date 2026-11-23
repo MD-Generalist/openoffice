@@ -93,15 +93,39 @@ export function targetSlideIndexesForScope(
   return [idx]
 }
 
+const MAX_TXN_OPS = 50
+
+function extractBaseFontSizePt(node: Record<string, unknown>, slideScale: number): number | null {
+  // Real RenderSlide nodes expose laid-out lines (`node.text.lines[0].runs[0].fontSizePx`)
+  const textBody = node.text as
+    { lines?: Array<{ runs?: Array<{ fontSizePx?: number }> }>; fontScale?: number } | undefined
+  const laidOutPx = textBody?.lines?.[0]?.runs?.[0]?.fontSizePx
+  if (typeof laidOutPx === 'number' && laidOutPx > 0) {
+    const norm = slideScale * (textBody?.fontScale ?? 1) || 1
+    return Math.round(((laidOutPx / norm) * 72) / 96)
+  }
+  // Fallback for simplified test fixtures using `paragraphs`
+  const paragraphs = Array.isArray(node.paragraphs)
+    ? (node.paragraphs as Array<Record<string, unknown>>)
+    : null
+  if (paragraphs && paragraphs.length > 0) {
+    const firstRun = Array.isArray(paragraphs[0]?.runs)
+      ? (paragraphs[0]!.runs as Array<Record<string, unknown>>)[0]
+      : undefined
+    return typeof firstRun?.fontSizePt === 'number' ? firstRun.fontSizePt : 16
+  }
+  return null
+}
+
 /**
- * Builds one atomic transaction payload for `applyTxn` (`journaledTxn`) so a
- * tweak adjustment applies as a single undo step and respects `current` vs `deck`.
+ * Builds valid `pptx-ops` transactions (`setBackground`, `setFont`) split into
+ * `<= 50`-op chunks so `applySessionTxn` accepts large decks cleanly.
  */
-export function buildSlidesTweaksTxn(
+export function buildSlidesTweaksTxnChunks(
   slides: readonly RenderSlide[],
   activeSlideIndex: number,
   state: SlidesTweaksState,
-): ApplyTxnOp {
+): ApplyTxnOp[] {
   const pal =
     SLIDES_TWEAKS_PALETTES.find((p) => p.id === state.palette) ?? SLIDES_TWEAKS_PALETTES[0]!
   const targets = targetSlideIndexesForScope(slides.length, activeSlideIndex, state.scope)
@@ -111,38 +135,49 @@ export function buildSlidesTweaksTxn(
   for (const slideIndex of targets) {
     const slide = slides[slideIndex]
     if (!slide) continue
+    const slideScale = typeof slide.scale === 'number' && slide.scale > 0 ? slide.scale : 1
     ops.push({
       op: 'setBackground',
-      slide: slideIndex,
-      fill: { kind: 'solid', color: pal.background },
+      target: { slide: slideIndex },
+      kind: 'solid',
+      color: pal.background,
     })
 
     for (const node of slide.nodes as unknown as Array<Record<string, unknown>>) {
       const sourceId = typeof node.sourceId === 'string' ? node.sourceId : null
       if (!sourceId) continue
-
-      const paragraphs = Array.isArray(node.paragraphs)
-        ? (node.paragraphs as Array<Record<string, unknown>>)
-        : null
-      if (paragraphs && paragraphs.length > 0) {
-        const firstRun = Array.isArray(paragraphs[0]?.runs)
-          ? (paragraphs[0]!.runs as Array<Record<string, unknown>>)[0]
-          : undefined
-        const basePt = typeof firstRun?.fontSizePt === 'number' ? firstRun.fontSizePt : 16
-        const scaledPt = Math.max(10, Math.round(basePt * scale))
-        const isHeading = basePt >= 22
-        ops.push({
-          op: 'setElementFont',
-          target: { slide: slideIndex, el: sourceId },
+      const basePt = extractBaseFontSizePt(node, slideScale)
+      if (basePt === null) continue
+      const scaledPt = Math.max(10, Math.round(basePt * scale))
+      const isHeading = basePt >= 22
+      ops.push({
+        op: 'setFont',
+        target: { slide: slideIndex, el: sourceId },
+        font: {
           color: isHeading ? pal.accent : pal.text,
           ...(state.fontScalePct !== 100 ? { fontSizePt: scaledPt } : {}),
-        })
-      }
+        },
+      })
     }
   }
 
-  return {
-    ops,
-    isolation: 'per_op',
+  const chunks: ApplyTxnOp[] = []
+  for (let i = 0; i < ops.length; i += MAX_TXN_OPS) {
+    chunks.push({ ops: ops.slice(i, i + MAX_TXN_OPS), isolation: 'per_op' })
   }
+  return chunks
+}
+
+/** Single-transaction helper returning the first chunk (<= 50 ops). */
+export function buildSlidesTweaksTxn(
+  slides: readonly RenderSlide[],
+  activeSlideIndex: number,
+  state: SlidesTweaksState,
+): ApplyTxnOp {
+  return (
+    buildSlidesTweaksTxnChunks(slides, activeSlideIndex, state)[0] ?? {
+      ops: [],
+      isolation: 'per_op',
+    }
+  )
 }

@@ -565,6 +565,8 @@ const api: SlidesApi = {
     ipcRenderer.invoke('slides:handoff-run-started', attachedPaths),
   // the open deck as edited, for a skill's template (spec 5.6)
   templateBytes: () => ipcRenderer.invoke('slides:template-bytes'),
+  restoreTimelineBytes: (bytes: Uint8Array) =>
+    ipcRenderer.invoke('slides:timeline-restore-bytes', bytes),
 }
 
 contextBridge.exposeInMainWorld('slidesApi', api)
