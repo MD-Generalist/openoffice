@@ -245,9 +245,9 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             #[cfg(target_os = "android")]
             let handles = {
                 let file_handle =
-                    api.register_android_plugin("com.ieumoffice.mobile", "IeumFilePlugin")?;
+                    api.register_android_plugin("com.ieumoffice.mobile.plugin", "IeumFilePlugin")?;
                 let auth_handle =
-                    api.register_android_plugin("com.ieumoffice.mobile", "IeumAuthPlugin")?;
+                    api.register_android_plugin("com.ieumoffice.mobile.plugin", "IeumAuthPlugin")?;
                 MobileBridgeHandles {
                     file_bridge: Arc::new(mobile_bridge::MobilePluginFileBridge::new(file_handle)),
                     auth_bridge: Arc::new(mobile_bridge::MobilePluginAuthBridge::new(auth_handle)),

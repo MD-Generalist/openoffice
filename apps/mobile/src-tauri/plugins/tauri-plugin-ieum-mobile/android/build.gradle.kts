@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.ieumoffice.mobile"
+    namespace = "com.ieumoffice.mobile.plugin"
     compileSdk = 34
 
     defaultConfig {

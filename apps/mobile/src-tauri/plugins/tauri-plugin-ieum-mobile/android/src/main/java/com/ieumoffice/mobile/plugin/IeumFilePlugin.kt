@@ -1,4 +1,4 @@
-package com.ieumoffice.mobile
+package com.ieumoffice.mobile.plugin
 
 import android.app.Activity
 import android.content.Intent
