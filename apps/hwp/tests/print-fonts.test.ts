@@ -5,7 +5,6 @@
  * slot the engine measured for another font.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { applyPatch, STUDIO_PATCHES } from '../scripts/rhwp-patches.mjs'
 import { isEquationSvgFamily } from '../studio-plugin/equation-fonts.mjs'
 
 type PrintFonts = typeof import('../studio-plugin/print-fonts.mjs')
@@ -314,48 +313,6 @@ describe('the engine’s alias for a document’s font program', () => {
     expect(pc.isEngineFontAlias('__rhwp_intrinsic__HY견고딕')).toBe(true)
     expect(pc.isEngineFontAlias('함초롬바탕')).toBe(false)
     expect(pc.isEngineFontAlias(undefined as never)).toBe(false)
-  })
-
-  // the studio's text around the patch, as the pinned release has it
-  const bridge = [
-    "import { rememberRawCanvasFontDescriptor } from './canvas-font-raw';",
-    "import type { FileSystemFileHandleLike } from '@/command/file-system-access';",
-    '',
-    'function substituteCssFontFamily(cssFont: string): string {',
-    '  const incoming = parseCssFontFamilyList(familyPart);',
-    '  const primary = incoming[0];',
-    '  if (!primary) return cssFont;',
-    '  const localFontsEnabled = getLocalFontState().stored;',
-    '  return prefix + formatCssFontFamilyList(completeFontFamilyList(merged, studioChain.slice(1)));',
-    '}',
-    '',
-  ].join('\n')
-
-  it('is kept out of the substitution’s choice of the document’s font, and stays first', () => {
-    const patched = applyPatch('studio-source-font-alias', bridge)
-    expect(patched).toContain("import { isEngineFontAlias } from '@ieum/pc-fonts';")
-    expect(patched).toContain('const incoming = listed.filter(name => !isEngineFontAlias(name));')
-    expect(patched).toContain(
-      'formatCssFontFamilyList([...engineAliases, ...completeFontFamilyList(',
-    )
-    // the list is still weighed by its first name: now the first real one
-    expect(patched).toContain('  const primary = incoming[0];')
-    expect(STUDIO_PATCHES).toContain('studio-source-font-alias')
-    expect(() => applyPatch('studio-source-font-alias', 'export const x = 1')).toThrow(/rhwp patch/)
-  })
-
-  it('goes on the same file as the equation patch, in either order', () => {
-    const one = applyPatch('studio-source-font-alias', applyPatch('studio-equation-fonts', bridge))
-    const other = applyPatch(
-      'studio-equation-fonts',
-      applyPatch('studio-source-font-alias', bridge),
-    )
-    for (const patched of [one, other]) {
-      expect(patched).toContain('if (isEquationGlyphFont(primary)) return cssFont;')
-      expect(patched).toContain(
-        'const engineAliases = listed.filter(name => isEngineFontAlias(name));',
-      )
-    }
   })
 })
 

@@ -164,16 +164,12 @@
  *   underlines such a name, with a tooltip saying the file keeps the font's name
  *   (studio-plugin/pc-fonts.mjs, in the words the app gives).
  *
- * studio-source-font-alias
- *   The engine leads a canvas font list with its own alias for the document's font program
- *   (`__rhwp_ttf__함초롬바탕`), meant for a host that supplies font files. The studio's
- *   substitution took the alias for the document's font: it is on no PC, so the stand-in
- *   (바탕, 맑은 고딕) went before the font the document names and the page drew every such
- *   font in the stand-in, even one that is installed. The print and the PDF read the
- *   engine's list without the alias and drew the font itself, so the paper did not look
- *   like the page. The aliases keep their place and the list is weighed by its first real
- *   name. Upstream had the same defect (edwardkim/rhwp#9077) and fixed it on devel the same
- *   way (PR #9093); the patch is dropped with the release that has that fix.
+ * studio-equation-fonts, studio-equation-fonts-subst
+ *   Hancom's equation fonts are written in private code points, which mean nothing in the
+ *   font the substitution would put in their place while the PC's fonts are not known yet
+ *   or the font is not there. The app's own layer (equation-fonts.mjs) installs on
+ *   CanvasRenderingContext2D under the studio's substitution (wasm-bridge.ts) and lets
+ *   equation glyph runs pass through substituteCssFontFamily untouched (font-substitution.ts).
  *
  * studio-hancom-object-drag, studio-hancom-object-drag-cancel
  *   The studio sized a picture or drawing object freely from every handle and had no keys
@@ -1225,16 +1221,15 @@ const PATCHES = {
           " * ieum: the table's border and fill go to the engine only when the dialog changed them.",
           ' * The engine hands what it gets to the table and to every cell, so sending the values the',
           " * dialog merely showed would overwrite each cell's own lines and fill. The dialog shows a",
-          ' * fill it cannot edit (gradient, picture) as none, and has no "no pattern" choice: an',
-          ' * unpatterned fill reads as an empty choice, and a solid fill is written with pattern -1',
-          ' * (the engine writes 0 otherwise, which Hangul draws as horizontal lines).',
+          ' * fill it cannot edit (gradient, picture) as none; HWP patternType is -1 for none and',
+          ' * 0..5 for hatch patterns (rhwp v0.9.1 #8978).',
           ' */',
           'function ieumKeepUnchangedTableLook(next: Record<string, unknown>, now: TableProperties): void {',
           "  const sides = ['borderLeft', 'borderRight', 'borderTop', 'borderBottom'] as const;",
           "  const color = (value: unknown) => String(value ?? '').toLowerCase();",
           '  const pattern = (value: unknown) => {',
           '    const n = Number(value);',
-          '    return Number.isFinite(n) && n > 0 ? n : 0;',
+          '    return Number.isFinite(n) && n >= 0 ? n : -1;',
           '  };',
           '  const sameLine = (a: any, b: any) =>',
           '    !!a && !!b && a.type === b.type && a.width === b.width && color(a.color) === color(b.color);',
@@ -1248,10 +1243,10 @@ const PATCHES = {
           '    : wasSolid &&',
           '      color(next.fillColor) === color(now.fillColor) &&',
           '      pattern(next.patternType) === pattern(now.patternType) &&',
-          '      (pattern(next.patternType) === 0 || color(next.patternColor) === color(now.patternColor));',
+          '      (pattern(next.patternType) < 0 || color(next.patternColor) === color(now.patternColor));',
           '  if (unchanged) {',
           "    for (const key of ['fillType', 'fillColor', 'patternColor', 'patternType']) delete next[key];",
-          "  } else if (next.fillType === 'solid' && pattern(next.patternType) === 0) {",
+          "  } else if (next.fillType === 'solid' && pattern(next.patternType) < 0) {",
           '    next.patternType = -1;',
           '  }',
           '}',
@@ -1477,15 +1472,23 @@ const PATCHES = {
   // substitution: it keeps the font when the PC has it and decodes the run when it has not.
   'studio-equation-fonts': {
     file: /[\\/]rhwp-studio[\\/]src[\\/]core[\\/]wasm-bridge\.ts$/,
+    find: "import { rememberRawCanvasFontDescriptor } from './canvas-font-raw';",
+    replace: [
+      "import { rememberRawCanvasFontDescriptor } from './canvas-font-raw';",
+      `import { installEquationFonts } from '${PC_FONTS_MODULE}';`,
+      '',
+      '// before the substitution below wraps the canvas font: it must sit on top of this',
+      'installEquationFonts();',
+    ].join('\n'),
+  },
+  'studio-equation-fonts-subst': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]core[\\/]font-substitution\.ts$/,
     edits: [
       {
-        find: "import { rememberRawCanvasFontDescriptor } from './canvas-font-raw';",
+        find: "import { TEXT_SYMBOL_FONT_FAMILIES } from './text-symbol-font.ts';",
         replace: [
-          "import { rememberRawCanvasFontDescriptor } from './canvas-font-raw';",
-          `import { installEquationFonts, isEquationGlyphFont } from '${PC_FONTS_MODULE}';`,
-          '',
-          '// before the substitution below wraps the canvas font: it must sit on top of this',
-          'installEquationFonts();',
+          "import { TEXT_SYMBOL_FONT_FAMILIES } from './text-symbol-font.ts';",
+          `import { isEquationGlyphFont } from '${PC_FONTS_MODULE}';`,
         ].join('\n'),
       },
       {
@@ -1495,36 +1498,6 @@ const PATCHES = {
           '  if (!primary) return cssFont;',
           '  if (isEquationGlyphFont(primary)) return cssFont;',
         ].join('\n'),
-      },
-    ],
-  },
-  // The engine leads a canvas font list with its alias for the document's font program
-  // (pc-fonts.mjs, isEngineFontAlias). The substitution took that alias for the document's
-  // font, found it on no PC and put its stand-in first: the page drew 함초롬바탕, 궁서 or
-  // Arial in 바탕 or 맑은 고딕 while the print drew the font. The aliases stay where the
-  // engine put them and the list is weighed by its first real name.
-  'studio-source-font-alias': {
-    file: /[\\/]rhwp-studio[\\/]src[\\/]core[\\/]wasm-bridge\.ts$/,
-    edits: [
-      {
-        find: "import type { FileSystemFileHandleLike } from '@/command/file-system-access';",
-        replace: [
-          "import type { FileSystemFileHandleLike } from '@/command/file-system-access';",
-          `import { isEngineFontAlias } from '${PC_FONTS_MODULE}';`,
-        ].join('\n'),
-      },
-      {
-        find: '  const incoming = parseCssFontFamilyList(familyPart);',
-        replace: [
-          '  const listed = parseCssFontFamilyList(familyPart);',
-          '  const engineAliases = listed.filter(name => isEngineFontAlias(name));',
-          '  const incoming = listed.filter(name => !isEngineFontAlias(name));',
-        ].join('\n'),
-      },
-      {
-        find: '  return prefix + formatCssFontFamilyList(completeFontFamilyList(merged, studioChain.slice(1)));',
-        replace:
-          '  return prefix + formatCssFontFamilyList([...engineAliases, ...completeFontFamilyList(merged, studioChain.slice(1))]);',
       },
     ],
   },
@@ -1990,7 +1963,7 @@ export const STUDIO_PATCHES = /** @type {const} */ ([
   'studio-font-file-reads',
   'studio-missing-font-marks',
   'studio-equation-fonts',
-  'studio-source-font-alias',
+  'studio-equation-fonts-subst',
   'studio-hancom-object-drag',
   'studio-hancom-object-drag-cancel',
   'studio-hancom-object-step',
