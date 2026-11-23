@@ -1,1 +1,3 @@
-// Encrypted credential storage adapters implemented in T2.
+pub mod vault;
+
+pub use vault::SealedVault;
