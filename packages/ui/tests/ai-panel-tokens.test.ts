@@ -33,6 +33,18 @@ describe('AI panel design tokens and stylesheet invariants', () => {
     const mediaVars = extractVars(mediaBlock)
 
     const requiredAiTokens = [
+      '--text-strong',
+      '--text-primary',
+      '--text-secondary',
+      '--text-tertiary',
+      '--text-faint',
+      '--fill-subtle',
+      '--fill-muted',
+      '--fill-strong',
+      '--shadow-xs',
+      '--shadow-sm',
+      '--shadow-md',
+      '--shadow-lg',
       '--ai-user-bubble-bg',
       '--ai-user-bubble-border',
       '--ai-card-bg',
@@ -79,6 +91,12 @@ describe('AI panel design tokens and stylesheet invariants', () => {
       'project-panel.css',
       'skill-picker.css',
       'ai-panel-prefs.css',
+      'ai-question-card.css',
+      'ai-next-steps.css',
+      'review-memo-picker.css',
+      'ai-quality-badge.css',
+      'version-timeline-drawer.css',
+      'tweaks-panel.css',
     ]
     for (const file of files) {
       const stripped = readCss(file).replace(/\/\*[\s\S]*?\*\//g, '')

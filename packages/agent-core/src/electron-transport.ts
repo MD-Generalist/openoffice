@@ -16,6 +16,12 @@ export type IpcStreamErrorKind =
   | 'timeout'
   | 'credits'
   | 'network'
+  /** proxy authentication or proxy connection failure */
+  | 'proxy-error'
+  /** TLS / SSL certificate verification failure */
+  | 'cert-error'
+  /** DNS or host unreachable / offline network failure */
+  | 'network-unreachable'
   | 'overloaded'
   /** no usable provider */
   | 'not-connected'

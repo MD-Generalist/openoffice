@@ -141,6 +141,13 @@ import { installCliLinkBestEffort } from './cli-link'
 import { createDefaultAppService, execFileRunner } from './default-app'
 import { registerIntegrationsIpc } from './integrations-ipc'
 import { registerResultStoreIpc } from './result-store-ipc'
+import { VersionTimelineStore } from '@genoffice/electron-utils'
+import { registerVersionTimelineIpc } from './version-timeline-ipc'
+import { registerDiagnosticsIpc } from './diagnostics-bundle'
+import { openQuickSwitcherWindow, registerQuickSwitcherIpc } from './quick-switcher-window'
+import { registerGenerateEditorIpc } from './generate/generate-editor-ipc'
+import { openGenerateWindowForDocument } from './generate/generate-window'
+import { builtinCraftDirFor } from './user-skills/builtin-craft-dir'
 import { FEEDBACK_SURVEY_URL, feedbackDetails, feedbackText, platformLabel } from './feedback'
 import { registerDriveIpc, type DriveService } from './drive/drive-ipc'
 import { registerEditorChoiceIpc, type EditorChoiceService } from './editor-choice-main'
@@ -5531,6 +5538,90 @@ function installTabShortcuts(): void {
     contents.on('before-input-event', (event, input) => {
       const manager = tabManager
       if (!manager) return
+      // Global Quick Switcher (Ctrl+Shift+P / Cmd+Shift+P), preserving Ctrl+K hyperlink in editors
+      if (
+        input.type === 'keyDown' &&
+        input.shift &&
+        !input.alt &&
+        (process.platform === 'darwin'
+          ? input.meta && !input.control
+          : input.control && !input.meta) &&
+        input.key.toLowerCase() === 'p'
+      ) {
+        event.preventDefault()
+        openQuickSwitcherWindow(BrowserWindow.getFocusedWindow() ?? shellWindow, {
+          isAiVisible: () => editorChoiceService?.effective().aiFeatures ?? true,
+          isEditorEnabled: (kind) =>
+            !(editorChoiceService?.effective().off ?? []).includes(kind as never),
+          getLang: () => currentLang(),
+          listOpenTabs: () =>
+            manager.list().map((tab) => ({
+              id: tab.id,
+              title: tab.title,
+              path: tab.filePath ?? undefined,
+              editorKind: tab.kind,
+              activate: () => manager.activateTab(tab.id),
+            })),
+          listRecentFiles: () =>
+            readRecentFiles()
+              .slice(0, 20)
+              .map((filePath) => ({ path: filePath, title: basename(filePath) })),
+          listProjectFiles: async () => [],
+          openFile: (filePath) => {
+            void openMadeDocument(filePath)
+          },
+          listCommands: () => [
+            {
+              id: 'settings',
+              title: 'Settings',
+              run: () => openHomeSettings({ section: 'general' }),
+            },
+            {
+              id: 'ai-settings',
+              title: 'AI Settings',
+              aiOnly: true,
+              run: () => openHomeSettings({ section: 'ai' }),
+            },
+            {
+              id: 'new-docs',
+              title: 'New Word Document',
+              editorKind: 'docs',
+              run: () => void entrances.makeAndOpen('docs'),
+            },
+            {
+              id: 'new-sheets',
+              title: 'New Spreadsheet',
+              editorKind: 'sheets',
+              run: () => void entrances.makeAndOpen('sheets'),
+            },
+            {
+              id: 'new-slides',
+              title: 'New Presentation',
+              editorKind: 'slides',
+              run: () => void entrances.makeAndOpen('slides'),
+            },
+            {
+              id: 'new-html',
+              title: 'New HTML Document',
+              editorKind: 'html',
+              run: () => void entrances.makeAndOpen('html'),
+            },
+            {
+              id: 'new-hwp',
+              title: 'New HWP Document',
+              editorKind: 'hwp',
+              run: () => void entrances.makeAndOpen('hwp'),
+            },
+            {
+              id: 'new-whiteboard',
+              title: 'New Whiteboard',
+              editorKind: 'whiteboard',
+              run: () => void entrances.makeAndOpen('whiteboard'),
+            },
+          ],
+        })
+        return
+      }
       // Ctrl+Tab in a Hangul table cell inserts a tab and Ctrl+Shift+Tab lines the paragraph
       // up at the caret, as Hancom does; elsewhere the shell keeps them for cycling tabs. The
       // editor answers from its own key map.
@@ -10515,6 +10606,46 @@ registerIntegrationsIpc({
     : join(APPS_ROOT, '..', 'packages', 'cli', 'package.json'),
 })
 registerResultStoreIpc(ipcMain, () => app.getPath('userData'))
+registerVersionTimelineIpc(ipcMain, new VersionTimelineStore({ baseDir: app.getPath('userData') }))
+registerDiagnosticsIpc(ipcMain, {
+  userDataDir: () => app.getPath('userData'),
+  collectInput: () => ({
+    appVersion: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    osRelease: release(),
+    uiLang: currentLang(),
+    subscriptions: {},
+  }),
+  pickSavePath: async (defaultName) => {
+    const parent = BrowserWindow.getFocusedWindow() ?? shellWindow ?? undefined
+    const opts = {
+      defaultPath: defaultName,
+      filters: [{ name: 'ZIP', extensions: ['zip'] }],
+    }
+    const res = parent
+      ? await dialog.showSaveDialog(parent, opts)
+      : await dialog.showSaveDialog(opts)
+    return res.canceled || !res.filePath ? null : res.filePath
+  },
+})
+registerQuickSwitcherIpc(ipcMain)
+registerGenerateEditorIpc(ipcMain, {
+  resolveTabForSender: (senderId) => {
+    const tabId = tabManager?.tabIdForWebContents(senderId)
+    if (!tabId) return null
+    const list = tabManager?.list() ?? []
+    const found = list.find((t) => t.id === tabId)
+    if (!found) return null
+    return {
+      webContentsId: senderId,
+      filePath: found.filePath ?? undefined,
+      title: found.title,
+      parent: shellWindow,
+    }
+  },
+  openForDocument: (doc) => openGenerateWindowForDocument(doc),
+})
 registerTabsIpc()
 registerSplitIpc()
 registerDroppedFilesIpc()
@@ -10547,6 +10678,12 @@ const builtinSkillsDir = (): string =>
 const userSkills = createUserSkillsService({
   homeDir: () => homedir(),
   builtinDir: builtinSkillsDir,
+  builtinCraftDir: () =>
+    builtinCraftDirFor({
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      appPath: app.getAppPath(),
+    }),
   settingsPath: APP_SETTINGS_PATH,
   tempDir: () => join(tmpdir(), 'ieumoffice-skills'),
   trash: (path) => shell.trashItem(path),

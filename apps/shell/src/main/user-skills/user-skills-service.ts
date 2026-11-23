@@ -29,10 +29,12 @@ import {
   type SkillEditorId,
 } from '@genoffice/agent-core/skill-editors'
 import {
+  IEUM_CRAFT_KEY,
   IEUM_EDITORS_KEY,
   IEUM_SOURCE_FILE,
   IEUM_TEMPLATE_KEY,
   IEUM_TITLE_KEY,
+  parseCraftSlugs,
   SKILL_STAGING_PREFIX,
   SKILL_TEXT_EXTENSIONS,
   SkillImportError,
@@ -103,6 +105,7 @@ import {
   type UserSkillsResult,
 } from '@genoffice/electron-utils/user-skills-channels'
 import { readSkillSettings, updateSkillSettings } from '../app-settings'
+import { readCraftFragments } from './builtin-craft-dir'
 
 /** Largest skill file the AI may read in one call (spec 5.8; tunable) */
 export const AI_SKILL_FILE_MAX_BYTES = 200 * 1024
@@ -140,6 +143,8 @@ export interface UserSkillsServiceDeps {
   homeDir: () => string
   /** the builtin skills folder; none in a build without it */
   builtinDir: () => string | undefined
+  /** optional builtin craft fragments folder; defaults to sibling `builtin-craft` next to `builtinDir` */
+  builtinCraftDir?: (() => string | undefined) | undefined
   /** userData/app-settings.json */
   settingsPath: () => string
   /** where imports, update checks and version comparisons make their temporary folders */
@@ -254,6 +259,8 @@ function viewOf(
     templateExists: skill.templateExists,
     agentOnly: skill.agentOnly,
     ...(skill.editors ? { editors: skill.editors } : {}),
+    ...(skill.craft ? { craft: skill.craft } : {}),
+    ...(skill.example ? { example: skill.example } : {}),
     unreadable: skill.unreadable,
     files: skill.files,
     bytes: skill.bytes,
@@ -1426,6 +1433,11 @@ export function createUserSkillsService(deps: UserSkillsServiceDeps) {
       const text = await readSkillMdText(skill.dir)
       const parsed = text === undefined ? undefined : parseSkillMd(text)
       if (!parsed) return fail('unreadable')
+      const craftSlugs = parseCraftSlugs(parsed.metadata[IEUM_CRAFT_KEY])
+      const builtin = deps.builtinDir()
+      const craftDir =
+        deps.builtinCraftDir?.() ?? (builtin ? join(dirname(builtin), 'builtin-craft') : undefined)
+      const craftTexts = await readCraftFragments(craftDir, craftSlugs)
       return {
         ok: true,
         skill: {
@@ -1438,6 +1450,7 @@ export function createUserSkillsService(deps: UserSkillsServiceDeps) {
           hasScripts: skill.hasScripts,
           // read again from the text sent now, not the list's copy
           mcpServers: mcpServersOfSkillMd(parsed),
+          ...(craftTexts.length > 0 ? { craftTexts } : {}),
         },
       }
     },

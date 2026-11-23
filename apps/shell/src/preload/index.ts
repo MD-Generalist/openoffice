@@ -22,6 +22,8 @@ import { mcpToolsBridge } from '@genoffice/electron-utils/mcp-tools-bridge'
 import { outboundBridge } from '@genoffice/electron-utils/outbound-bridge'
 import { userSkillsBridge } from '@genoffice/electron-utils/user-skills-bridge'
 import { APP_CHOICE_BRIDGE_KEY, appChoiceBridge } from '@genoffice/electron-utils/app-choice-bridge'
+import { VERSION_TIMELINE_BRIDGE_KEY } from '@genoffice/electron-utils/version-timeline-channels'
+import { versionTimelineBridge } from '@genoffice/electron-utils/version-timeline-bridge'
 import {
   PROJECT_FOLDER_BRIDGE_KEY,
   projectFolderBridge,
@@ -1099,6 +1101,11 @@ const recoveryListApi: RecoveryListApi = {
     ipcRenderer.invoke(RECOVERY_LIST_CHANNELS.submit, result) as Promise<void>,
 }
 contextBridge.exposeInMainWorld('aiOfficeRecovery', recoveryListApi)
+contextBridge.exposeInMainWorld(VERSION_TIMELINE_BRIDGE_KEY, versionTimelineBridge())
+contextBridge.exposeInMainWorld('aiOfficeDiagnostics', {
+  preview: () => ipcRenderer.invoke('diagnostics:preview'),
+  saveZip: () => ipcRenderer.invoke('diagnostics:save-zip'),
+})
 
 // open documents dragged from the OS anywhere over Home or the tab strip
 installDropOpenBridge()

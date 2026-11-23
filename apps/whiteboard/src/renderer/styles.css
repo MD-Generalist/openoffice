@@ -1085,3 +1085,17 @@ body,
   color: var(--wb-present-text);
   cursor: pointer;
 }
+
+.wb-noai-tools {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 35;
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--surface);
+  box-shadow: var(--shadow-menu);
+}

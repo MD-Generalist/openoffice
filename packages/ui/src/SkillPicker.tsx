@@ -9,6 +9,7 @@ import {
   type SkillPickerItem,
 } from './skill-picker-model'
 import { skillPickerText } from './strings-skill-picker'
+import { skillExampleText } from './strings-skill-example'
 import { aiPanelText } from './strings-ai-panel'
 import './skill-picker.css'
 
@@ -40,6 +41,7 @@ export function SkillPicker({
   emptyMessage,
   onPick,
   onHover,
+  onUseExample,
 }: {
   lang: Lang
   listId: string
@@ -51,6 +53,8 @@ export function SkillPicker({
   /** a row index; `items.length` is the manage row */
   onPick: (index: number) => void
   onHover: (index: number) => void
+  /** fills composer with the skill chip and `item.example` without auto-sending */
+  onUseExample?: ((item: SkillPickerItem, index: number) => void) | undefined
 }): React.JSX.Element {
   const manageIndex = items.length
   return (
@@ -97,6 +101,34 @@ export function SkillPicker({
             {item.description && (
               <div className="ai-skill-picker-desc" dir="auto">
                 {preview(item.description)}
+              </div>
+            )}
+            {item.craft && item.craft.length > 0 && (
+              <div className="ai-skill-picker-craft">
+                {item.craft.slice(0, 3).map((slug) => (
+                  <span key={slug} className="ai-skill-picker-badge">
+                    {slug}
+                  </span>
+                ))}
+              </div>
+            )}
+            {item.example && (
+              <div className="ai-skill-picker-example" dir="auto">
+                <span>
+                  {skillExampleText(lang, 'exampleLabel')}: {preview(item.example)}
+                </span>
+                {onUseExample && (
+                  <button
+                    type="button"
+                    className="ai-skill-picker-example-btn"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onUseExample(item, index)
+                    }}
+                  >
+                    {skillExampleText(lang, 'startWithExample')}
+                  </button>
+                )}
               </div>
             )}
           </div>

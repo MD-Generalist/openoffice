@@ -27,8 +27,25 @@ import {
   useSplitPaneRole,
   createZoomWheelClassifier,
   wheelZoomStepPercent,
+  VersionTimelineDrawer,
+  tweaksText,
+  versionTimelineText,
+  type DrawerVersionEntry,
   type TemplateDocument,
 } from '@genoffice/ui'
+import '@genoffice/ui/tweaks-panel.css'
+import {
+  VERSION_TIMELINE_BRIDGE_KEY,
+  type VersionTimelineBridge,
+} from '@genoffice/electron-utils/version-timeline-channels'
+import {
+  DEFAULT_HTML_TWEAKS,
+  buildHtmlTweaksPatch,
+  buildHtmlTweaksResetPatch,
+  type HtmlTweaksState,
+} from './tweaks/html-tweaks'
+import { HtmlTweaksPanel } from './tweaks/HtmlTweaksPanel'
+import { HtmlTimelineAdapter } from './timeline/html-timeline-adapter'
 import {
   pollUntilReady,
   runHeadlessRendererExport,
@@ -1583,6 +1600,7 @@ export default function App() {
           setSaveState(saved ? 'saved' : 'idle')
           if (!saved) window.htmlApi.setDirty(true)
           pushPreview(adopted.liveText)
+          void timelineAdapterRef.current?.record('save').then(() => refreshTimelineRef.current())
           return true
         }
         // external-modified: the main process already prompted (or the autosave
@@ -1682,6 +1700,66 @@ export default function App() {
   // Shell menu Print / ⌘P / the tab menu open the print dialog first (decision
   // 0141). All pages with nothing changed there is runPrint as before.
   const [printDialogOpen, setPrintDialogOpen] = useState(false)
+  const [tweaksOpen, setTweaksOpen] = useState(false)
+  const [tweaksState, setTweaksState] = useState<HtmlTweaksState>(DEFAULT_HTML_TWEAKS)
+  const tweaksBaselineRef = useRef<string | null>(null)
+  const [timelineOpen, setTimelineOpen] = useState(false)
+  const [timelineEntries, setTimelineEntries] = useState<DrawerVersionEntry[]>([])
+  const timelineAdapterRef = useRef<HtmlTimelineAdapter | null>(null)
+  const refreshTimelineRef = useRef<() => void>(() => {})
+
+  const htmlTimelineAdapter = useMemo(() => {
+    const bridge = (window as unknown as Record<string, VersionTimelineBridge | undefined>)[
+      VERSION_TIMELINE_BRIDGE_KEY
+    ]
+    return new HtmlTimelineAdapter(bridge, {
+      docKey: path || 'html:untitled',
+      getHtml: () => textRef.current,
+      applyRestorePatch: (patch) => {
+        flushPending()
+        const base = textRef.current
+        editorRef.current?.applyPatches([patch], false)
+        commitText(applyPatches(base, [patch]), true)
+      },
+    })
+  }, [path, commitText, flushPending])
+  timelineAdapterRef.current = htmlTimelineAdapter
+
+  const refreshTimeline = useCallback(() => {
+    void htmlTimelineAdapter.list().then((items) => setTimelineEntries(items))
+  }, [htmlTimelineAdapter])
+  refreshTimelineRef.current = refreshTimeline
+
+  useEffect(() => {
+    if (timelineOpen) refreshTimeline()
+  }, [timelineOpen, refreshTimeline])
+
+  const openTweaks = useCallback(() => {
+    tweaksBaselineRef.current = textRef.current
+    setTweaksOpen(true)
+  }, [])
+
+  const applyTweaksState = useCallback(
+    (next: HtmlTweaksState) => {
+      setTweaksState(next)
+      flushPending()
+      const base = textRef.current
+      const patch = buildHtmlTweaksPatch(base, next)
+      editorRef.current?.applyPatches([patch], false)
+      commitText(applyPatches(base, [patch]), true)
+    },
+    [commitText, flushPending],
+  )
+
+  const resetTweaks = useCallback(() => {
+    setTweaksState(DEFAULT_HTML_TWEAKS)
+    if (tweaksBaselineRef.current === null) return
+    flushPending()
+    const base = textRef.current
+    const patch = buildHtmlTweaksResetPatch(base, tweaksBaselineRef.current)
+    editorRef.current?.applyPatches([patch], false)
+    commitText(applyPatches(base, [patch]), true)
+  }, [commitText, flushPending])
   const openPrintDialog = useCallback(() => {
     // the system dialog of a print already under way is modal: no second print
     if (statusRef.current !== 'ready' || printingRef.current) return
@@ -2120,6 +2198,12 @@ export default function App() {
               onQueueConsume={queueConsume}
               onCollapse={() => setAiOpen(false)}
               marksShown={aiMarksShown}
+              onOpenTweaks={openTweaks}
+              onAiDoneRecord={(summary) =>
+                void htmlTimelineAdapter
+                  .record('ai', { promptSummary: summary })
+                  .then(() => refreshTimeline())
+              }
             />
           </div>
         )}
@@ -2311,6 +2395,20 @@ export default function App() {
               {pageSetup && paperReport && (
                 <span className="status-item">{t('pageCount', { n: paperReport.pages })}</span>
               )}
+              <button
+                type="button"
+                className="status-item"
+                onClick={() => (tweaksOpen ? setTweaksOpen(false) : openTweaks())}
+              >
+                {tweaksText(lang, 'title')}
+              </button>
+              <button
+                type="button"
+                className="status-item"
+                onClick={() => setTimelineOpen((v) => !v)}
+              >
+                {versionTimelineText(lang, 'title')}
+              </button>
               <Dropdown
                 className="device-dd"
                 value={device}
@@ -2351,6 +2449,33 @@ export default function App() {
             </div>
           </footer>
         </div>
+        {tweaksOpen && (
+          <HtmlTweaksPanel
+            lang={lang}
+            value={tweaksState}
+            onChange={applyTweaksState}
+            onReset={resetTweaks}
+            onClose={() => setTweaksOpen(false)}
+          />
+        )}
+        <VersionTimelineDrawer
+          open={timelineOpen}
+          lang={lang}
+          entries={timelineEntries}
+          onSaveCheckpoint={async (label) => {
+            await htmlTimelineAdapter.record('checkpoint', { label })
+            refreshTimeline()
+          }}
+          onRestore={async (entry) => {
+            await htmlTimelineAdapter.restore(entry.id)
+            refreshTimeline()
+          }}
+          onDelete={async (entry) => {
+            await htmlTimelineAdapter.deleteEntry(entry.id)
+            refreshTimeline()
+          }}
+          onClose={() => setTimelineOpen(false)}
+        />
       </div>
       {aiOn && askTarget && askMode && canvasMode !== 'present' && (
         <AiAskPopover

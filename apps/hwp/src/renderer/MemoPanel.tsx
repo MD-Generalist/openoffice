@@ -17,9 +17,11 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, ReactElement } from 'react'
 import { createPortal } from 'react-dom'
 import { PRODUCT_NAME, type Params } from '@genoffice/i18n'
+import { memoReplyText } from '@genoffice/ui'
 import type { AgentMemo, AgentMemoAnchor } from '../../studio-plugin/agent-plugin.mjs'
 import { MEMO_NOT_COPIED_EVENT, MEMO_REMOVED_EVENT } from '../../studio-plugin/agent-plugin.mjs'
 import type { AgentBridge } from './ai/agent-bridge'
+import { appendHwpMemoReply, parseHwpMemoThread } from './ai/memo-attach'
 import { useI18n, type StringKey } from './i18n/locale'
 
 /** The longest memo body the engine takes, in UTF-16 units (spec 3.3). */
@@ -784,6 +786,41 @@ export function MemoPanel({
   const pageOf = (memo: AgentMemo): Params | null => memoPageParams(memo.page)
   const authorOf = (memo: AgentMemo): string => memo.author.trim() || t('memoUnknownAuthor')
   const dateOf = (memo: AgentMemo): string | null => memoDateText(memo.date, lang)
+  const [replyTargetId, setReplyTargetId] = useState<number | null>(null)
+  const [replyText, setReplyText] = useState('')
+  const submitReply = useCallback(
+    async (memo: AgentMemo) => {
+      if (opening || busy || foreignOnly || !canEditMemo(memo)) return
+      const author = authorNameOf(await window.hwpApi.getAuthorName().catch(() => null))
+      const appended = appendHwpMemoReply(memo.text ?? '', replyText, author)
+      if (!appended.ok) {
+        onNotice({
+          key: appended.reason === 'too-long' ? 'memoErrTooLong' : 'memoErrEmpty',
+          tone: 'error',
+        })
+        return
+      }
+      setBusy(true)
+      try {
+        const result = await bridge.setMemo(memo.id, appended.nextText)
+        if (!result.ok) {
+          onNotice({
+            key: memoMutationErrorKey('save', result.reason, result.why),
+            tone: 'error',
+          })
+          return
+        }
+        setReplyTargetId(null)
+        setReplyText('')
+        await load()
+      } catch {
+        onNotice({ key: 'memoErrSave', tone: 'error' })
+      } finally {
+        if (aliveRef.current) setBusy(false)
+      }
+    },
+    [opening, busy, foreignOnly, replyText, bridge, load, onNotice],
+  )
 
   const modal = editor ? (
     <div className="memo-modal-backdrop" onKeyDown={onDialogKeyDown}>
@@ -932,6 +969,8 @@ export function MemoPanel({
             const page = pageOf(memo)
             const date = dateOf(memo)
             const selected = memo.id === selectedId
+            const thread = parseHwpMemoThread(memo.text ?? '')
+            const editable = canEditMemo(memo)
             return (
               <div key={memo.id} className={`memo-card${selected ? ' selected' : ''}`}>
                 <button
@@ -944,22 +983,84 @@ export function MemoPanel({
                     <span className="memo-card-author">{authorOf(memo)}</span>
                     {page && <span className="memo-card-page">{t('memoPage', page)}</span>}
                     {date && <span className="memo-card-date">{date}</span>}
-                    {!canEditMemo(memo) && (
-                      <span className="memo-readonly-badge">{t('memoReadOnly')}</span>
-                    )}
+                    {!editable && <span className="memo-readonly-badge">{t('memoReadOnly')}</span>}
                   </span>
                   <span
-                    className={`memo-card-text${isEmptyMemoText(memo.text) ? ' memo-card-empty' : ''}`}
+                    className={`memo-card-text${isEmptyMemoText(thread.originalText) ? ' memo-card-empty' : ''}`}
                   >
-                    {isEmptyMemoText(memo.text) ? t('memoNoBody') : memoPreviewOf(memo)}
+                    {isEmptyMemoText(thread.originalText)
+                      ? t('memoNoBody')
+                      : thread.originalText || memoPreviewOf(memo)}
                   </span>
                   {reason && <span className="memo-card-reason">{t(reason)}</span>}
                 </button>
+                {thread.replies.length > 0 && (
+                  <div className="memo-replies">
+                    {thread.replies.map((reply, rIdx) => (
+                      <div key={rIdx} className="memo-reply-item">
+                        <div className="memo-reply-meta">
+                          <span>{reply.author}</span>
+                          <span>{reply.timestamp}</span>
+                        </div>
+                        <div className="memo-reply-body">{reply.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {replyTargetId === memo.id && editable && (
+                  <div className="memo-reply-form">
+                    <textarea
+                      className="memo-textarea"
+                      rows={2}
+                      value={replyText}
+                      placeholder={memoReplyText(lang, 'replyPlaceholder')}
+                      onChange={(e) => setReplyText(e.target.value)}
+                    />
+                    <div className="memo-card-actions">
+                      <button
+                        type="button"
+                        className="memo-button memo-card-button"
+                        onClick={() => {
+                          setReplyTargetId(null)
+                          setReplyText('')
+                        }}
+                      >
+                        {memoReplyText(lang, 'cancelReply')}
+                      </button>
+                      <button
+                        type="button"
+                        className="memo-button memo-card-button"
+                        disabled={busy || !replyText.trim()}
+                        onClick={() => void submitReply(memo)}
+                      >
+                        {memoReplyText(lang, 'sendReply')}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="memo-card-actions">
                   <button
                     type="button"
                     className="memo-button memo-card-button"
-                    disabled={opening || busy || foreignOnly || !canEditMemo(memo)}
+                    disabled={opening || busy || foreignOnly || !editable}
+                    title={
+                      !editable
+                        ? reason
+                          ? t(reason)
+                          : memoReplyText(lang, 'readOnlyNoReply')
+                        : undefined
+                    }
+                    onClick={() => {
+                      setReplyTargetId(memo.id)
+                      setReplyText('')
+                    }}
+                  >
+                    {memoReplyText(lang, 'reply')}
+                  </button>
+                  <button
+                    type="button"
+                    className="memo-button memo-card-button"
+                    disabled={opening || busy || foreignOnly || !editable}
                     title={reason ? t(reason) : undefined}
                     onClick={() => void beginEdit(memo)}
                   >

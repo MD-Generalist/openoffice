@@ -1229,6 +1229,7 @@ async function openAndBuild(
       slides: buildAllRenderSlides(existing.opened, fitWidthPx),
       size: { cx: existing.opened.deck.size.cx, cy: existing.opened.deck.size.cy },
       defaultFont: deckDefaultFont(existing.opened),
+      ...(existing.password !== undefined ? { encrypted: true } : {}),
     }
   }
   const raw = unlocked?.bytes ?? (await readFile(path))
@@ -1286,6 +1287,7 @@ async function openAndBuild(
     slides,
     size: { cx: opened.deck.size.cx, cy: opened.deck.size.cy },
     defaultFont: deckDefaultFont(opened),
+    ...(unlocked !== undefined ? { encrypted: true } : {}),
   }
 }
 
@@ -1841,6 +1843,7 @@ export function registerSlidesIpc(): void {
         slides: buildAllRenderSlides(session.opened, fitWidthPx),
         size: { cx: session.opened.deck.size.cx, cy: session.opened.deck.size.cy },
         defaultFont: deckDefaultFont(session.opened),
+        ...(session.password !== undefined ? { encrypted: true } : {}),
       } satisfies OpenResult
     }
     return null

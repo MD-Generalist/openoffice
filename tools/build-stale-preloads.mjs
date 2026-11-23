@@ -24,6 +24,7 @@ const APPS = [
   'hwp',
   'epub',
   'diagram',
+  'whiteboard',
 ]
 
 /** Newest mtime (ms) under dir, 0 when missing. */

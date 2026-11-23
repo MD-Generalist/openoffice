@@ -100,6 +100,8 @@ export interface OpenResult {
   defaultFont?: string
   /** the untitled deck was converted from a legacy .ppt: the tab says so once */
   importedFrom?: string
+  /** true when the deck was opened with an open-password (keeps version timeline in memory only) */
+  encrypted?: boolean
 }
 
 // ---- Chat attachments (local files fed to the agent via tools; structure copied from apps/docs) ----

@@ -89,6 +89,8 @@ export interface GenerateHandoff {
   defaultText: boolean
   /** when "make" was pressed, ms since epoch */
   createdAt: number
+  /** optional slides-only toggle (default off): keep slide text brief and put details in speaker notes */
+  speakerNotesSeparate?: boolean
 }
 
 /** one "a run started with handed-over material" record */
@@ -110,10 +112,7 @@ export interface GenerateRunStarted {
 
 /** the conversions without AI (8.6): one source of a fixed type to one new document */
 export type GenerateConvertKind =
-  | 'mindmap-to-markdown'
-  | 'mindmap-to-slides'
-  | 'markdown-to-mindmap'
-  | 'whiteboard-to-markdown'
+  'mindmap-to-markdown' | 'mindmap-to-slides' | 'markdown-to-mindmap' | 'whiteboard-to-markdown'
 
 /** the editor a conversion's result opens in, as a new unsaved tab */
 export type GenerateConvertTarget = 'markdown' | 'slides' | 'mindmap'

@@ -13,6 +13,7 @@ import {
 } from '../../../shared/generate-api'
 import { defaultGeneratePrompt } from '../../../shared/generate-default-prompts'
 import { generateText, type GenerateStringKey } from '../i18n/strings-generate'
+import { speakerNotesToggleLabel } from '../i18n/strings-generate-extra'
 import { editorPromptText } from '../i18n/strings-editor-prompt'
 import { formatBytes } from './format'
 import { generateAiView } from './ai-off'
@@ -336,6 +337,17 @@ export function GenerateWindow() {
             }}
           />
           <div className="gen-hint">{t('requestHint')}</div>
+          {state.kind === 'slides' && (
+            <label className="gen-option-check" data-testid="gen-speaker-notes-toggle">
+              <input
+                type="checkbox"
+                checked={state.speakerNotesSeparate}
+                disabled={busy}
+                onChange={(event) => void api.setSpeakerNotesSeparate(event.target.checked)}
+              />
+              <span>{speakerNotesToggleLabel(state.lang)}</span>
+            </label>
+          )}
         </section>
 
         {view.showAi && (state.notices.usage || state.notices.longMaterial) && (

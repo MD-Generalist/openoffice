@@ -6,6 +6,8 @@ import { IconCloudDrive, IconFileDoc, IconPaperclip, IconPlus } from './icons'
 import { useDismissablePopover } from './popover-dismiss'
 import { aiPanelText } from './strings-ai-panel'
 import { connectorAttachText } from './strings-attach-menu'
+import { ReviewMemoPicker, type MemoAttachSource, type ReviewMemoItem } from './ReviewMemoPicker'
+import { reviewMemoText } from './strings-review-memo'
 
 interface DocAttachBridge {
   available(): Promise<boolean>
@@ -171,6 +173,8 @@ export interface AiAttachMenuProps {
   readonly onPickedDrive?: ((picked: DriveAttachPicked) => void | Promise<void>) | undefined
   /** Called with paths/notes picked from Obsidian or Notion (defaults to `onPickedDrive`) */
   readonly onPickedConnector?: ((picked: DriveAttachPicked) => void | Promise<void>) | undefined
+  /** Optional document review memo batch-attach adapter (`docs`, `pdf`, `slides`, `hwp`) */
+  readonly memoAttach?: MemoAttachSource | undefined
   readonly disabled?: boolean | undefined
 }
 
@@ -186,9 +190,13 @@ export function AiAttachMenu({
   onPickedDocs,
   onPickedDrive,
   onPickedConnector,
+  memoAttach,
   disabled = false,
 }: AiAttachMenuProps): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
+  const [memoPickerOpen, setMemoPickerOpen] = useState(false)
+  const [memoItems, setMemoItems] = useState<readonly ReviewMemoItem[]>([])
+  const [memoCount, setMemoCount] = useState<number | null>(null)
   const [docsReady, setDocsReady] = useState(false)
   const [driveConnected, setDriveConnected] = useState(false)
   const [connectorSources, setConnectorSources] = useState<ConnectorAttachSources>({
@@ -281,8 +289,24 @@ export function AiAttachMenu({
   const hasObsidian = connectorSources.obsidian && typeof connectorHandler === 'function'
   const hasNotion = connectorSources.notion && typeof connectorHandler === 'function'
   const hasCanva = connectorSources.canva === true && typeof connectorHandler === 'function'
+  const hasMemo = Boolean(memoAttach)
 
-  if (!hasPc && !hasDocs && !hasDrive && !hasObsidian && !hasNotion && !hasCanva) return null
+  useEffect(() => {
+    if (!open || !memoAttach) return
+    let live = true
+    void Promise.resolve(memoAttach.listMemos()).then((list) => {
+      if (!live) return
+      setMemoItems(list)
+      setMemoCount(list.length)
+    })
+    return () => {
+      live = false
+    }
+  }, [open, memoAttach])
+
+  if (!hasPc && !hasDocs && !hasDrive && !hasObsidian && !hasNotion && !hasCanva && !hasMemo) {
+    return null
+  }
 
   const label = aiPanelText(lang, 'attachMenuLabel')
 
@@ -447,7 +471,44 @@ export function AiAttachMenu({
               <span>{connectorAttachText(lang, 'attachFromCanva')}</span>
             </button>
           )}
+          {hasMemo && (
+            <button
+              type="button"
+              role="menuitem"
+              data-source="memo"
+              className="ai-attach-menu-item"
+              disabled={memoCount === 0}
+              onClick={async () => {
+                if (!memoAttach) return
+                const list = await Promise.resolve(memoAttach.listMemos())
+                setMemoItems(list)
+                setMemoCount(list.length)
+                setOpen(false)
+                if (list.length > 0) setMemoPickerOpen(true)
+              }}
+            >
+              <span className="ai-attach-menu-item-icon" aria-hidden="true">
+                <IconPageOutline />
+              </span>
+              <span>
+                {reviewMemoText(lang, 'attachFromMemos')}
+                {memoCount === 0 ? ` (${reviewMemoText(lang, 'noMemos')})` : ''}
+              </span>
+            </button>
+          )}
         </div>
+      )}
+      {memoPickerOpen && memoAttach && (
+        <ReviewMemoPicker
+          items={memoItems}
+          lang={lang}
+          pos={pos}
+          onConfirm={(selected) => {
+            setMemoPickerOpen(false)
+            memoAttach.onAttachMemos(selected)
+          }}
+          onClose={() => setMemoPickerOpen(false)}
+        />
       )}
     </span>
   )

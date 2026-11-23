@@ -62,6 +62,9 @@ import { HomeKindsField } from './SettingsHomeKinds'
 import { QuickLookField } from './SettingsQuickLook'
 import { SlidesFontsField } from './SettingsSlidesFonts'
 import { ResultStoreField } from './SettingsResultStore'
+import { VersionTimelineStoreField } from './SettingsVersionTimeline'
+import { DiagnosticsPreviewModal, type DiagnosticsPreviewPayload } from './DiagnosticsPreviewModal'
+import { diagnosticsUiText } from './i18n/strings-diagnostics'
 import { useSubscriptionConnection, type SubscriptionConnection } from './subscription-client'
 import { SkillsPane } from './skills/SkillsPane'
 import { useUsableMcpServers } from './mcp/mcp-open-request'
@@ -2239,6 +2242,7 @@ export function SettingsModal({
                 <HomeKindsField off={choice?.off} />
                 <QuickLookField />
                 <ResultStoreField />
+                <VersionTimelineStoreField />
               </>
             )}
             {section === 'skills' && <SkillsPane usableMcpServers={usableMcpServers} />}
@@ -2347,6 +2351,7 @@ export function SettingsModal({
                     {t('feedbackOpen')}
                   </button>
                 </div>
+                <DiagnosticsExportRow lang={lang} />
                 <div className="set-field">
                   <div className="set-field-text">
                     <label className="set-field-label">{t('setLicenses')}</label>
@@ -2401,4 +2406,70 @@ function SubscriptionScope({
 }) {
   const connection = useSubscriptionConnection()
   return <>{children(connection)}</>
+}
+
+declare global {
+  interface Window {
+    aiOfficeDiagnostics?: {
+      preview(): Promise<DiagnosticsPreviewPayload>
+      saveZip(): Promise<{ ok: boolean; cancelled?: boolean }>
+    }
+  }
+}
+
+function DiagnosticsExportRow({ lang }: { readonly lang: Lang }) {
+  const [preview, setPreview] = useState<DiagnosticsPreviewPayload | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const openPreview = async () => {
+    const api = window.aiOfficeDiagnostics
+    if (!api) return
+    setSaved(false)
+    try {
+      setPreview(await api.preview())
+    } catch {
+      setPreview(null)
+    }
+  }
+
+  const saveZip = async () => {
+    const api = window.aiOfficeDiagnostics
+    if (!api || saving) return
+    setSaving(true)
+    try {
+      const res = await api.saveZip()
+      if (res.ok) {
+        setPreview(null)
+        setSaved(true)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="set-field" data-testid="diagnostics-export-row">
+        <div className="set-field-text">
+          <label className="set-field-label">
+            {diagnosticsUiText(lang, 'exportDiagnosticsBtn')}
+          </label>
+          {saved && <div className="set-field-desc">{diagnosticsUiText(lang, 'savedNotice')}</div>}
+        </div>
+        <button type="button" className="set-btn" onClick={() => void openPreview()}>
+          {diagnosticsUiText(lang, 'exportDiagnosticsBtn')}
+        </button>
+      </div>
+      {preview && (
+        <DiagnosticsPreviewModal
+          lang={lang}
+          preview={preview}
+          saving={saving}
+          onSave={() => void saveZip()}
+          onClose={() => setPreview(null)}
+        />
+      )}
+    </>
+  )
 }

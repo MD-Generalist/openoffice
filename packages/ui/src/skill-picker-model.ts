@@ -143,6 +143,10 @@ export interface SkillPickerItem {
   template: boolean
   /** names a template document whose file is not there (spec 5.7: nothing is sent) */
   templateMissing?: boolean | undefined
+  /** validated shared craft quality fragment slugs (`metadata.ieum-craft`) */
+  craft?: readonly string[] | undefined
+  /** short 1-line example prompt (`metadata.ieum-example`) */
+  example?: string | undefined
 }
 
 /** Where a list is shown: the regular AI panels and home ask, or the agent window */
@@ -258,6 +262,12 @@ export function pickerSkillsOf(
       mcpServers: mcpServerListOf(view.mcpServers),
       template: !!view.template && view.templateExists === true,
       ...(view.template && view.templateExists !== true ? { templateMissing: true } : {}),
+      ...(Array.isArray(view.craft)
+        ? { craft: view.craft.filter((s): s is string => typeof s === 'string' && s.length > 0) }
+        : {}),
+      ...(typeof view.example === 'string' && view.example.trim()
+        ? { example: view.example.trim() }
+        : {}),
     })
   }
   return items

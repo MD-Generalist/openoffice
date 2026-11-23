@@ -6,6 +6,7 @@
  * highlight overlays.
  */
 import type {
+  BoardDocument,
   BoardTableView,
   EditError,
   EditPlanResult,
@@ -61,4 +62,8 @@ export interface WhiteboardAiHost {
   getFilePath(): string | null
   /** Monotonic revision counter bumped on every document edit (used to guard AI turn undo). */
   getRevision(): number
+  /** Current board document model (used by post-AI static quality audit). */
+  getDocument(): BoardDocument
+  /** Active page identifier on the canvas. */
+  getActivePageId(): string
 }

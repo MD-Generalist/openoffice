@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Lang } from '@genoffice/i18n'
 import { skillEditorsOf } from '@genoffice/agent-core/skill-editors'
-import { skillEditorsSummary, skillNameBeside } from '@genoffice/ui'
+import { skillEditorsSummary, skillExampleText, skillNameBeside } from '@genoffice/ui'
 import type {
   UserSkillImportPreview,
   UserSkillInvokeValue,
@@ -625,11 +625,18 @@ function SkillRow({
               {text('shadowedNote', { source: sourceLabel(winner, text) })}
             </div>
           )}
-          {(badges.length > 0 || mcpServers.length > 0) && (
+          {(badges.length > 0 ||
+            mcpServers.length > 0 ||
+            (view.craft && view.craft.length > 0)) && (
             <div className="skl-badges">
               {badges.map((key) => (
                 <span key={key} className="skl-badge">
                   {text(key)}
+                </span>
+              ))}
+              {view.craft?.map((slug) => (
+                <span key={`craft-${slug}`} className="skl-badge">
+                  {skillExampleText(lang, 'craftLabel')}: {slug}
                 </span>
               ))}
               {mcpServers.length > 0 && (
@@ -637,6 +644,11 @@ function SkillRow({
                   {text('badgeMcpServer', { servers: mcpServers.join(', ') })}
                 </span>
               )}
+            </div>
+          )}
+          {view.example && (
+            <div className="set-field-desc skl-row-example" dir="auto">
+              <strong>{skillExampleText(lang, 'exampleLabel')}:</strong> {view.example}
             </div>
           )}
         </div>

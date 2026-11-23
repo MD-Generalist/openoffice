@@ -125,7 +125,23 @@ import {
   type TemplateDocument,
   useAiSidebarEnabled,
   useAppChoice,
+  VersionTimelineDrawer,
+  tweaksText,
+  versionTimelineText,
+  type DrawerVersionEntry,
 } from '@genoffice/ui'
+import '@genoffice/ui/tweaks-panel.css'
+import {
+  VERSION_TIMELINE_BRIDGE_KEY,
+  type VersionTimelineBridge,
+} from '@genoffice/electron-utils/version-timeline-channels'
+import {
+  DEFAULT_SLIDES_TWEAKS,
+  buildSlidesTweaksTxn,
+  type SlidesTweaksState,
+} from './tweaks/slides-tweaks'
+import { SlidesTweaksPanel } from './tweaks/SlidesTweaksPanel'
+import { SlidesTimelineAdapter } from './timeline/slides-timeline-adapter'
 import type { ChartPresetDef, IconDef, SmartArtDef } from './insert-presets'
 import { IconAiBeautify, IconAiFactCheck, IconAiImage } from './components/icons'
 import { ToastHost } from './components/toast'
@@ -500,6 +516,13 @@ export function App() {
   const aiSidebarEnabled = useAiSidebarEnabled(setShowAi)
   const [showFormat, setShowFormat] = useState(false)
   const [showBgFormat, setShowBgFormat] = useState(false)
+  const [isEncrypted, setIsEncrypted] = useState(false)
+  const isEncryptedRef = useRef(false)
+  isEncryptedRef.current = isEncrypted
+  const [tweaksOpen, setTweaksOpen] = useState(false)
+  const [tweaksState, setTweaksState] = useState<SlidesTweaksState>(DEFAULT_SLIDES_TWEAKS)
+  const [timelineOpen, setTimelineOpen] = useState(false)
+  const [timelineEntries, setTimelineEntries] = useState<DrawerVersionEntry[]>([])
   const [aiSettings, setAiSettings] = useState<AiSettings | null>(null)
   const [aiPreset, setAiPreset] = useState<{
     text: string
@@ -900,8 +923,16 @@ export function App() {
   }, [hasDoc, fitZoom, rawFit, viewMode])
 
   const applyOpen = useCallback(
-    (result: { path: string; slides: RenderSlide[]; defaultFont?: string } | null) => {
+    (
+      result: {
+        path: string
+        slides: RenderSlide[]
+        defaultFont?: string
+        encrypted?: boolean
+      } | null,
+    ) => {
       if (!result) return
+      setIsEncrypted(Boolean(result.encrypted))
       setSlides(result.slides)
       setDefaultFont(result.defaultFont ?? null)
       setPath(result.path)
@@ -967,6 +998,83 @@ export function App() {
         : undefined,
     [enteredGroupNode],
   )
+
+  const slidesTimelineAdapter = useMemo(() => {
+    const bridge = (window as unknown as Record<string, VersionTimelineBridge | undefined>)[
+      VERSION_TIMELINE_BRIDGE_KEY
+    ]
+    const encoder = new TextEncoder()
+    const decoder = new TextDecoder('utf-8')
+    return new SlidesTimelineAdapter(bridge, {
+      docKey: path || 'slides:untitled',
+      isEncrypted: () => isEncryptedRef.current,
+      captureSnapshot: () => {
+        const cur = ctxRef.current?.slides ?? []
+        const payload = JSON.stringify({
+          slideCount: cur.length,
+          capturedAt: Date.now(),
+        })
+        return {
+          bytes: encoder.encode(payload),
+          slideCount: cur.length,
+        }
+      },
+      applySnapshot: async (bytes) => {
+        try {
+          const parsed = JSON.parse(decoder.decode(bytes)) as { snapshotId?: number }
+          if (typeof parsed.snapshotId === 'number') {
+            const restored = await window.slidesApi.aiSnapshotRestore(parsed.snapshotId)
+            if (restored) {
+              setSlides(restored)
+              setDirty(true)
+              return true
+            }
+          }
+          const undone = await window.slidesApi.undo()
+          if (undone) {
+            setSlides(undone)
+            setDirty(true)
+            return true
+          }
+          return false
+        } catch {
+          return false
+        }
+      },
+    })
+  }, [path])
+
+  const refreshSlidesTimeline = useCallback(() => {
+    void slidesTimelineAdapter.list().then((items) => setTimelineEntries(items))
+  }, [slidesTimelineAdapter])
+
+  useEffect(() => {
+    if (timelineOpen) refreshSlidesTimeline()
+  }, [timelineOpen, refreshSlidesTimeline])
+
+  const applySlidesTweaks = useCallback((next: SlidesTweaksState) => {
+    setTweaksState(next)
+    const curSlides = ctxRef.current?.slides ?? []
+    if (curSlides.length === 0) return
+    const txn = buildSlidesTweaksTxn(curSlides, ctxRef.current?.current ?? 0, next)
+    if (txn.ops.length === 0) return
+    void window.slidesApi.applyTxn(txn).then((res) => {
+      if (res?.applied && res.slides) {
+        setSlides(res.slides)
+        setDirty(true)
+      }
+    })
+  }, [])
+
+  const resetSlidesTweaks = useCallback(() => {
+    setTweaksState(DEFAULT_SLIDES_TWEAKS)
+    void window.slidesApi.undo().then((undone) => {
+      if (undone) {
+        setSlides(undone)
+        setDirty(true)
+      }
+    })
+  }, [])
 
   const openDialog = useCallback(async () => {
     const r = await window.slidesApi.openPptx(FIT_WIDTH)
@@ -3838,6 +3946,12 @@ export function App() {
                   setEditQueue((prev) => prev.filter((it) => !keys.includes(it.key)))
                 }
                 templateDocument={templateDocument}
+                onOpenTweaks={() => setTweaksOpen(true)}
+                onAiDoneRecord={(summary) =>
+                  void slidesTimelineAdapter
+                    .record('ai', { promptSummary: summary })
+                    .then(() => refreshSlidesTimeline())
+                }
               />
             ) : aiSidebarEnabled ? (
               <button
@@ -4710,6 +4824,34 @@ export function App() {
                     onCollapse={() => setShowSelPane(false)}
                   />
                 ) : null}
+                {tweaksOpen && (
+                  <SlidesTweaksPanel
+                    lang={lang}
+                    value={tweaksState}
+                    onChange={applySlidesTweaks}
+                    onReset={resetSlidesTweaks}
+                    onClose={() => setTweaksOpen(false)}
+                  />
+                )}
+                <VersionTimelineDrawer
+                  open={timelineOpen}
+                  lang={lang}
+                  entries={timelineEntries}
+                  encryptedMemoryOnly={isEncrypted}
+                  onSaveCheckpoint={async (label) => {
+                    await slidesTimelineAdapter.record('checkpoint', { label })
+                    refreshSlidesTimeline()
+                  }}
+                  onRestore={async (entry) => {
+                    await slidesTimelineAdapter.restore(entry.id)
+                    refreshSlidesTimeline()
+                  }}
+                  onDelete={async (entry) => {
+                    await slidesTimelineAdapter.deleteEntry(entry.id)
+                    refreshSlidesTimeline()
+                  }}
+                  onClose={() => setTimelineOpen(false)}
+                />
               </>
             )}
           </div>
@@ -4726,6 +4868,24 @@ export function App() {
               {status && <span className="status-msg"> — {status}</span>}
             </div>
             <div className="status-right">
+              {hasDoc && (
+                <button
+                  type="button"
+                  className={`status-notes-btn${tweaksOpen ? ' on' : ''}`}
+                  onClick={() => setTweaksOpen((v) => !v)}
+                >
+                  <span>{tweaksText(lang, 'title')}</span>
+                </button>
+              )}
+              {hasDoc && (
+                <button
+                  type="button"
+                  className={`status-notes-btn${timelineOpen ? ' on' : ''}`}
+                  onClick={() => setTimelineOpen((v) => !v)}
+                >
+                  <span>{versionTimelineText(lang, 'title')}</span>
+                </button>
+              )}
               {hasDoc && (
                 <button
                   className={`status-notes-btn${showNotes ? ' on' : ''}`}

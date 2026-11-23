@@ -7,7 +7,8 @@ HTML 에디터다. HTML 원문이 기준이고, 옆에서 실시간 미리 보�
 - 렌더러(`src/renderer/`): 원문 편집기(`source/`), 미리 보기와 검사기(`preview/`), 문서 모델(`document/`의 `patch.ts`, `parse-map.ts`, `ops.ts`, `brief.ts`), 발표 보기(`PresentView.tsx`), 리본과 스타일 패널(`components/`), 수식 편집 확장(`extensions/math/`).
 - 메인 프로세스(`src/main/html-main.ts`와 주변): 열기·저장, 미리 보기 스킴(`preview-protocol.ts`, `preview-document.ts`), 문서가 소유한 자산 폴더(`asset-lifecycle.ts`, `asset-mime.ts`), 단일 파일 내보내기(`single-file-html.ts`), PDF 인쇄와 Word 내보내기의 숨은 창, ODT 내보내기(`odt-export.ts`).
 - IPC 계약 `src/shared/ipc.ts`(`HTML_CHANNELS`).
-- HTML의 AI(`src/renderer/ai/`): 패널, skill과 도구(`html-skill.ts`, `tools.ts`), 쪽 전체 생성(`page-writer.ts`, `brief-writer.ts`), 빈 문서의 의도(`intent.ts`), 가림(`redact.ts`, `redact-guard.ts`, `document/redact-edit.ts`), 막힌 실행 판정(`connection.ts`), 연결 상태(`subscription-client.ts`).
+- HTML의 AI(`src/renderer/ai/`): 패널, skill과 도구(`html-skill.ts`, `tools.ts`), 쪽 전체 생성(`page-writer.ts`, `brief-writer.ts`), 빈 문서의 의도(`intent.ts`), 가림(`redact.ts`, `redact-guard.ts`, `document/redact-edit.ts`), 막힌 실행 판정(`connection.ts`), 연결 상태(`subscription-client.ts`), AI 턴 직후 정적 품질 점검(`html-qc.ts`).
+- 오프라인 1페이지 실무 템플릿 5종(`src/renderer/templates/practical-templates.ts`, 외부 CDN 0건·`@page` 대응), 영구 버전 타임라인 어댑터(`src/renderer/timeline/html-timeline-adapter.ts`, 단일 `Patch` 복원), AI 없이 동작하는 실시간 스타일 미세 조정 패널(`src/renderer/tweaks/html-tweaks.ts`·`HtmlTweaksPanel.tsx`, `<style id="ieum-tweaks">` 단일 `Patch` 적용, AI 끄기 상태에서도 사용 가능).
 
 ## 맡지 않는 것 (경계)
 
