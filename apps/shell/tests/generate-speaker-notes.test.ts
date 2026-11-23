@@ -1,9 +1,12 @@
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { describe, expect, it, vi } from 'vitest'
 import type { GenerateHandoff } from '../src/shared/generate-api'
 import { GenerateSession } from '../src/main/generate/session'
 
 function createSession(kind: 'slides' | 'html' = 'slides') {
   const handoffs: GenerateHandoff[] = []
+  const samplePath = join(tmpdir(), 'gen-speaker-notes', 'source.md')
   const session = new GenerateSession(
     {
       lang: () => 'ko',
@@ -13,6 +16,7 @@ function createSession(kind: 'slides' | 'html' = 'slides') {
         name: 'source.md',
         ext: 'md',
         sizeBytes: 1200,
+        textLength: 400,
         unsaved: false,
       }),
       pathOfUntitled: async () => null,
@@ -26,7 +30,7 @@ function createSession(kind: 'slides' | 'html' = 'slides') {
       now: () => 1700000000000,
       recheckDelayMs: 0,
     },
-    { refs: [{ path: 'C:/docs/source.md' }], kind },
+    { refs: [{ path: samplePath }], kind },
   )
   return { session, handoffs }
 }

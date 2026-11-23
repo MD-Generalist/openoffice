@@ -1135,8 +1135,8 @@ body,
 
 .wb-noai-tools {
   position: fixed;
-  top: 58px;
-  right: 16px;
+  right: 64px;
+  bottom: 16px;
   z-index: 35;
   display: inline-flex;
   gap: 6px;
