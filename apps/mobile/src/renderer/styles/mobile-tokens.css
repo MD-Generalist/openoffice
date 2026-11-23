@@ -1,0 +1,44 @@
+@import '@genoffice/ui/tokens.css';
+
+/* Mobile layout, touch target, safe area, and elevation tokens.
+ * All color values reference @genoffice/ui/tokens.css variables exclusively. */
+:root {
+  --mobile-accent: var(--color-brand-secondary);
+  --mobile-touch-min: 44px;
+  --mobile-header-height: 52px;
+  --mobile-quickbar-height: 48px;
+  --mobile-sheet-radius: 16px;
+  --mobile-safe-top: env(safe-area-inset-top, 0px);
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-safe-left: env(safe-area-inset-left, 0px);
+  --mobile-safe-right: env(safe-area-inset-right, 0px);
+  --mobile-keyboard-inset: 0px;
+  --mobile-z-header: 20;
+  --mobile-z-toolbar: 30;
+  --mobile-z-sheet: 40;
+  --mobile-z-modal: 50;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--gs-font-sans);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+button {
+  font-family: inherit;
+  min-height: var(--mobile-touch-min);
+  min-width: var(--mobile-touch-min);
+}
