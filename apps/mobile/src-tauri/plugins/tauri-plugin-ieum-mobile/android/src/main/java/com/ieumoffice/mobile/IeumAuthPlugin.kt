@@ -14,6 +14,7 @@ import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import java.security.KeyStore
+import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -22,6 +23,7 @@ import javax.crypto.spec.GCMParameterSpec
 @InvokeArg
 class LaunchAuthArgs {
     var authUrl: String = ""
+    var callbackScheme: String = "ieumoffice"
 }
 
 @InvokeArg
@@ -45,6 +47,29 @@ class IeumAuthPlugin(private val activity: Activity) : Plugin(activity) {
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val GCM_TAG_BITS = 128
         private const val IV_BYTES = 12
+        private const val PREFS_NAME = "com.ieumoffice.mobile.vault"
+        private const val PREF_WRAPPED_MASTER = "wrapped_master_v1"
+    }
+
+    @Command
+    fun getOrCreateMasterKey(invoke: Invoke) {
+        try {
+            val prefs = activity.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val existing = prefs.getString(PREF_WRAPPED_MASTER, null)
+            val masterBytes: ByteArray = if (existing != null) {
+                unsealRaw(Base64.decode(existing, Base64.DEFAULT))
+            } else {
+                val fresh = ByteArray(32).also { SecureRandom().nextBytes(it) }
+                val wrapped = sealRaw(fresh)
+                prefs.edit().putString(PREF_WRAPPED_MASTER, Base64.encodeToString(wrapped, Base64.NO_WRAP)).apply()
+                fresh
+            }
+            invoke.resolve(JSObject().apply {
+                put("keyBase64", Base64.encodeToString(masterBytes, Base64.NO_WRAP))
+            })
+        } catch (err: Exception) {
+            invoke.reject("INTERNAL_ERROR: ${err.message}")
+        }
     }
 
     @Command
@@ -69,13 +94,7 @@ class IeumAuthPlugin(private val activity: Activity) : Plugin(activity) {
         val args = invoke.parseArgs(SealArgs::class.java)
         try {
             val plaintext = Base64.decode(args.plaintextBase64, Base64.DEFAULT)
-            val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
-            val iv = cipher.iv
-            val encrypted = cipher.doFinal(plaintext)
-            val combined = ByteArray(iv.size + encrypted.size)
-            System.arraycopy(iv, 0, combined, 0, iv.size)
-            System.arraycopy(encrypted, 0, combined, iv.size, encrypted.size)
+            val combined = sealRaw(plaintext)
             invoke.resolve(JSObject().apply {
                 put("ciphertextBase64", Base64.encodeToString(combined, Base64.NO_WRAP))
             })
@@ -89,21 +108,35 @@ class IeumAuthPlugin(private val activity: Activity) : Plugin(activity) {
         val args = invoke.parseArgs(UnsealArgs::class.java)
         try {
             val combined = Base64.decode(args.ciphertextBase64, Base64.DEFAULT)
-            if (combined.size <= IV_BYTES) {
-                invoke.reject("INTERNAL_ERROR: malformed ciphertext")
-                return
-            }
-            val iv = combined.copyOfRange(0, IV_BYTES)
-            val payload = combined.copyOfRange(IV_BYTES, combined.size)
-            val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
-            val plaintext = cipher.doFinal(payload)
+            val plaintext = unsealRaw(combined)
             invoke.resolve(JSObject().apply {
                 put("plaintextBase64", Base64.encodeToString(plaintext, Base64.NO_WRAP))
             })
         } catch (err: Exception) {
             invoke.reject("INTERNAL_ERROR: ${err.message}")
         }
+    }
+
+    private fun sealRaw(plaintext: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
+        val iv = cipher.iv
+        val encrypted = cipher.doFinal(plaintext)
+        val combined = ByteArray(iv.size + encrypted.size)
+        System.arraycopy(iv, 0, combined, 0, iv.size)
+        System.arraycopy(encrypted, 0, combined, iv.size, encrypted.size)
+        return combined
+    }
+
+    private fun unsealRaw(combined: ByteArray): ByteArray {
+        if (combined.size <= IV_BYTES) {
+            throw IllegalArgumentException("malformed ciphertext")
+        }
+        val iv = combined.copyOfRange(0, IV_BYTES)
+        val payload = combined.copyOfRange(IV_BYTES, combined.size)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
+        return cipher.doFinal(payload)
     }
 
     private fun getOrCreateSecretKey(): SecretKey {
@@ -123,7 +156,4 @@ class IeumAuthPlugin(private val activity: Activity) : Plugin(activity) {
         keyGen.init(spec)
         return keyGen.generateKey()
     }
-
-    @Suppress("unused")
-    private fun appContext(): Context = activity.applicationContext
 }

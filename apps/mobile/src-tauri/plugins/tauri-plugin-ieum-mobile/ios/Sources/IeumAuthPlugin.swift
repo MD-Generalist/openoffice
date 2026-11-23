@@ -105,4 +105,47 @@ public final class IeumAuthPlugin: Plugin, ASWebAuthenticationPresentationContex
         }
         invoke.resolve(["valueBase64": data.base64EncodedString()])
     }
+
+    @objc public func getOrCreateMasterKey(_ invoke: Invoke) throws {
+        let account = "vault-master-key-v1"
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var existing: AnyObject?
+        if SecItemCopyMatching(query as CFDictionary, &existing) == errSecSuccess,
+           let data = existing as? Data,
+           data.count == 32 {
+            invoke.resolve(["keyBase64": data.base64EncodedString()])
+            return
+        }
+        var bytes = [UInt8](repeating: 0, count: 32)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
+            invoke.reject("INTERNAL_ERROR: SecRandomCopyBytes failed")
+            return
+        }
+        let data = Data(bytes)
+        let addQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        ]
+        SecItemDelete(addQuery as CFDictionary)
+        let status = SecItemAdd(addQuery as CFDictionary, nil)
+        if status != errSecSuccess {
+            invoke.reject("INTERNAL_ERROR: keychain master key write failed (\(status))")
+            return
+        }
+        invoke.resolve(["keyBase64": data.base64EncodedString()])
+    }
+}
+
+@_cdecl("init_plugin_ieum_auth")
+func initPluginIeumAuth() -> Plugin {
+    return IeumAuthPlugin()
 }

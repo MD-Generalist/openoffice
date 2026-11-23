@@ -5,7 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
+import androidx.activity.result.ActivityResult
 import androidx.core.content.FileProvider
+import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
@@ -59,6 +61,7 @@ class IeumFilePlugin(private val activity: Activity) : Plugin(activity) {
     fun captureIncomingIntent(intent: Intent?) {
         if (intent == null) return
         val action = intent.action ?: return
+        @Suppress("DEPRECATION")
         val uri: Uri? = when (action) {
             Intent.ACTION_VIEW -> intent.data
             Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM)
@@ -87,13 +90,93 @@ class IeumFilePlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
+    fun pickOpenFile(invoke: Invoke) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+            )
+        }
+        startActivityForResult(invoke, intent, "handleDocumentPickerResult")
+    }
+
+    @Command
+    fun createSaveFile(invoke: Invoke) {
+        val args = invoke.parseArgs(CreateSaveArgs::class.java)
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = args.mime.ifBlank { "application/octet-stream" }
+            putExtra(Intent.EXTRA_TITLE, args.suggestedName)
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+            )
+        }
+        startActivityForResult(invoke, intent, "handleDocumentPickerResult")
+    }
+
+    @ActivityCallback
+    fun handleDocumentPickerResult(invoke: Invoke, result: ActivityResult) {
+        if (result.resultCode != Activity.RESULT_OK) {
+            invoke.reject("USER_CANCELLED: user cancelled document picker")
+            return
+        }
+        val data = result.data
+        val uri = data?.data
+        if (uri == null) {
+            invoke.reject("USER_CANCELLED: no URI returned")
+            return
+        }
+        val flags = data.flags
+        val writable = (flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION) != 0
+        var persisted = false
+        try {
+            val mask = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                if (writable) Intent.FLAG_GRANT_WRITE_URI_PERMISSION else 0
+            activity.contentResolver.takePersistableUriPermission(uri, mask)
+            persisted = true
+        } catch (_: SecurityException) {
+            persisted = false
+        }
+        val payload = JSObject().apply {
+            put("uri", uri.toString())
+            put("name", queryDisplayName(uri))
+            put("writable", writable)
+            put("ephemeral", !persisted)
+        }
+        invoke.resolve(payload)
+    }
+
+    @Command
+    fun openPersistentUri(invoke: Invoke) {
+        val args = invoke.parseArgs(UriArgs::class.java)
+        val uri = Uri.parse(args.uri)
+        val perm = activity.contentResolver.persistedUriPermissions.firstOrNull { it.uri == uri }
+        if (perm == null || !perm.isReadPermission) {
+            invoke.reject("PERMISSION_DENIED: persisted URI permission expired or missing")
+            return
+        }
+        val payload = JSObject().apply {
+            put("uri", uri.toString())
+            put("name", queryDisplayName(uri))
+            put("writable", perm.isWritePermission)
+            put("ephemeral", false)
+        }
+        invoke.resolve(payload)
+    }
+
+    @Command
     fun takePendingOpenIntent(invoke: Invoke) {
         val next = pendingIntents.poll()
-        val result = JSObject()
         if (next != null) {
-            result.put("file", next)
+            invoke.resolve(next)
+        } else {
+            invoke.resolve(JSObject())
         }
-        invoke.resolve(result)
     }
 
     @Command
@@ -135,7 +218,8 @@ class IeumFilePlugin(private val activity: Activity) : Plugin(activity) {
     fun shareFileBytes(invoke: Invoke) {
         val args = invoke.parseArgs(ShareArgs::class.java)
         try {
-            val shareDir = File(activity.cacheDir, "share-out").apply { mkdirs() }
+            // Directory matches `res/xml/file_paths.xml` (`<cache-path name="shared_docs" path="shared/" />`).
+            val shareDir = File(activity.cacheDir, "shared").apply { mkdirs() }
             val safeName = args.suggestedName.replace(Regex("[/\\\\]"), "_")
             val target = File(shareDir, safeName)
             target.writeBytes(Base64.decode(args.bytesBase64, Base64.DEFAULT))

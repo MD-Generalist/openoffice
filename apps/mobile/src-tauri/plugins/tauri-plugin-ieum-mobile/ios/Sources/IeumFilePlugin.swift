@@ -165,3 +165,8 @@ public final class IeumFilePlugin: Plugin {
         return URL(string: token)
     }
 }
+
+@_cdecl("init_plugin_ieum_file")
+func initPluginIeumFile() -> Plugin {
+    return IeumFilePlugin()
+}
