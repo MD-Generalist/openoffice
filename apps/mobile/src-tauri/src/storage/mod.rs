@@ -148,7 +148,7 @@ impl MobileFileService {
             ephemeral: picked.ephemeral,
             uri_hint: Some(picked.name.clone()),
         };
-        if register_recent && !picked.ephemeral {
+        if register_recent && !picked.ephemeral && picked.writable {
             self.recent.upsert(&doc_key, &picked.uri, &picked.name, format)?;
         }
         *self.active.lock().unwrap() = Some(ActiveSession {
@@ -204,8 +204,8 @@ impl MobileFileService {
         let Some(picked) = self.bridge.take_pending_open_intent() else {
             return Ok(None);
         };
-        // Ephemeral share-in files must never be registered into persistent recent docs automatically.
-        let register = !picked.ephemeral;
+        // Ephemeral or read-only share-in files must never be registered into persistent recent docs automatically.
+        let register = !picked.ephemeral && picked.writable;
         Ok(Some(self.activate_picked(picked, register)?))
     }
 
@@ -418,29 +418,28 @@ impl MobileFileService {
         bytes_base64: &str,
         hwp_fix: Option<HwpFixPayload>,
     ) -> MobileResult<MobileDocSession> {
-        let prev_active = session_id.and_then(|sid| {
-            self.active
-                .lock()
-                .unwrap()
-                .as_ref()
-                .filter(|a| a.session.session_id == sid)
-                .cloned()
-        });
+        let prev_active = {
+            let guard = self.active.lock().unwrap();
+            match session_id {
+                Some(sid) => guard.as_ref().filter(|a| a.session.session_id == sid).cloned(),
+                None => guard.clone(),
+            }
+        };
+        if let Some(prev) = &prev_active
+            && (prev.encrypted || prev.distribution)
+        {
+            return Err(MobileError::with_detail(
+                MobileErrorCode::PasswordProtected,
+                "mobile.hwp.passwordProtected",
+                "encrypted or distribution HWP documents cannot be saved",
+            ));
+        }
         let raw_bytes = B64.decode(bytes_base64).map_err(|e| {
             MobileError::with_detail(MobileErrorCode::InvalidArgument, "mobile.decode.base64", e.to_string())
         })?;
 
         let mut final_bytes = raw_bytes;
         if format.is_hwp_family() {
-            if let Some(prev) = &prev_active
-                && (prev.encrypted || prev.distribution)
-            {
-                return Err(MobileError::with_detail(
-                    MobileErrorCode::PasswordProtected,
-                    "mobile.hwp.passwordProtected",
-                    "encrypted or distribution HWP documents cannot be saved",
-                ));
-            }
             validate_hwp_magic(&final_bytes, format)?;
             let inspected = inspect_hwp_container(&final_bytes, format);
             if inspected.encrypted || inspected.distribution {

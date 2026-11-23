@@ -178,7 +178,10 @@ fn walk_hwp_list(
                 while c < table_end && out.len() < MAX_NEW_TABS {
                     if records[c].tag == LIST_HEADER && records[c].level == level + 2 {
                         let mut cell_end = c + 1;
-                        while cell_end < table_end && records[cell_end].level > level + 2 {
+                        while cell_end < table_end
+                            && !(records[cell_end].level == level + 2
+                                && records[cell_end].tag == LIST_HEADER)
+                        {
                             cell_end += 1;
                         }
                         let mut next_cells = cur_cells.clone();
@@ -287,7 +290,7 @@ pub fn apply_measured_tabs(
             let key = spot_key(f.spot.sec, f.spot.para, &f.spot.cells, f.spot.tab);
             if let Some(m) = by_key.get(&key) {
                 let width = m.width as u32;
-                let kind_fill = ((m.fill as u16) << 8) | (m.r#type as u16 & 0x00ff);
+                let kind_fill = (((m.r#type + 1) as u16) << 8) | (m.fill as u16 & 0x00ff);
                 data[f.at..f.at + 4].copy_from_slice(&width.to_le_bytes());
                 data[f.at + 4..f.at + 6].copy_from_slice(&kind_fill.to_le_bytes());
                 modified = true;

@@ -24,7 +24,16 @@ pub struct MobileAiStreamRequest {
 #[serde(rename_all = "camelCase")]
 pub struct MobileAiStreamEvent {
     pub request_id: String,
-    pub chunk: serde_json::Value,
+    #[serde(rename = "type")]
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_reason: Option<String>,
 }
 
 /// Manages active AI stream requests and cancellation across ChatGPT Direct and HTTPS BYOK providers.
@@ -113,19 +122,28 @@ impl MobileAiStreamManager {
                     })
                 })
                 .collect();
+            let access_token = self.chatgpt.ensure_valid_access_token_shielded().await?;
             let req_id = req.request_id.clone();
             tokio::select! {
                 _ = &mut rx => Err(MobileError::new(MobileErrorCode::UserCancelled, "mobile.ai.cancelled")),
-                res = self.chatgpt.stream_responses(&chosen_model, Some(&req.system), &input, |delta| {
+                res = self.chatgpt.stream_responses_with_token(&access_token, &chosen_model, Some(&req.system), &input, |delta| {
                     emit(MobileAiStreamEvent {
                         request_id: req_id.clone(),
-                        chunk: serde_json::json!({ "type": "text", "text": delta }),
+                        kind: "delta".to_string(),
+                        text: Some(delta.to_string()),
+                        error: None,
+                        error_code: None,
+                        stop_reason: None,
                     });
                 }) => {
                     res.map(|_| {
                         emit(MobileAiStreamEvent {
                             request_id: req_id.clone(),
-                            chunk: serde_json::json!({ "type": "done" }),
+                            kind: "done".to_string(),
+                            text: None,
+                            error: None,
+                            error_code: None,
+                            stop_reason: Some("end_turn".to_string()),
                         });
                     })
                 }
@@ -150,16 +168,35 @@ impl MobileAiStreamManager {
             let endpoint = provider_chat_url(&provider)?;
             let _ = enforce_https_url(endpoint, false)?;
             let client = build_safe_http_client(120)?;
-            let mut chat_messages = vec![serde_json::json!({ "role": "system", "content": req.system })];
-            chat_messages.extend(req.messages.clone());
-            let mut body = serde_json::json!({
-                "model": model,
-                "messages": chat_messages,
-                "stream": true,
-            });
-            if let Some(max_t) = req.max_tokens {
-                body["max_tokens"] = serde_json::json!(max_t);
-            }
+            let mut body = if provider == "anthropic" {
+                let mut obj = serde_json::json!({
+                    "model": model,
+                    "system": req.system,
+                    "messages": req.messages,
+                    "max_tokens": req.max_tokens.unwrap_or(4096),
+                    "stream": true,
+                });
+                if !req.tools.is_empty() {
+                    obj["tools"] = serde_json::json!(req.tools);
+                }
+                obj
+            } else {
+                let mut chat_messages = vec![serde_json::json!({ "role": "system", "content": req.system })];
+                chat_messages.extend(req.messages.clone());
+                let mut obj = serde_json::json!({
+                    "model": model,
+                    "messages": chat_messages,
+                    "stream": true,
+                });
+                if let Some(max_t) = req.max_tokens {
+                    obj["max_tokens"] = serde_json::json!(max_t);
+                }
+                if !req.tools.is_empty() {
+                    obj["tools"] = serde_json::json!(req.tools);
+                }
+                obj
+            };
+            let _ = &mut body;
             let mut builder = client
                 .post(endpoint)
                 .header("accept", "text/event-stream")
@@ -203,7 +240,11 @@ impl MobileAiStreamManager {
                                     if let Some(text) = delta {
                                         emit(MobileAiStreamEvent {
                                             request_id: req_id.clone(),
-                                            chunk: serde_json::json!({ "type": "text", "text": text }),
+                                            kind: "delta".to_string(),
+                                            text: Some(text.to_string()),
+                                            error: None,
+                                            error_code: None,
+                                            stop_reason: None,
                                         });
                                     }
                                 }
@@ -211,7 +252,11 @@ impl MobileAiStreamManager {
                         }
                         emit(MobileAiStreamEvent {
                             request_id: req_id,
-                            chunk: serde_json::json!({ "type": "done" }),
+                            kind: "done".to_string(),
+                            text: None,
+                            error: None,
+                            error_code: None,
+                            stop_reason: Some("end_turn".to_string()),
                         });
                         Ok(())
                     }

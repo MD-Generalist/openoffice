@@ -299,8 +299,16 @@ impl MobileAiSettingsStore {
                     free_only: None,
                     models: Vec::new(),
                 });
+            let removing_key = match &key_patch.api_key {
+                Some(raw) => raw.trim().is_empty(),
+                None => true,
+            };
             if key_patch.provider == "openrouter" {
-                entry.free_only = key_patch.free_only;
+                if removing_key {
+                    entry.free_only = None;
+                } else if let Some(free_only) = key_patch.free_only {
+                    entry.free_only = Some(free_only);
+                }
                 if entry.free_only == Some(true)
                     && let Some(existing_model) = meta.model_by_provider.get("openrouter")
                     && !existing_model.ends_with(":free")
@@ -402,12 +410,11 @@ impl MobileAiSettingsStore {
             Some((u, lb)) => (u, lb),
             None => (provider_models_url(provider)?, false),
         };
-        let mut url = enforce_https_url(raw_url, allow_loopback)?;
+        let url = enforce_https_url(raw_url, allow_loopback)?;
         let client = build_safe_http_client(20)?;
         let mut req = client.get(url.as_str()).header("accept", "application/json");
         if provider == "gemini" {
-            url.query_pairs_mut().append_pair("key", api_key.trim());
-            req = client.get(url.as_str()).header("accept", "application/json");
+            req = req.header("x-goog-api-key", api_key.trim());
         } else if provider == "anthropic" {
             req = req
                 .header("x-api-key", api_key.trim())

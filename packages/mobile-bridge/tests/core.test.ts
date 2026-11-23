@@ -280,7 +280,7 @@ describe('AI projection, selectAiProvider, aiSendGate, and stream transport', ()
     const transport: MobileTransport = {
       async invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
         if (command === 'mobile_ai_stream_start') {
-          const req = (args as { request: { requestId: string } }).request
+          const req = args as { requestId: string }
           queueMicrotask(() => {
             listener?.({ requestId: req.requestId, type: 'delta', text: 'Hello ' })
             listener?.({ requestId: req.requestId, type: 'delta', text: 'mobile' })

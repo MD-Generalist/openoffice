@@ -377,16 +377,16 @@ export function createMobileClient(transport: MobileTransport): MobileClient {
       invokeChecked(transport, 'mobile_hwp_backup_restore', { backupId, target }),
     hwpBackupDelete: (backupId) => invokeChecked(transport, 'mobile_hwp_backup_delete', { backupId }),
     getAppPrefs: () => invokeChecked(transport, 'mobile_get_app_prefs'),
-    setAppPrefs: (patch) => invokeChecked(transport, 'mobile_set_app_prefs', { patch }),
+    setAppPrefs: (patch) => invokeChecked(transport, 'mobile_set_app_prefs', { ...patch }),
     getAiSettings: () => invokeChecked(transport, 'mobile_get_ai_settings'),
-    setAiSettings: (patch) => invokeChecked(transport, 'mobile_set_ai_settings', { patch }),
+    setAiSettings: (patch) => invokeChecked(transport, 'mobile_set_ai_settings', { ...patch }),
     validateAiKey: (params) =>
       invokeChecked(transport, 'mobile_ai_validate_key', {
         provider: params.provider,
         apiKey: params.apiKey,
         freeOnly: params.freeOnly ?? null,
       }),
-    startAiStream: (request) => invokeChecked(transport, 'mobile_ai_stream_start', { request }),
+    startAiStream: (request) => invokeChecked(transport, 'mobile_ai_stream_start', { ...request }),
     cancelAiStream: (requestId) =>
       invokeChecked(transport, 'mobile_ai_stream_cancel', { requestId }),
     onAiStreamChunk: (handler) => transport.listen<MobileAiStreamChunk>('mobile:ai-stream-chunk', handler),

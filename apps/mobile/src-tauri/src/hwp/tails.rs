@@ -13,24 +13,30 @@ pub struct SectionTailsBaseline {
 }
 
 fn extract_section_tail_slices(data: &[u8], records: &[HwpRecord]) -> (usize, Vec<Vec<u8>>) {
-    let mut last_body_para_end = None;
-    let mut i = 0;
-    while i < records.len() {
-        let rec = &records[i];
+    let mut last_body_para_idx = None;
+    for (idx, rec) in records.iter().enumerate() {
         if rec.level == 0 && rec.tag == PARA_HEADER {
-            let mut end_idx = i + 1;
-            while end_idx < records.len() && records[end_idx].level > 0 {
-                end_idx += 1;
-            }
-            last_body_para_end = Some(end_idx);
-            i = end_idx;
-        } else {
-            i += 1;
+            last_body_para_idx = Some(idx);
         }
     }
-    let Some(tail_start_idx) = last_body_para_end else {
+    let Some(para_start) = last_body_para_idx else {
         return (data.len(), Vec::new());
     };
+
+    // In HWP5 sections, post-body master pages and memo lists live at level 1 immediately
+    // after the last body paragraph's own child records (tags 67..=71: PARA_TEXT..=CTRL_HEADER).
+    let mut tail_start_idx = para_start + 1;
+    while tail_start_idx < records.len() {
+        let rec = &records[tail_start_idx];
+        if rec.level == 0 {
+            break;
+        }
+        if rec.level == 1 && !(67..=71).contains(&rec.tag) {
+            break;
+        }
+        tail_start_idx += 1;
+    }
+
     if tail_start_idx >= records.len() {
         return (data.len(), Vec::new());
     }
@@ -39,10 +45,16 @@ fn extract_section_tail_slices(data: &[u8], records: &[HwpRecord]) -> (usize, Ve
     let mut j = tail_start_idx;
     while j < records.len() {
         let rec = &records[j];
-        if rec.level == 0 && (rec.tag == LIST_HEADER || rec.tag == MEMO_LIST) {
+        if (rec.level == 0 || rec.level == 1)
+            && (rec.tag == LIST_HEADER || rec.tag == MEMO_LIST)
+        {
             let start_byte = rec.start;
+            let list_level = rec.level;
             let mut next = j + 1;
-            while next < records.len() && records[next].level > 0 {
+            while next < records.len()
+                && !(records[next].level <= list_level
+                    && (records[next].tag == LIST_HEADER || records[next].tag == MEMO_LIST))
+            {
                 next += 1;
             }
             let end_byte = records[next - 1].end;

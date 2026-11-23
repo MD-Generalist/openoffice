@@ -826,6 +826,7 @@ impl ChatGptService {
                 .filter(|s| !s.is_empty())
                 .ok_or_else(|| {
                     let _ = self.vault.delete_sealed(VAULT_SLOT_CHATGPT);
+                    *self.memory_email.lock().unwrap() = None;
                     MobileError::with_detail(
                         MobileErrorCode::SignedOut,
                         "mobile.chatgpt.invalidTokenResponse",
@@ -839,6 +840,7 @@ impl ChatGptService {
                 .filter(|s| !s.is_empty())
                 .ok_or_else(|| {
                     let _ = self.vault.delete_sealed(VAULT_SLOT_CHATGPT);
+                    *self.memory_email.lock().unwrap() = None;
                     MobileError::with_detail(
                         MobileErrorCode::SignedOut,
                         "mobile.chatgpt.invalidTokenResponse",
@@ -846,7 +848,19 @@ impl ChatGptService {
                     )
                 })?
                 .to_string();
-            let expires_in = body.get("expires_in").and_then(|v| v.as_u64()).unwrap_or(0);
+            let expires_in = body
+                .get("expires_in")
+                .and_then(|v| v.as_u64())
+                .filter(|&v| v > 0)
+                .ok_or_else(|| {
+                    let _ = self.vault.delete_sealed(VAULT_SLOT_CHATGPT);
+                    *self.memory_email.lock().unwrap() = None;
+                    MobileError::with_detail(
+                        MobileErrorCode::SignedOut,
+                        "mobile.chatgpt.invalidTokenResponse",
+                        "invalid_token_response",
+                    )
+                })?;
             let scopes = body
                 .get("scope")
                 .and_then(|v| v.as_str())
@@ -858,6 +872,7 @@ impl ChatGptService {
             if let Some(id_tok) = body.get("id_token").and_then(|v| v.as_str()) {
                 if id_tok.is_empty() {
                     let _ = self.vault.delete_sealed(VAULT_SLOT_CHATGPT);
+                    *self.memory_email.lock().unwrap() = None;
                     return Err(MobileError::with_detail(
                         MobileErrorCode::SignedOut,
                         "mobile.chatgpt.invalidIdToken",
@@ -981,10 +996,42 @@ impl ChatGptService {
         Ok(out)
     }
 
-    /// Streams `POST /v1/responses` on the direct ChatGPT plan route with zero 429 retries,
-    /// empty Content-Type SSE tolerance, `response.completed` verification, and sanitized errors.
+    /// Runs token refresh inside an uncancelled spawned task so dropping/cancelling the caller
+    /// cannot abort persistence of rotated refresh tokens into `pendingRefresh`.
+    pub async fn ensure_valid_access_token_shielded(self: &Arc<Self>) -> MobileResult<String> {
+        let this = Arc::clone(self);
+        tokio::spawn(async move { this.ensure_valid_access_token().await })
+            .await
+            .map_err(|e| {
+                MobileError::with_detail(
+                    MobileErrorCode::InternalError,
+                    "mobile.chatgpt.refreshTaskFailed",
+                    e.to_string(),
+                )
+            })?
+    }
+
+    /// Streams `POST /v1/responses` on the direct ChatGPT plan route (acquires token then streams).
     pub async fn stream_responses<F>(
         &self,
+        model: &str,
+        instructions: Option<&str>,
+        input: &[ResponsesInputMessage],
+        on_delta: F,
+    ) -> MobileResult<String>
+    where
+        F: FnMut(&str),
+    {
+        let token = self.ensure_valid_access_token().await?;
+        self.stream_responses_with_token(&token, model, instructions, input, on_delta)
+            .await
+    }
+
+    /// Streams `POST /v1/responses` using a pre-validated access token so token refresh
+    /// can be shielded from stream cancellation.
+    pub async fn stream_responses_with_token<F>(
+        &self,
+        token: &str,
         model: &str,
         instructions: Option<&str>,
         input: &[ResponsesInputMessage],
@@ -1010,7 +1057,6 @@ impl ChatGptService {
             }
         }
 
-        let token = self.ensure_valid_access_token().await?;
         let url = format!("{}/responses", self.api_base.trim_end_matches('/'));
         let _ = enforce_https_url(&url, self.allow_test_loopback)?;
 

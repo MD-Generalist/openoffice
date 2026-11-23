@@ -1,6 +1,6 @@
 use crate::ai::{
     MobileAiService, MobileAiSettingsPatch, MobileAiSettingsSnapshot, MobileAiStreamRequest,
-    MobileChatGptStatus, ValidateKeyResult,
+    MobileChatGptStatus, ModelPatch, ProviderKeyPatch, ValidateKeyResult,
 };
 use crate::error::MobileResult;
 use serde::Serialize;
@@ -22,11 +22,20 @@ pub fn mobile_get_ai_settings(
 #[tauri::command]
 pub fn mobile_set_ai_settings(
     state: State<'_, Arc<MobileAiService>>,
-    patch: MobileAiSettingsPatch,
+    selected_provider: Option<String>,
+    model_patch: Option<ModelPatch>,
+    provider_key_patch: Option<ProviderKeyPatch>,
+    subscription_notice_version: Option<u32>,
 ) -> MobileResult<MobileAiSettingsSnapshot> {
-    state
-        .settings
-        .set_settings(patch, state.chatgpt.is_visible())
+    state.settings.set_settings(
+        MobileAiSettingsPatch {
+            selected_provider,
+            model_patch,
+            provider_key_patch,
+            subscription_notice_version,
+        },
+        state.chatgpt.is_visible(),
+    )
 }
 
 #[tauri::command]
@@ -50,8 +59,19 @@ pub async fn mobile_ai_validate_key(
 pub async fn mobile_ai_stream_start(
     app: AppHandle,
     state: State<'_, Arc<MobileAiService>>,
-    request: MobileAiStreamRequest,
+    request_id: String,
+    system: String,
+    messages: Vec<serde_json::Value>,
+    tools: Option<Vec<serde_json::Value>>,
+    max_tokens: Option<u32>,
 ) -> MobileResult<AiOkResult> {
+    let request = MobileAiStreamRequest {
+        request_id,
+        system,
+        messages,
+        tools: tools.unwrap_or_default(),
+        max_tokens,
+    };
     state
         .streams
         .run_stream(request, |event| {
