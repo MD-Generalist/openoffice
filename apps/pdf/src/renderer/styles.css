@@ -3166,6 +3166,15 @@ button {
   pointer-events: none;
 }
 
+/* Scan patches (paper over recognized words of a scanned page): opaque, under the
+   text-edit and text-insert previews that carry the replacement text */
+.pdf-imgedit-scan {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
 /* Below-text previews: multiply with the page raster so existing ink shows
    through, matching how the saved PDF paints text over the image */
 .pdf-imgedit-under {

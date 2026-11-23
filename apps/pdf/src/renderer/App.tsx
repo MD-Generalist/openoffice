@@ -31,6 +31,7 @@ import {
   type AutoOcrResult,
   type AutoOcrStop,
   type OcrPageData,
+  type OcrWord,
 } from './ocr-layer'
 import type { CropRect, FileOpCanceled, FileOpResult, PdfAppDeps, RotateDelta } from './ai/tools'
 import {
@@ -271,7 +272,7 @@ import type { HeaderFooterConfig, WatermarkConfig } from './stamps'
 import { aiReadOnlyPages, createSearchIndexCache, searchInIndex } from './search'
 import type { SearchIndex, SearchMatch } from './search'
 import { mapDocFont, type DocFontStyle } from './doc-font'
-import { groupPageBlocks, reflowOverflows, type TextBlock } from './text-block'
+import { groupPageBlocks, reflowOverflows, splitBlockLines, type TextBlock } from './text-block'
 import {
   joinBlockLines,
   mapLineRangeToBlock,
@@ -348,6 +349,7 @@ import type {
   StampInput,
   TextEditFailure,
   TextEditInput,
+  TextEditValidation,
   TextInsertFailure,
   TextInsertInput,
   PdfToolsHandoffTool,
@@ -422,8 +424,21 @@ import {
   paperCss,
   textEraseKey,
   textEraseProbe,
+  textInsertPreviewContent,
 } from './text-edit-preview'
 import { samplePaperColor } from './paper-sample'
+import {
+  coveredByScanPatch,
+  growToRenderedInk,
+  renderScanPieces,
+  scanCoverRect,
+  scanDraftUntouched,
+  type ScanRun,
+  scanInsertFromDraft,
+  scanInsertFromEdit,
+  scanPatchInput,
+  scanPatchRects,
+} from './scan-edit'
 import type { LocalTextEdit, LocalTextInsert, TextDraft } from './text-edit-preview'
 import { buildOcrBakeInserts } from './ocr-bake'
 import { planEditOps, reduceBucket } from './edit-ops'
@@ -1587,6 +1602,8 @@ export default function App() {
   /** Latest geometry for async pipelines that must not rebind on rotation (OCR) */
   const pageGeomRef = useRef(pageGeom)
   pageGeomRef.current = pageGeom
+  /** Paper patches over a scanned page's words, per page (see scan-edit.ts) */
+  const scanPatches = useMemo(() => scanPatchRects(imageEdits), [imageEdits])
   /** the auto-OCR's words as white text inserts: baked into every save while the
       recognition data is in the session (the post-save reload finds a text layer,
       so the pass never re-runs and the bake never doubles). It must stay below
@@ -1597,12 +1614,16 @@ export default function App() {
     for (const [origIdx, data] of ocrPages) {
       const geom = pageGeomRef.current(origIdx)
       if (!geom) continue
-      for (const input of buildOcrBakeInserts(origIdx, data.words, geom)) {
+      // words the reader erased or moved (under a pending scan patch) are gone from
+      // the picture; baking them would leave the old text searchable
+      const covers = scanPatches.get(origIdx) ?? []
+      const words = data.words.filter((w) => !coveredByScanPatch(w.rect, covers))
+      for (const input of buildOcrBakeInserts(origIdx, words, geom)) {
         out.push({ id: `ocr-bake-${origIdx}-${out.length}`, input })
       }
     }
     return out
-  }, [ocrPages])
+  }, [ocrPages, scanPatches])
   /** Current original page index, readable without rebinding the OCR pass on scroll */
   const currentOrigIdxRef = useRef(0)
   currentOrigIdxRef.current = visList[currentPage - 1] ?? 0
@@ -3247,7 +3268,16 @@ export default function App() {
             geom: (origIdx) => pageGeomRef.current(origIdx),
             render: renderPageForOcr,
             ocrPage: (png) => window.pdfApi.ocrPage(png),
-            onPage: (origIdx, data) => setOcrPages((prev) => new Map(prev).set(origIdx, data)),
+            onPage: (origIdx, data) => {
+              setOcrPages((prev) => new Map(prev).set(origIdx, data))
+              // blocks clustered before the words were recognized are empty: redo them
+              setPageBlocks((prev) => {
+                if (!prev.has(origIdx)) return prev
+                const next = new Map(prev)
+                next.delete(origIdx)
+                return next
+              })
+            },
             onProgress: (done, total) =>
               setOcrRun({ done: doneBefore + done, total, stop: null, pending: null }),
           })
@@ -3315,7 +3345,9 @@ export default function App() {
       const grouped = new Map<number, TextBlock[]>()
       for (const i of missing) {
         const entry = entries[i]
-        grouped.set(i, entry ? groupPageBlocks(entry) : [])
+        // a recognized scan is edited line by line (see splitBlockLines)
+        const blocks = entry ? groupPageBlocks(entry) : []
+        grouped.set(i, ocrPages.has(i) ? splitBlockLines(blocks) : blocks)
       }
       setPageBlocks((prev) => {
         const next = new Map(prev)
@@ -3330,7 +3362,7 @@ export default function App() {
     return () => {
       stale = true
     }
-  }, [editTextMode, readOnly, doc, visibleRows, rows, pageBlocks, getSearchIndex])
+  }, [editTextMode, readOnly, doc, visibleRows, rows, pageBlocks, getSearchIndex, ocrPages])
 
   /** Saved markup/note annotations are keyed to the loaded doc; drop them on save-reload */
   useEffect(() => {
@@ -4317,6 +4349,37 @@ export default function App() {
     }
   }
 
+  /** Area a scan edit patches: the words' box grown to the ink drawn around it on
+      the rendered page (handwriting overflows its recognized box, and an invisible
+      layer's font-metric box after a save rarely matches the strokes at all) */
+  const scanCover = (
+    origIdx: number,
+    rect: readonly [number, number, number, number],
+    paper: string | undefined = samplePaper(origIdx, rect),
+  ): [number, number, number, number] => {
+    const geom = pageGeom(origIdx)
+    const box = growToRenderedInk(
+      document.querySelector(`.pdf-page[data-page="${origIdx}"]`),
+      pdfRectToCss(geom, rect, scale),
+      paper,
+    )
+    const [ax, ay] = viewToPdf(geom, box.left / scale, box.top / scale)
+    const [bx, by] = viewToPdf(geom, (box.left + box.width) / scale, (box.top + box.height) / scale)
+    return scanCoverRect([Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by)])
+  }
+
+  /** Turn an open draft over invisible OCR text into a scan draft: the cover grows
+      to hide the picture's ink, and the commit patches instead of rewriting. A run
+      the engine matched is deleted with the commit (scanRun). */
+  const asScanDraft = (d: TextDraft, v: TextEditValidation): TextDraft => ({
+    ...d,
+    cover: scanCover(d.origIdx, v.bounds ? unionCover(d.rect, v.bounds) : d.rect, d.paper),
+    scan: true,
+    ...(v.reason === null
+      ? { scanRun: { rect: d.rect, oldText: d.oldText, fontSize: d.fontSize } }
+      : {}),
+  })
+
   /** Open the paragraph-sized editor over a clustered block: the whole block is the
       edit unit and the commit reflows the text within the block width. Pending plain
       line edits inside the block fold into the draft (the commit then replaces them).
@@ -4344,6 +4407,31 @@ export default function App() {
     const oldText = joinBlockLines(block.lines.map((l) => l.text))
     if (!oldText.trim()) return
     const rect: [number, number, number, number] = [...block.rect]
+    if (ocrPages.has(origIdx)) {
+      // Recognized words of a page picture: nothing in the file to probe or fold
+      setSelected(null)
+      draftSelectedRef.current = false
+      draftPreselectRef.current = preselect ?? null
+      setTextDraft({
+        origIdx,
+        rect,
+        oldText,
+        fontSize: block.fontSize,
+        value: oldText,
+        paper: samplePaper(origIdx, rect),
+        cover: scanCover(origIdx, rect),
+        block: {
+          leftPt: block.rect[0],
+          firstBaseline: block.lines[0]!.y,
+          widthPt: block.rect[2] - block.rect[0],
+          lineHeight: block.lineHeight,
+          align: block.align,
+          bottomPt: block.rect[1],
+        },
+        scan: true,
+      })
+      return
+    }
     const fold = foldBlockValue(origIdx, block, oldText)
     setSelected(null)
     draftSelectedRef.current = false
@@ -4383,6 +4471,13 @@ export default function App() {
         .validateTextEdits({ path: filePath, edits: [probe] })
         .then(([v]) => {
           if (!v) return
+          if (v.invisible) {
+            // An OCR layer over a page picture: edit the picture instead
+            setTextDraft((d) =>
+              d && d.origIdx === origIdx && d.rect === rect ? asScanDraft(d, v) : d,
+            )
+            return
+          }
           if (v.reason) {
             // Only swap editors while the draft is untouched — yanking typed text
             // would be worse than the commit-time notice. rect identity pins the
@@ -4508,12 +4603,23 @@ export default function App() {
           (e.clientX - pageBox.left) / scale,
           (e.clientY - pageBox.top) / scale,
         )
+        const covers = scanPatches.get(origIdx) ?? []
         const block = blocks.find(
-          (b) => px >= b.rect[0] && px <= b.rect[2] && py >= b.rect[1] && py <= b.rect[3],
+          (b) =>
+            px >= b.rect[0] &&
+            px <= b.rect[2] &&
+            py >= b.rect[1] &&
+            py <= b.rect[3] &&
+            !coveredByScanPatch(b.rect, covers),
         )
         // Single-line blocks stay on the line path unless a pending block-level
-        // edit/move already owns them (startBlockEdit then reopens that edit)
-        if (block && (block.lines.length > 1 || pendingEditFor(origIdx, block))) {
+        // edit/move already owns them (startBlockEdit then reopens that edit).
+        // Words of a recognized scan have no text-layer span for the line path:
+        // every block there opens the block editor.
+        if (
+          block &&
+          (block.lines.length > 1 || pendingEditFor(origIdx, block) || ocrPages.has(origIdx))
+        ) {
           e.stopPropagation()
           const pre = caret
             ? (mapLineRangeToBlock(
@@ -4593,6 +4699,12 @@ export default function App() {
         .validateTextEdits({ path: filePath, edits: [probe] })
         .then(([v]) => {
           if (!v) return
+          if (v.invisible) {
+            setTextDraft((d) =>
+              d && !d.editId && d.origIdx === origIdx && d.rect === rect ? asScanDraft(d, v) : d,
+            )
+            return
+          }
           if (v.reason) {
             // The engine cannot locate this line: close the untouched draft with the
             // notice now instead of letting the user edit and fail at commit time.
@@ -4870,6 +4982,57 @@ export default function App() {
         ]
   }
 
+  /** Deletes a scan's own OCR run from the file along with a scan edit, so the old
+      words stop turning up in search. No preview: the run was never visible. */
+  const dropScanRunOp = (pageIndex: number, run: ScanRun) => ({
+    op: 'putTextEdit' as const,
+    input: {
+      pageIndex,
+      rect: run.rect,
+      oldText: run.oldText,
+      newText: '',
+      fontSize: run.fontSize,
+    },
+    scanLayer: true,
+  })
+
+  /** Replace words of a page picture: a patch over `cover`, the new text (none =
+      erase), and the file's own OCR run gone. The patch lands at once as plain
+      paper; the rule-keeping version (scan-edit.ts) replaces its pixels when
+      rendered — the same edit, so undo still removes it in one step. */
+  const commitScanEdit = (
+    origIdx: number,
+    cover: [number, number, number, number],
+    paper: string | undefined,
+    insert: TextInsertInput | null,
+    run: ScanRun | undefined,
+  ) => {
+    const rotate = ((pageGeom(origIdx).rot % 360) + 360) % 360
+    const patchId = newId()
+    applyEditOpsRef.current([
+      {
+        op: 'addImageEdit',
+        id: patchId,
+        input: scanPatchInput(origIdx, cover, paper, rotate),
+        scanPatch: true,
+      },
+      ...(insert ? [{ op: 'addTextInsert' as const, input: insert }] : []),
+      ...(run ? [dropScanRunOp(origIdx, run)] : []),
+    ])
+    const source = doc
+    if (!source) return
+    void renderScanPieces(source, origIdx, pageGeom(origIdx), cover, paper).then((pieces) => {
+      if (!pieces || outlineDocRef.current !== source) return
+      updateImageEdits((prev) =>
+        prev.map((e) =>
+          e.id === patchId && e.input.kind === 'insertImage'
+            ? { ...e, input: { ...e.input, image: pieces.patch } }
+            : e,
+        ),
+      )
+    })
+  }
+
   /** Background dry-run of a just-committed edit against the file. A span that doesn't
       line up with the underlying text objects would otherwise surface only at save time;
       dropping it immediately with a notice beats a save that silently skips it later. */
@@ -4880,6 +5043,33 @@ export default function App() {
       .then(([v]) => {
         // Stale result: the edit may have been saved or deleted while validation ran
         if (!v || !textEditsRef.current.some((e) => e.id === edit.id)) return
+        if (v.invisible) {
+          // The run is an OCR layer over a page picture: the edit as committed would
+          // change nothing visible, so it becomes a patch over the picture
+          applyTextEdits((prev) => prev.filter((e) => e.id !== edit.id))
+          const { input } = edit
+          const run: ScanRun | undefined =
+            v.reason === null
+              ? { rect: input.rect, oldText: input.oldText, fontSize: input.fontSize }
+              : undefined
+          if (input.translate) {
+            commitScanMove(input.pageIndex, input.rect, input.translate, run)
+            return
+          }
+          const rotate = ((pageGeom(input.pageIndex).rot % 360) + 360) % 360
+          commitScanEdit(
+            input.pageIndex,
+            scanCover(
+              input.pageIndex,
+              v.bounds ? unionCover(input.rect, v.bounds) : input.rect,
+              edit.paper,
+            ),
+            edit.paper,
+            scanInsertFromEdit(input, rotate),
+            run,
+          )
+          return
+        }
         if (v.reason) {
           applyTextEdits((prev) => prev.filter((e) => e.id !== edit.id))
           showNotice(t(edit.input.translate ? 'textBlockMoveNoMatch' : 'textEditNoMatch'))
@@ -4900,6 +5090,24 @@ export default function App() {
   const commitTextDraft = (): LocalTextEdit[] => {
     const d = textDraft
     if (!d) return textEdits
+    if (d.scan) {
+      // blur and the click that caused it both commit within one render: the
+      // second call still sees the closed draft and would patch a second time
+      if (textDraftRef.current !== d) return textEdits
+      textDraftRef.current = null
+      setTextDraft(null)
+      if (!scanDraftUntouched(d)) {
+        const rotate = ((pageGeom(d.origIdx).rot % 360) + 360) % 360
+        commitScanEdit(
+          d.origIdx,
+          d.cover ?? scanCoverRect(d.rect),
+          d.paper,
+          scanInsertFromDraft(d, rotate),
+          d.scanRun,
+        )
+      }
+      return textEdits
+    }
     const merged = mergeTextDraft(textEdits, d)
     if (merged === 'overflow') {
       // Keep the editor open so the user can shorten the text (or Escape out)
@@ -4999,6 +5207,55 @@ export default function App() {
     return { te, remove: none, kind: 'move' }
   }
 
+  /** Move a block of a page picture: copy its pixels to the new spot and cover the
+      old spot with paper (scan-edit.ts). The copy renders asynchronously, so the
+      result lands a moment after the drop. */
+  const commitScanMove = (
+    origIdx: number,
+    rect: readonly [number, number, number, number],
+    d: readonly [number, number],
+    run?: ScanRun,
+  ) => {
+    const geom = pageGeom(origIdx)
+    const rotate = ((geom.rot % 360) + 360) % 360
+    const paper = samplePaper(origIdx, rect)
+    const cover = scanCover(origIdx, rect, paper)
+    const delta: [number, number] = [d[0], d[1]]
+    // The words travel with their ink: a search layer at the new spot (the file's
+    // own run, or the recognized words under the cover)
+    const words: OcrWord[] = run
+      ? [{ text: run.oldText, rect: shiftRect(run.rect, delta), spaceAfter: false }]
+      : (ocrPages.get(origIdx)?.words ?? [])
+          .filter((w) => coveredByScanPatch(w.rect, [cover]))
+          .map((w) => ({ ...w, rect: shiftRect(w.rect, delta) }))
+    const source = doc
+    if (!source) return
+    void renderScanPieces(source, origIdx, geom, cover, paper).then((pieces) => {
+      if (outlineDocRef.current !== source) return // the document reloaded meanwhile
+      if (!pieces) {
+        showNotice(t('textBlockMoveNoMatch'))
+        return
+      }
+      applyEditOpsRef.current([
+        {
+          op: 'addImageEdit',
+          input: scanPatchInput(origIdx, cover, paper, rotate, pieces.patch),
+          scanPatch: true,
+        },
+        {
+          // the ink alone: the new spot keeps its own paper and lines
+          op: 'addImageEdit',
+          input: scanPatchInput(origIdx, shiftRect(cover, delta), paper, rotate, pieces.cutout),
+        },
+        ...buildOcrBakeInserts(origIdx, words, geom).map((input) => ({
+          op: 'addTextInsert' as const,
+          input,
+        })),
+        ...(run ? [dropScanRunOp(origIdx, run)] : []),
+      ])
+    })
+  }
+
   /** Commit a border-drag of a clustered block as a pending move (WPS-style); see
       planBlockMove. Returns the edit now carrying the block, null when nothing was
       committed. */
@@ -5008,6 +5265,10 @@ export default function App() {
     d: [number, number],
     edits: LocalTextEdit[] = textEdits,
   ): LocalTextEdit | null => {
+    if (ocrPages.has(origIdx)) {
+      commitScanMove(origIdx, block.rect, d)
+      return null
+    }
     const plan = planBlockMove(origIdx, block, d, edits)
     if (plan === 'overflow') {
       showNotice(t('textBlockOverflow'))
@@ -12188,6 +12449,9 @@ export default function App() {
                             !readOnly &&
                             rowVisible &&
                             (pageBlocks.get(origIdx) ?? []).map((b, i) => {
+                              // erased or moved words of a scan: the patch owns that spot
+                              if (coveredByScanPatch(b.rect, scanPatches.get(origIdx) ?? []))
+                                return null
                               const drawRect = blockDrawRect(origIdx, b)
                               const box = pdfRectToCss(geom, drawRect, scale)
                               const hovered =
@@ -12340,7 +12604,11 @@ export default function App() {
                                 </div>
                               )}
                               {textInserts
-                                .filter((insert) => insert.input.pageIndex === origIdx)
+                                // invisible inserts are a scan's search layer: nothing to see
+                                .filter(
+                                  (insert) =>
+                                    insert.input.pageIndex === origIdx && !insert.input.invisible,
+                                )
                                 .map((insert) => {
                                   const style = textInsertPreviewStyle(insert, geom, scale)
                                   if (insertDrag?.id === insert.id) {
@@ -12427,7 +12695,7 @@ export default function App() {
                                         setStaticTextDialog(true)
                                       }}
                                     >
-                                      {insert.input.text}
+                                      {textInsertPreviewContent(insert, scale)}
                                     </div>
                                   )
                                 })}
@@ -12591,7 +12859,9 @@ export default function App() {
                                     ? EDIT_FONT_BY_ID.get(textDraft.font)?.css
                                     : seedF?.css
                                   const bodyFamily = getComputedStyle(document.body).fontFamily
-                                  const blk = textDraft.block
+                                  // A scan draft keeps the reader's own line breaks (no
+                                  // reflow into the handwriting's box): line editor look
+                                  const blk = textDraft.scan ? undefined : textDraft.block
                                   const sizePt = textDraft.size ?? textDraft.fontSize
                                   const draftStyle = `${
                                     textDraft.italic || seedF?.italic ? 'italic ' : ''
@@ -13036,9 +13306,17 @@ export default function App() {
                               )}
                               {(() => {
                                 const ocr = ocrPages.get(origIdx)
-                                return ocr ? (
-                                  <OcrTextLayer data={ocr} geom={geom} scale={scale} />
-                                ) : null
+                                if (!ocr) return null
+                                const covers = scanPatches.get(origIdx)
+                                const data = covers
+                                  ? {
+                                      ...ocr,
+                                      words: ocr.words.filter(
+                                        (w) => !coveredByScanPatch(w.rect, covers),
+                                      ),
+                                    }
+                                  : ocr
+                                return <OcrTextLayer data={data} geom={geom} scale={scale} />
                               })()}
                               <MarkupOverlay
                                 markups={markups.filter((m) => m.pageIndex === origIdx)}
