@@ -360,7 +360,11 @@ describe('the colours of a map are document content', () => {
   it('no rule of the map stylesheet refers to a chrome token', () => {
     const used = [...mapCss.matchAll(/var\(\s*(--[\w-]+)/g)].map((match) => match[1]!)
     expect(used.length).toBeGreaterThan(20)
-    for (const name of used) expect(tokens.has(name), name).toBe(false)
+    // --font-ui is the app UI font token, not a chrome colour token (allowed explicitly below)
+    for (const name of used) {
+      if (name === '--font-ui') continue
+      expect(tokens.has(name), name).toBe(false)
+    }
     // what it does refer to: the theme's own properties, the library's spacing, and the app's font
     for (const name of new Set(used)) {
       expect(name, name).toMatch(/^--(?:mm-[\w-]+|(?:node|main)-gap-[xy]|font-ui)$/)
