@@ -430,6 +430,9 @@ export function PdfToolsWindow({ lang }: { lang: Lang }) {
   }
 
   const openTool = (next: View) => {
+    if (targetMissed) {
+      void api.confirmSavePartial(targetMissed.pendingId, false)
+    }
     releaseIds([
       ...inputs.map((i) => i.id),
       ...(background ? [background.id] : []),
@@ -1138,7 +1141,7 @@ function ToolPanel(p: ToolPanelProps) {
 
   return (
     <section className="pt-section">
-      <button type="button" className="pt-back" onClick={p.onBack}>
+      <button type="button" className="pt-back" disabled={p.busy} onClick={p.onBack}>
         <span className="pt-back-arrow">
           <IconArrowLeft size={14} />
         </span>
@@ -1261,7 +1264,7 @@ function ToolPanel(p: ToolPanelProps) {
                           className="pt-icon-btn"
                           aria-label={t('moveUp')}
                           title={t('moveUp')}
-                          disabled={index === 0}
+                          disabled={p.busy || index === 0}
                           onClick={() => p.onMove(index, -1)}
                         >
                           <IconArrowUp size={14} />
@@ -1271,7 +1274,7 @@ function ToolPanel(p: ToolPanelProps) {
                           className="pt-icon-btn"
                           aria-label={t('moveDown')}
                           title={t('moveDown')}
-                          disabled={index === inputs.length - 1}
+                          disabled={p.busy || index === inputs.length - 1}
                           onClick={() => p.onMove(index, 1)}
                         >
                           <IconArrowDown size={14} />
@@ -1283,6 +1286,7 @@ function ToolPanel(p: ToolPanelProps) {
                       className="pt-icon-btn"
                       aria-label={t('remove')}
                       title={t('remove')}
+                      disabled={p.busy}
                       onClick={() => p.onRemove(input.id)}
                     >
                       <IconClose size={14} />
@@ -1326,6 +1330,7 @@ function ToolPanel(p: ToolPanelProps) {
                     className="pt-icon-btn"
                     aria-label={t('remove')}
                     title={t('remove')}
+                    disabled={p.busy}
                     onClick={p.onRemoveEven}
                   >
                     <IconClose size={14} />
@@ -1371,6 +1376,7 @@ function ToolPanel(p: ToolPanelProps) {
                     className="pt-icon-btn"
                     aria-label={t('remove')}
                     title={t('remove')}
+                    disabled={p.busy}
                     onClick={p.onRemoveBackground}
                   >
                     <IconClose size={14} />

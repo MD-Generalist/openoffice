@@ -807,7 +807,11 @@ export function outputNames(
     const docBase = sourceName.replace(/\.(drawio\.(svg|png)|[a-z0-9]{1,10})$/i, '') || 'document'
     return options.docsOutputMode === 'merge' ? [`${docBase}-merged.pdf`] : [`${docBase}.pdf`]
   }
-  const base = sourceName.replace(/\.pdf$/i, '') || 'document'
+  if (tool === 'merge') {
+    const mixBase = sourceName.replace(/\.(drawio\.(svg|png)|[a-z0-9]{1,10})$/i, '') || 'document'
+    return [`${mixBase}-merged.pdf`]
+  }
+  const base = sourceName.replace(/\.(pdf|jpe?g|png)$/i, '') || 'document'
   if (tool === 'split') return Array.from({ length: count }, (_, i) => `${base}-${i + 1}.pdf`)
   if (tool === 'pdfToImages') {
     return options.imageOutMode === 'folder' ? [base] : [`${base}-images.zip`]

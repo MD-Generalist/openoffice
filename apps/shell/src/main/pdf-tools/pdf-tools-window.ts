@@ -1864,7 +1864,8 @@ function registerIpc(): void {
     },
   )
   ipcMain.handle(PDF_TOOLS_CHANNELS.releaseInputs, async (event, rawIds: unknown) => {
-    if (!fromWindow(event) || !Array.isArray(rawIds)) return
+    if (!fromWindow(event) || running || !Array.isArray(rawIds)) return
+    pendingPartials.clear()
     for (const id of rawIds) {
       if (typeof id !== 'string' || id.length === 0) continue
       unlockedSecrets.delete(id)
