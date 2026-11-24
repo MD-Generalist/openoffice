@@ -8,6 +8,7 @@ import {
   AGENT_PLUGIN_MODULE,
   APP_SCHEME,
   HANCOM_KEYS_MODULE,
+  MOBILE_SCHEME,
   PASSWORD_FLAG,
   PC_FONTS_MODULE,
   STUDIO_PATCHES,
@@ -33,6 +34,7 @@ describe('rhwp scheme patches', () => {
     const transport = join(dirname(require.resolve('@rhwp/editor')), 'transport.js')
     const patched = applyPatch('sdk-scheme', readFileSync(transport, 'utf8'))
     expect(patched).toContain(`targetUrl.protocol !== '${APP_SCHEME}:'`)
+    expect(patched).toContain(`targetUrl.protocol !== '${MOBILE_SCHEME}:'`)
     // http and https stay accepted: the dev server origin depends on them
     expect(patched).toContain("targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:'")
   })
@@ -40,7 +42,7 @@ describe('rhwp scheme patches', () => {
   it('patch the studio origin check', () => {
     const source = "    return protocol === 'http:' || protocol === 'https:';\n"
     expect(applyPatch('studio-scheme', source)).toBe(
-      `    return protocol === 'http:' || protocol === 'https:' || protocol === '${APP_SCHEME}:';\n`,
+      `    return protocol === 'http:' || protocol === 'https:' || protocol === '${APP_SCHEME}:' || protocol === '${MOBILE_SCHEME}:';\n`,
     )
   })
 })
