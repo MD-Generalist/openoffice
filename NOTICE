@@ -135,6 +135,16 @@ exact source of every file. All files were downloaded on 2026-10-14.
 - Archivo Black 1.006, SIL OFL 1.1,
   https://github.com/google/fonts/tree/main/ofl/archivoblack
 
+UI fonts
+
+packages/ui/ui-fonts holds the bundled UI typeface shared by every window and
+editor chrome. It ships once in the installer as resources/ui-fonts. Every file
+is the original distributor's, unmodified, under the SIL Open Font License 1.1;
+packages/ui/ui-fonts/README.md records the license evidence and exact source.
+
+- Pretendard Variable 1.309 (release v1.3.9), SIL OFL 1.1 with Reserved Font
+  Name "Pretendard", https://github.com/orioncactus/pretendard
+
 Built-in skills
 
 apps/shell/resources/builtin-skills holds the skills shipped with the app. It

@@ -69,6 +69,8 @@ function assertExtraResourceSources() {
     '../pdf/node_modules/harfbuzzjs/hb-subset.wasm',
     '../../node_modules/@neslinesli93/qpdf-wasm/dist/qpdf.wasm',
     '../../packages/ui/template-fonts/README.md',
+    '../../packages/ui/ui-fonts/README.md',
+    '../../packages/ui/ui-fonts/PretendardVariable.woff2',
     '../../node_modules/@rhwp/core/rhwp_bg.wasm',
     '../../packages/hwp5-wasm/pkg/hwp5_wasm_bg.wasm',
     '../../packages/print-layout/wasm/pkg/print_layout_wasm_bg.wasm',
@@ -777,6 +779,12 @@ const config = {
     {
       from: '../../packages/ui/template-fonts',
       to: 'template-fonts',
+    },
+    // the bundled UI font, shipped once for every window and editor chrome;
+    // main code finds the folder with uiFontsDir (@genoffice/electron-utils)
+    {
+      from: '../../packages/ui/ui-fonts',
+      to: 'ui-fonts',
     },
     // the skills shipped with the app (read-only in the install folder): each
     // folder is the upstream skill as fetched, listed with its source, commit
