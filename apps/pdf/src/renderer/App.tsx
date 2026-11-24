@@ -304,6 +304,8 @@ import {
   rememberAiPanelOpen,
   presentationKeyOf,
   printLayoutIssueText,
+  printLayoutText,
+  QuickPrintButton,
   useAutoSavePref,
   useDismissablePopover,
   useRibbonCollapse,
@@ -313,12 +315,18 @@ import {
   templateDocumentOf,
   createZoomWheelClassifier,
   wheelZoomStep,
+  type OverlayBundle,
   type PrintLabelSpecStore,
   type PrintLayoutPreviewRequest,
   type PrintLayoutProgress,
   type TemplateDocument,
 } from '@genoffice/ui'
-import type { PrintLayoutErrorCode, PrintLayoutOptions } from '@genoffice/print-layout/plan'
+import {
+  createDefaultOptions,
+  type ImageExportOptions,
+  type PrintLayoutErrorCode,
+  type PrintLayoutOptions,
+} from '@genoffice/print-layout/plan'
 import { useI18n } from './i18n/locale'
 import { useAutosave } from './useAutosave'
 import { useRecoveryCopies } from './recovery/useRecoveryCopies'
@@ -1468,6 +1476,7 @@ export default function App() {
   const [pageSizeDlg, setPageSizeDlg] = useState(false)
   const [splitPagesDlg, setSplitPagesDlg] = useState(false)
   const [printDlg, setPrintDlg] = useState(false)
+  const [printDlgInitialDest, setPrintDlgInitialDest] = useState<string | undefined>(undefined)
   /** an arranged print or save (advanced print route) in progress, or why it failed */
   const [printJob, setPrintJob] = useState<PrintJobState>(PRINT_JOB_IDLE)
   const [printAnnots, setPrintAnnots] = useState(true)
@@ -8458,9 +8467,18 @@ export default function App() {
   // currentPage only tracks scroll, so it can outlive a page deletion
   const printCurrentPage = Math.max(1, Math.min(currentPage, pageCount))
   // The dialog mounts per open, so its range and layout options start fresh
-  const openPrintDlg = () => {
+  const openPrintDlg = (initialDestination?: string) => {
     setPrintJob(PRINT_JOB_IDLE)
+    setPrintDlgInitialDest(typeof initialDestination === 'string' ? initialDestination : undefined)
     setPrintDlg(true)
+  }
+
+  const runQuickPrintPdf = async (printerLabel: string) => {
+    if (!filePath || pageCount <= 0) return
+    showNotice(printLayoutText(lang, 'quickPrintSending', { printer: printerLabel }))
+    await runArrangedJob('print', createDefaultOptions(), null, {
+      job: { deviceName: '', copies: 1, collate: true, duplex: 'simplex' },
+    })
   }
 
   /** Print: save first (markups/forms/page ops all into the file), then reload from the file to render, avoiding a destroyed old doc */
@@ -8542,10 +8560,14 @@ export default function App() {
    * from the file. The dialog stays open with progress and closes once printed.
    */
   const runArrangedJob = async (
-    kind: 'print' | 'save',
+    kind: 'print' | 'save' | 'save-images',
     options: PrintLayoutOptions,
     pages: number[] | null,
-    job?: PrintJobOptions,
+    opts?: {
+      job?: PrintJobOptions
+      image?: ImageExportOptions
+      overlays?: OverlayBundle
+    },
   ) => {
     if (printBusyRef.current) return
     printBusyRef.current = true
@@ -8556,12 +8578,16 @@ export default function App() {
       const result = await flushThen(async () => {
         setPrinting(true)
         try {
-          const request = {
+          const base = {
             options,
             editor: printLayoutEditor(pages),
-            ...(kind === 'print' && job ? { job } : {}),
+            ...(opts?.overlays ? { overlays: opts.overlays } : {}),
           }
-          return kind === 'print' ? await bridge.print(request) : await bridge.savePdf(request)
+          if (kind === 'print') {
+            return await bridge.print({ ...base, ...(opts?.job ? { job: opts.job } : {}) })
+          }
+          if (kind === 'save') return await bridge.savePdf(base)
+          return await bridge.saveImages!({ ...base, image: opts!.image! })
         } finally {
           setPrinting(false)
         }
@@ -8586,6 +8612,7 @@ export default function App() {
     pages: number[] | undefined,
     options: PrintLayoutOptions,
     job: PrintJobOptions,
+    overlays?: OverlayBundle,
   ) => {
     routePrint(
       options,
@@ -8595,7 +8622,7 @@ export default function App() {
           setPrintDlg(false)
           void printDoc(...args)
         },
-        arranged: (jobPages) => void runArrangedJob('print', options, jobPages, job),
+        arranged: (jobPages) => void runArrangedJob('print', options, jobPages, { job, overlays }),
       },
       job,
     )
@@ -8622,8 +8649,37 @@ export default function App() {
     }
   }
 
+  const previewPdfFaces = async (
+    pages: number[] | undefined,
+    options: PrintLayoutOptions,
+    faceIndices: number[],
+    longSidePx: number,
+    overlays: OverlayBundle | undefined,
+    signal: AbortSignal,
+  ) => {
+    signal.throwIfAborted()
+    const bridge = window.pdfApi.printLayout
+    const editorKey = `${filePath}|${pages?.join(',') ?? 'all'}|ann:${printAnnots ? 1 : 0}`
+    const optionsKey = `${JSON.stringify(options)}:${overlays ? overlays.stamps.length : 0}`
+    const result = await bridge.previewFaces!({
+      options,
+      editor: printLayoutEditor(pages ?? null),
+      editorKey,
+      optionsKey,
+      faceIndices,
+      longSidePx,
+      ...(overlays ? { overlays } : {}),
+    })
+    if (!result.ok) throw new Error('aborted' in result ? 'canceled' : result.error)
+    return { totalFaces: result.totalFaces, faceSizes: result.faceSizes, faces: result.faces }
+  }
+
+  const closePdfPreview = useCallback(() => {
+    void window.pdfApi.printLayout.closePreview?.()
+  }, [])
+
   const listPdfPrinters = useCallback(
-    () => window.pdfApi.printLayout.listPrinters?.() ?? Promise.resolve([]),
+    () => window.pdfApi?.printLayout?.listPrinters?.() ?? Promise.resolve([]),
     [],
   )
 
@@ -10483,6 +10539,18 @@ export default function App() {
           >
             <IconRedo />
           </button>
+          <QuickPrintButton
+            lang={lang}
+            disabled={!filePath || pageCount <= 0}
+            busy={printing || !!printJob.progress}
+            saveRestricted={documentEncrypted || encryption !== null}
+            listPrinters={listPdfPrinters}
+            prefStore={window.pdfApi?.printLayout}
+            getPageCount={() => pageCount}
+            onOpenDialog={(dest) => openPrintDlg(dest)}
+            onQuickPrint={runQuickPrintPdf}
+            onNoPrinter={(msg) => showNotice(msg)}
+          />
           <span className="qa-sep" />
           <label className={`autosave-toggle${autoSave ? ' on' : ''}`} data-tip={t('autoSaveTip')}>
             <span className="autosave-knob" />
@@ -10735,7 +10803,7 @@ export default function App() {
                       className="rb-big"
                       data-tip={`${t('print')} (${platformShortcuts('⌘P')})`}
                       disabled={printing}
-                      onClick={openPrintDlg}
+                      onClick={() => openPrintDlg()}
                     >
                       <span className="rb-big-icon">
                         <IconPrint />
@@ -14679,11 +14747,29 @@ export default function App() {
                 pickedPages={printPickedPages}
                 includeAnnotations={printAnnots}
                 onIncludeAnnotationsChange={setPrintAnnots}
+                documentTitle={
+                  filePath
+                    .split(/[\\/]/)
+                    .pop()
+                    ?.replace(/\.pdf$/i, '') ?? ''
+                }
+                initialDestination={printDlgInitialDest}
                 listPrinters={listPdfPrinters}
                 pageSizes={printPageSizes}
                 onPrint={confirmPrint}
-                onSavePdf={(pages, options) => void runArrangedJob('save', options, pages ?? null)}
+                onSavePdf={(pages, options, overlays) =>
+                  void runArrangedJob('save', options, pages ?? null, { overlays })
+                }
+                onSaveImages={(pages, options, image, overlays) =>
+                  void runArrangedJob('save-images', options, pages ?? null, { image, overlays })
+                }
                 saveRestricted={documentEncrypted || encryption !== null}
+                onPreviewFaces={
+                  filePath && window.pdfApi.printLayout.previewFaces ? previewPdfFaces : undefined
+                }
+                onClosePreview={
+                  window.pdfApi.printLayout.closePreview ? closePdfPreview : undefined
+                }
                 onPreviewRequest={previewArranged}
                 onCancel={closePrintDlg}
                 job={{

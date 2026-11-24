@@ -1909,6 +1909,36 @@ button {
   overflow-y: auto;
 }
 
+.pdf-modal.pdf-print-dialog.pdf-print-dialog-split {
+  margin-top: 16px;
+  width: min(1040px, calc(100% - 32px));
+  height: min(760px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+
+.pdf-modal.pdf-print-dialog.pdf-print-dialog-split > .gs-pl-dialog-split-body {
+  padding: 12px 16px;
+}
+
+.pdf-modal.pdf-print-dialog.pdf-print-dialog-split > .pdf-modal-title {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pdf-modal.pdf-print-dialog.pdf-print-dialog-split > .pdf-modal-actions {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.pdf-print-dialog-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .pdf-modal-title {
   font-size: 13px;
   font-weight: 600;
