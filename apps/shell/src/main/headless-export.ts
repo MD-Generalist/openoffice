@@ -9,6 +9,8 @@
  * File menu uses, so GUI and CLI output cannot drift.
  */
 import { existsSync, realpathSync, statSync } from 'node:fs'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import {
@@ -23,6 +25,7 @@ import {
   type HeadlessExportProduct,
   type HeadlessExportRequest,
 } from '@genoffice/electron-utils'
+import { convertLegacyFile, legacyEditorFor, type LegacyConvertResult } from './legacy-open'
 
 type HeadlessFailure = Extract<HeadlessExportOutcome, { ok: false }>
 
@@ -200,5 +203,42 @@ export async function runHeadlessExport(
     outPath: checked.outPath,
     outPaths: written,
     ...(product.detail ? { detail: product.detail } : {}),
+  }
+}
+
+/**
+ * Wraps a docs/slides headless exporter so legacy Office binaries (.doc, .dot, .ppt)
+ * are converted to a temporary .docx/.pptx before handing off to the normal exporter,
+ * always deleting the temp folder on exit.
+ */
+export async function runExporterWithLegacyConversion(
+  input: string,
+  outPath: string,
+  format: HeadlessExportFormat,
+  request: HeadlessExportRequest,
+  exporter: HeadlessExporters['docs'],
+  convert: (filePath: string) => Promise<LegacyConvertResult | null> = convertLegacyFile,
+): Promise<void | HeadlessExportProduct> {
+  if (!legacyEditorFor(input)) {
+    return exporter(input, outPath, format, request)
+  }
+  const converted = await convert(input)
+  if (!converted) {
+    return exporter(input, outPath, format, request)
+  }
+  if (!converted.ok) {
+    throw new Error(
+      converted.reason === 'encrypted'
+        ? 'password-protected legacy file cannot be converted headlessly'
+        : converted.error,
+    )
+  }
+  const workDir = await mkdtemp(join(tmpdir(), 'genoffice-legacy-headless-'))
+  try {
+    const tempPath = join(workDir, converted.copy.fileName)
+    await writeFile(tempPath, converted.copy.bytes)
+    return await exporter(tempPath, outPath, format, { ...request, input: tempPath })
+  } finally {
+    await rm(workDir, { recursive: true, force: true })
   }
 }

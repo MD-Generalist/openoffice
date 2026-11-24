@@ -47,6 +47,12 @@ export default defineConfig({
       '@genoffice/electron-utils/template-font-response': local(
         '../../packages/electron-utils/src/template-font-response.ts',
       ),
+      '@genoffice/electron-utils/ui-font-response': local(
+        '../../packages/electron-utils/src/ui-font-response.ts',
+      ),
+      '@genoffice/electron-utils/ui-fonts-dir': local(
+        '../../packages/electron-utils/src/ui-fonts-dir.ts',
+      ),
       '@genoffice/electron-utils/ai-create-guard': local(
         '../../packages/electron-utils/src/ai-create-guard.ts',
       ),
@@ -95,6 +101,7 @@ export default defineConfig({
       '@genoffice/ai-provider': local('../../packages/ai-provider/src/index.ts'),
       '@genoffice/i18n': local('../../packages/i18n/src/index.ts'),
       '@genoffice/ui/template-fonts': local('../../packages/ui/src/template-fonts.ts'),
+      '@genoffice/ui/ui-fonts': local('../../packages/ui/src/ui-fonts.ts'),
       '@genoffice/ui/ai-subscription-login-window': local(
         '../../packages/ui/src/ai-subscription-login-window.ts',
       ),

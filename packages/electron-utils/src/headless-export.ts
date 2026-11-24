@@ -19,7 +19,16 @@
 
 /** Editor module that owns a given input extension. */
 export type HeadlessExportModule =
-  'docs' | 'sheets' | 'slides' | 'markdown' | 'html' | 'hwp' | 'diagram' | 'whiteboard'
+  | 'docs'
+  | 'sheets'
+  | 'slides'
+  | 'markdown'
+  | 'html'
+  | 'hwp'
+  | 'diagram'
+  | 'whiteboard'
+  | 'mindmap'
+  | 'epub'
 
 /** Diagram file formats a diagram job can write (the input's ops applied first). */
 export const DIAGRAM_FILE_TARGETS = ['drawio', 'dio', 'drawio.svg', 'drawio.png'] as const
@@ -45,6 +54,8 @@ export const HEADLESS_TARGETS: Record<HeadlessExportModule, readonly HeadlessExp
   hwp: ['pdf'],
   diagram: ['pdf', 'png', 'svg', ...DIAGRAM_FILE_TARGETS],
   whiteboard: ['pdf', 'png', 'svg'],
+  mindmap: ['pdf'],
+  epub: ['pdf'],
 }
 
 const ALL_TARGETS: readonly HeadlessExportFormat[] = [
@@ -127,14 +138,16 @@ export type HeadlessExportOutcome =
   | { ok: false; code: Exclude<HeadlessExitCode, 0>; message: string }
 
 const MODULE_BY_EXTENSION: ReadonlyArray<readonly [RegExp, HeadlessExportModule]> = [
-  [/\.docx$/i, 'docs'],
-  [/\.(xlsx|xlsm|xls|csv|tsv)$/i, 'sheets'],
-  [/\.pptx$/i, 'slides'],
-  [/\.(md|markdown)$/i, 'markdown'],
+  [/\.(docx|doc|odt)$/i, 'docs'],
+  [/\.(xlsx|xlsm|xls|ods|csv|tsv)$/i, 'sheets'],
+  [/\.(pptx|ppt)$/i, 'slides'],
+  [/\.(md|markdown|txt)$/i, 'markdown'],
   [/\.(html|htm)$/i, 'html'],
   [/\.(hwp|hwpx)$/i, 'hwp'],
   [/\.(drawio|dio|drawio\.svg|drawio\.png)$/i, 'diagram'],
   [/\.whiteboard$/i, 'whiteboard'],
+  [/\.(xmind|mm)$/i, 'mindmap'],
+  [/\.epub$/i, 'epub'],
 ]
 
 /** Which editor module can render this input, or null when the extension is unsupported. */
@@ -143,9 +156,38 @@ export function headlessModuleFor(inputPath: string): HeadlessExportModule | nul
   return null
 }
 
+/** Dot-less lowercase extensions supported by headless PDF export (single source of truth). */
+export const HEADLESS_PDF_EXTENSIONS: readonly string[] = [
+  'docx',
+  'doc',
+  'odt',
+  'xlsx',
+  'xlsm',
+  'xls',
+  'ods',
+  'csv',
+  'tsv',
+  'pptx',
+  'ppt',
+  'md',
+  'markdown',
+  'txt',
+  'html',
+  'htm',
+  'hwp',
+  'hwpx',
+  'drawio',
+  'dio',
+  'drawio.svg',
+  'drawio.png',
+  'whiteboard',
+  'xmind',
+  'mm',
+  'epub',
+]
+
 /** Extensions the headless entry accepts, for error messages. */
-export const HEADLESS_SUPPORTED_EXTENSIONS =
-  '.docx, .xlsx, .xlsm, .xls, .csv, .pptx, .md, .markdown, .html, .htm, .hwp, .hwpx, .drawio, .dio, .drawio.svg, .drawio.png, .whiteboard'
+export const HEADLESS_SUPPORTED_EXTENSIONS = HEADLESS_PDF_EXTENSIONS.map((e) => `.${e}`).join(', ')
 
 /** `--flag value` and `--flag=value` both read the same. */
 function readOption(argv: readonly string[], index: number, flag: string): string | null {

@@ -87,6 +87,13 @@ document content of any other editor. The diagram is not sent as a picture.
 The same text table is what other editors' AI panels receive when you attach
 a diagram or pick it with `@`.
 
+The **PDF tools** window runs locally on your PC without AI and never sends
+files to any service. One narrow exception matches normal editor PDF export:
+when **Documents to PDF** or mixed-file **Merge PDF** converts a local HTML or
+Markdown file that embeds remote `http://` or `https://` image URLs, the
+hidden exporter window may fetch those referenced image URLs while rendering
+the PDF.
+
 When a local AI server's address is not this PC or a private-network IP
 address, the Local AI card says where documents go: over `http://` it warns
 that they are sent without encryption, and for a public IP address over

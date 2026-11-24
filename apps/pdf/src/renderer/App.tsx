@@ -577,17 +577,25 @@ const DRAW_TOOLS = [
 ]
 
 /** Pages tab ▸ PDF tools: the window's tasks that take this file, named as the window names them */
-const PDF_TOOLS_MENU = [
+const PDF_TOOLS_MENU: readonly (readonly [PdfToolsHandoffTool, string] | 'sep')[] = [
+  ['organize', 'pdfToolsOrganize'],
+  ['interleave', 'pdfToolsInterleave'],
   ['blankPages', 'pdfToolsBlankPages'],
+  'sep',
   ['duplex', 'pdfToolsDuplex'],
   ['overlay', 'pdfToolsOverlay'],
   ['stripAnnots', 'pdfToolsStripAnnots'],
+  'sep',
+  ['ocr', 'pdfToolsOcr'],
+  ['pdfToImages', 'pdfToolsPdfToImages'],
+  ['convertFromPdf', 'pdfToolsConvertFromPdf'],
   ['toText', 'pdfToolsToText'],
+  'sep',
   ['compress', 'pdfToolsCompress'],
   ['encrypt', 'pdfToolsEncrypt'],
   ['decrypt', 'pdfToolsDecrypt'],
   ['repair', 'pdfToolsRepair'],
-] as const satisfies readonly (readonly [PdfToolsHandoffTool, string])[]
+]
 
 // ── ribbon tabs (docs-style tab strip over a fixed 80px band) ──
 const RIBBON_TABS = [
@@ -11742,11 +11750,23 @@ export default function App() {
                       </button>
                       {pdfToolsOpen && (
                         <div className="rb-drop rb-menu">
-                          {PDF_TOOLS_MENU.map(([tool, label]) => (
-                            <button key={tool} onClick={() => void openInPdfTools(tool)}>
-                              {t(label)}
-                            </button>
-                          ))}
+                          {PDF_TOOLS_MENU.map((entry, idx) =>
+                            entry === 'sep' ? (
+                              <div
+                                key={`sep-${idx}`}
+                                role="separator"
+                                style={{
+                                  height: 1,
+                                  background: 'var(--border-subtle)',
+                                  margin: '4px 6px',
+                                }}
+                              />
+                            ) : (
+                              <button key={entry[0]} onClick={() => void openInPdfTools(entry[0])}>
+                                {t(entry[1] as Parameters<typeof t>[0])}
+                              </button>
+                            ),
+                          )}
                         </div>
                       )}
                     </div>

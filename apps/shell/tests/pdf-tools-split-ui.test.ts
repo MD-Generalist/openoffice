@@ -33,6 +33,18 @@ function makeMockApi(over: Partial<PdfToolsWindowApi> = {}): PdfToolsWindowApi {
       inputs: [{ id: 'doc-1', kind: 'pdf', name: 'Report.pdf', pages: 6, size: 120_000 }],
       rejected: [],
     }),
+    dropInputs: vi.fn().mockResolvedValue({ inputs: [], rejected: [] }),
+    releaseInputs: vi.fn().mockResolvedValue(undefined),
+    unlockInput: vi.fn().mockResolvedValue({ ok: true, pages: 6 }),
+    promoteResult: vi.fn().mockResolvedValue({ ok: false, error: 'failed' }),
+    promoteInput: vi.fn().mockResolvedValue({ ok: false, error: 'failed' }),
+    auditSpace: vi.fn().mockResolvedValue({ ok: false, error: 'failed' }),
+    ocrAvailable: vi.fn().mockResolvedValue({ available: false, platform: 'test' }),
+    renderThumbs: vi.fn().mockResolvedValue({ ok: false, error: 'failed' }),
+    cancelThumbs: vi.fn().mockResolvedValue(undefined),
+    onMixStatus: vi.fn().mockReturnValue(() => {}),
+    confirmSavePartial: vi.fn().mockResolvedValue({ ok: false, error: 'failed' }),
+    openInEditorWithInput: vi.fn().mockResolvedValue(undefined),
     run: vi.fn().mockResolvedValue({
       ok: true,
       outputs: [

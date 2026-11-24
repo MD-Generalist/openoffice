@@ -58,10 +58,15 @@ export type {
  * view's file (decision 0030); the shell checks the name again.
  */
 export const PDF_TOOLS_HANDOFF = [
+  'organize',
+  'interleave',
   'blankPages',
   'duplex',
   'overlay',
   'stripAnnots',
+  'ocr',
+  'pdfToImages',
+  'convertFromPdf',
   'toText',
   'compress',
   'encrypt',

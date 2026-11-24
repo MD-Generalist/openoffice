@@ -163,6 +163,20 @@ async function pickTarget(
 /** Paths Save As picked for an export, per view: that one path, once, for that one kind. */
 const saveAsGrants = new Map<number, { kind: ExportKind; path: string }>()
 
+/** Dialog-free PDF export targets for headless runs (`exportMindmapPdfHeadless`). */
+const headlessPdfTargets = new Map<
+  number,
+  { outPath: string; done: (result: { ok: boolean; error?: string }) => void }
+>()
+
+export function setMindmapHeadlessPdfTarget(
+  webContentsId: number,
+  target: { outPath: string; done: (result: { ok: boolean; error?: string }) => void } | null,
+): void {
+  if (target) headlessPdfTargets.set(webContentsId, target)
+  else headlessPdfTargets.delete(webContentsId)
+}
+
 /**
  * Save As › an export type: the dialog has run, so the export the renderer
  * sends next for this view may write `path` without asking again. Null drops it.
@@ -393,8 +407,25 @@ export function registerMindmapExportIpc(options: ExportIpcOptions): void {
 
   ipcMain.handle(MINDMAP_CHANNELS.exportPdf, async (e, request: unknown): Promise<ExportResult> => {
     const html = fieldOf(request, 'html')
+    const headless = headlessPdfTargets.get(e.sender.id)
     if (typeof html !== 'string' || html === '' || html.length > MAX_PAGE_CHARS) {
+      if (headless) {
+        headlessPdfTargets.delete(e.sender.id)
+        headless.done({ ok: false, error: 'mindmap: bad PDF export request' })
+      }
       return { ok: false, error: 'mindmap: bad PDF export request' }
+    }
+    if (headless) {
+      headlessPdfTargets.delete(e.sender.id)
+      try {
+        await atomicWriteFile(headless.outPath, await pageToPdf(html))
+        headless.done({ ok: true })
+        return { ok: true, path: headless.outPath }
+      } catch (err) {
+        const message = messageOf(err)
+        headless.done({ ok: false, error: message })
+        return { ok: false, error: message }
+      }
     }
     try {
       const target = await targetOf(e, 'pdf', request, options)

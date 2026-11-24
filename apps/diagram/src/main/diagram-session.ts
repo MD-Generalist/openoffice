@@ -132,7 +132,7 @@ export function diagramSession(paths: DiagramSessionPaths): Session {
   const ses = session.fromPartition(DIAGRAM_PARTITION)
   const fontsDir = uiFontsDir({
     isPackaged: app.isPackaged,
-    getAppPath: () => app.getAppPath(),
+    getAppPath: () => (typeof app.getAppPath === 'function' ? app.getAppPath() : process.cwd()),
     resourcesPath: process.resourcesPath ?? '',
   })
   ses.protocol.handle(DRAWIO_SCHEME, (request) => serveDrawio(request, paths))
