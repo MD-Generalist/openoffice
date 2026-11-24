@@ -46,6 +46,8 @@ function stubExporters(): { exporters: HeadlessExporters; calls: string[] } {
       hwp: make('hwp'),
       diagram: make('diagram'),
       whiteboard: make('whiteboard'),
+      mindmap: make('mindmap'),
+      epub: make('epub'),
     },
   }
 }

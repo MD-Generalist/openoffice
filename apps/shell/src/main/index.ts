@@ -382,6 +382,7 @@ import {
 } from '../../../html/src/main/html-main'
 import {
   configureMindmapRuntime,
+  exportMindmapPdfHeadless,
   mindmapFileRenamed,
   mindmapSaveToPath,
   requestMindmapSave,
@@ -397,6 +398,7 @@ import {
   EPUB_ASSET_SCHEME_PRIVILEGE,
   configureEpubRuntime,
   epubFileRenamed,
+  exportEpubPdfHeadless,
   registerEpubAssetProtocol,
   requestEpubSave,
   sendEpubMenuCommand,
@@ -594,7 +596,11 @@ import {
   type ProjectWindow,
 } from './projects/project-ipc'
 import { PROJECT_UNAVAILABLE, ProjectFolderTools, type DownloadAsk } from './projects/project-tools'
-import { runHeadlessExport, type HeadlessExporters } from './headless-export'
+import {
+  runExporterWithLegacyConversion,
+  runHeadlessExport,
+  type HeadlessExporters,
+} from './headless-export'
 import { TabManager, canonicalPath, type DetachedTab } from './tab-manager'
 import { shellWindowTitle } from './window-title'
 import { tabMenuTemplate, type TabMenuActions, isProgramFile } from './tab-menu'
@@ -10860,14 +10866,22 @@ const devPidFile = () => join(app.getPath('userData'), 'dev-instance.pid')
 /** Hidden-window exporters, one per editor module (HEADLESS_TARGETS says which formats each takes). */
 const headlessExporters: HeadlessExporters = {
   // the request stays with the diagram exporter: docs and html take a timeout fourth
-  docs: (input, outPath, format) => exportDocsHeadless(input, outPath, format),
+  docs: (input, outPath, format, request) =>
+    runExporterWithLegacyConversion(input, outPath, format, request, (p, o, f) =>
+      exportDocsHeadless(p, o, f),
+    ),
   sheets: (input, outPath) => exportSheetsPdfHeadless(input, outPath),
-  slides: (input, outPath) => exportSlidesPdfHeadless(input, outPath),
+  slides: (input, outPath, format, request) =>
+    runExporterWithLegacyConversion(input, outPath, format, request, (p, o) =>
+      exportSlidesPdfHeadless(p, o),
+    ),
   markdown: (input, outPath) => exportMarkdownPdfHeadless(input, outPath),
   html: (input, outPath, format) => exportHtmlHeadless(input, outPath, format),
   hwp: (input, outPath) => exportHwpPdfHeadless(input, outPath),
   diagram: exportDiagramHeadless,
   whiteboard: (_input, _outPath, _format, request) => exportWhiteboardHeadless(request),
+  mindmap: (input, outPath) => exportMindmapPdfHeadless(input, outPath),
+  epub: (input, outPath) => exportEpubPdfHeadless(input, outPath),
 }
 
 /**

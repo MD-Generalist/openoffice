@@ -60,7 +60,11 @@ import { registerMindmapAiIpc } from './ai-attachments'
 import { registerMindmapImageIpc } from './ai-image'
 import { registerLinkPreviewIpc } from './link-preview'
 import { atomicWriteFile } from './atomic-write'
-import { grantSaveAsExport, registerMindmapExportIpc } from './export-main'
+import {
+  grantSaveAsExport,
+  registerMindmapExportIpc,
+  setMindmapHeadlessPdfTarget,
+} from './export-main'
 import { registerMindmapHandoffIpc } from './handoff-main'
 import { queueMindmapSeedFor, registerMindmapSeedIpc } from './seed-main'
 import { tm } from './i18n-main'
@@ -597,9 +601,19 @@ function registerMindmapIpc(): void {
     if (typeof path !== 'string' || !allowedByWc.get(wcId)?.has(path)) {
       throw new Error('mindmap: path not granted to this view')
     }
-    if (FREEMIND_RE.test(path)) return importFreeMind(wcId, path)
+    const notifyHeadless = (result: OpenFileResult): OpenFileResult => {
+      const cb = headlessOpenCallbacks.get(wcId)
+      if (cb) {
+        if (result.status === 'ok' || result.status === 'import') cb(true)
+        else cb(false, `mindmap did not open (${result.status})`)
+      }
+      return result
+    }
+    if (FREEMIND_RE.test(path)) return notifyHeadless(await importFreeMind(wcId, path))
     // A recovery copy left for this file is settled before any of the map is loaded.
-    const restored = await resolveViewOpen(wcId, path, parentWindowOf(e.sender))
+    const restored = headlessOpenCallbacks.has(wcId)
+      ? null
+      : await resolveViewOpen(wcId, path, parentWindowOf(e.sender))
     let bytes: Uint8Array | null
     try {
       bytes = new Uint8Array(await readFile(path))
@@ -615,33 +629,33 @@ function registerMindmapIpc(): void {
           // the file still opens: it stays the save target
           savePathByWc.set(wcId, path)
           await rememberDiskState(wcId, path, bytes)
-          return { status: 'ok', bytes: restored, restored: 'file' }
+          return notifyHeadless({ status: 'ok', bytes: restored, restored: 'file' })
         }
         // The file is gone or no longer opens, so it is not written over: the
         // map is untitled, its first save offers the old place, and its copies
         // keep replacing the restored one.
         savePathByWc.delete(wcId)
         viewRestoredUntitled(wcId, path)
-        return { status: 'ok', bytes: restored, restored: 'untitled' }
+        return notifyHeadless({ status: 'ok', bytes: restored, restored: 'untitled' })
       }
       console.warn(`[mindmap] the recovery copy does not open (${copy.status}); the file opens`)
     }
     if (!bytes) {
       refuseWrites(wcId)
-      return { status: 'unreadable' }
+      return notifyHeadless({ status: 'unreadable' })
     }
     const opened = await openXmind(bytes)
     if (opened.status !== 'ok') {
       console.warn(`[mindmap] the file did not open (${opened.status}): ${opened.detail}`)
       refuseWrites(wcId)
-      return { status: opened.status }
+      return notifyHeadless({ status: opened.status })
     }
     // Seen open, here: only now is the path a save target. This also covers a
     // reload of a view whose file opens again after it was replaced on disk.
     unopenedByWc.delete(wcId)
     savePathByWc.set(wcId, path)
     await rememberDiskState(wcId, path, bytes)
-    return { status: 'ok', bytes }
+    return notifyHeadless({ status: 'ok', bytes })
   })
 
   ipcMain.handle(MINDMAP_CHANNELS.save, async (e, request: unknown): Promise<SaveMindmapResult> => {
@@ -894,6 +908,9 @@ const VIEW_PREFERENCES = {
   sandbox: true,
 } as const
 
+/** Headless PDF export notifications keyed by webContentsId: triggered once openFile succeeds. */
+const headlessOpenCallbacks = new Map<number, (ok: boolean, reason?: string) => void>()
+
 /** A map tab for the shell. `openPath` null or left out: a new, untitled map. */
 export function createMindmapView(openPath?: string | null): WebContentsView {
   registerMindmapIpc()
@@ -903,6 +920,75 @@ export function createMindmapView(openPath?: string | null): WebContentsView {
   grantAndTrack(view.webContents, openPath)
   void view.webContents.loadURL(mindmapRendererUrl())
   return view
+}
+
+/**
+ * Dialog-free PDF export for `.xmind` and `.mm` files via a hidden renderer
+ * window, reusing the File menu's own snapshot -> HTML -> printToPDF pipeline.
+ */
+export async function exportMindmapPdfHeadless(
+  input: string,
+  outPath: string,
+  timeoutMs = 180_000,
+): Promise<void> {
+  registerMindmapIpc()
+  const win = new BrowserWindow({
+    show: false,
+    width: 1200,
+    height: 850,
+    webPreferences: {
+      preload: runtime.preloadPath,
+      ...VIEW_PREFERENCES,
+      backgroundThrottling: false,
+    },
+  })
+  const wc = win.webContents
+  const wcId = wc.id
+  grantAndTrack(wc, input)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let poll: ReturnType<typeof setInterval> | undefined
+  try {
+    const report = await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      let settled = false
+      const finish = (result: { ok: boolean; error?: string }): void => {
+        if (settled) return
+        settled = true
+        if (poll) clearInterval(poll)
+        resolve(result)
+      }
+      setMindmapHeadlessPdfTarget(wcId, { outPath, done: finish })
+      headlessOpenCallbacks.set(wcId, (ok, reason) => {
+        headlessOpenCallbacks.delete(wcId)
+        if (!ok) {
+          finish({ ok: false, error: reason ?? 'mindmap file could not be opened' })
+          return
+        }
+        // Trigger export once the renderer mounts the loaded map; retry periodically
+        // until the renderer answers exportPdf (large maps take a few frames to lay out).
+        setTimeout(() => {
+          if (!settled && !wc.isDestroyed()) sendMindmapExportRequest(wc, 'pdf')
+        }, 300)
+        poll = setInterval(() => {
+          if (!settled && !wc.isDestroyed()) sendMindmapExportRequest(wc, 'pdf')
+        }, 700)
+      })
+      wc.on('render-process-gone', (_event, details) =>
+        finish({ ok: false, error: `mindmap renderer stopped (${details.reason})` }),
+      )
+      timer = setTimeout(
+        () => finish({ ok: false, error: `mindmap export timed out after ${timeoutMs}ms` }),
+        timeoutMs,
+      )
+      void wc.loadURL(mindmapRendererUrl())
+    })
+    if (!report.ok) throw new Error(report.error ?? 'mindmap export failed')
+  } finally {
+    if (timer) clearTimeout(timer)
+    if (poll) clearInterval(poll)
+    headlessOpenCallbacks.delete(wcId)
+    setMindmapHeadlessPdfTarget(wcId, null)
+    if (!win.isDestroyed()) win.destroy()
+  }
 }
 
 /** Standalone window mode: `npm run dev -w @genoffice/mindmap`, a map path passed via argv */

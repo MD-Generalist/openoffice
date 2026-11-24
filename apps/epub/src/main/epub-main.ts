@@ -24,9 +24,20 @@
  */
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
-import { basename, dirname, extname, join } from 'node:path'
-import { BrowserWindow, WebContentsView, app, dialog, ipcMain, protocol, shell } from 'electron'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { basename, dirname, extname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  BrowserWindow,
+  WebContentsView,
+  app,
+  dialog,
+  ipcMain,
+  protocol,
+  session,
+  shell,
+} from 'electron'
 import type { WebContents } from 'electron'
 import {
   DOCX_MEDIA_SCHEME_PRIVILEGE,
@@ -45,7 +56,7 @@ import {
 } from '@genoffice/electron-utils'
 import type { SaveDiskState } from '@genoffice/electron-utils'
 import { getUiLang, normalizeLang, setUiLang } from '@genoffice/i18n'
-import { buildTranslatedEpub, epubTranslationUnits } from '@genoffice/epub-engine'
+import { buildTranslatedEpub, epubTranslationUnits, openEpub } from '@genoffice/epub-engine'
 import { ResultStore } from '@genoffice/pdf-structure/store'
 import { registerAiJob } from '@genoffice/electron-utils/ai-activity'
 import { aiRunRefusal } from '@genoffice/electron-utils/ai-run-guard'
@@ -54,6 +65,7 @@ import { registerEpubAiIpc } from './ai-attachments'
 import { EPUB_ASSET_SCHEME_PRIVILEGE, serveEpubAsset } from './asset-protocol'
 import { atomicWriteFile } from './atomic-write'
 import { EpubBookSession } from './book-session'
+import { buildEpubPrintHtml } from './epub-headless'
 import { tm } from './i18n-main'
 import { createReadingState, readPositionOf } from './reading-state'
 import type { ReadingState } from './reading-state'
@@ -943,6 +955,96 @@ export function createEpubView(openPath: string): WebContentsView {
   grantAndTrack(view.webContents, openPath)
   void view.webContents.loadURL(epubRendererUrl())
   return view
+}
+
+const EPUB_HEADLESS_PARTITION = 'epub-headless-export'
+let epubHeadlessBlockerInstalled = false
+const epubHeadlessPageFiles = new Set<string>()
+
+function epubHeadlessPathKey(filePath: string): string {
+  const full = resolve(filePath)
+  return process.platform === 'win32' ? full.toLowerCase() : full
+}
+
+function epubHeadlessSession(): Electron.Session {
+  const own = session.fromPartition(EPUB_HEADLESS_PARTITION)
+  if (!epubHeadlessBlockerInstalled) {
+    epubHeadlessBlockerInstalled = true
+    own.webRequest.onBeforeRequest((details, callback) => {
+      let allowed = /^data:/i.test(details.url)
+      if (!allowed && /^file:/i.test(details.url)) {
+        try {
+          allowed = epubHeadlessPageFiles.has(epubHeadlessPathKey(fileURLToPath(details.url)))
+        } catch {
+          allowed = false
+        }
+      }
+      callback({ cancel: !allowed })
+    })
+  }
+  return own
+}
+
+/**
+ * Dialog-free PDF export for `.epub` files: parses the archive with
+ * `@genoffice/epub-engine`, builds a self-contained offline HTML print view,
+ * and renders it to A4 PDF in an isolated, script-free hidden window.
+ */
+export async function exportEpubPdfHeadless(
+  input: string,
+  outPath: string,
+  timeoutMs = 180_000,
+): Promise<void> {
+  const raw = await readFile(input)
+  const bytes = new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength)
+  const opened = await openEpub(bytes)
+  if (!opened.ok) {
+    throw new Error(`epub did not open (${opened.reason}): ${opened.detail}`)
+  }
+  const html = await buildEpubPrintHtml(opened.book)
+  const workDir = await mkdtemp(join(tmpdir(), 'genoffice-epub-pdf-'))
+  const htmlPath = join(workDir, 'book.html')
+  const key = epubHeadlessPathKey(htmlPath)
+  epubHeadlessPageFiles.add(key)
+  let win: BrowserWindow | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await writeFile(htmlPath, html, 'utf8')
+    win = new BrowserWindow({
+      show: false,
+      width: 900,
+      height: 1200,
+      autoHideMenuBar: true,
+      webPreferences: {
+        sandbox: true,
+        javascript: false,
+        session: epubHeadlessSession(),
+      },
+    })
+    const activeWin = win
+    const pdfBuffer = await new Promise<Buffer>((resolvePdf, rejectPdf) => {
+      timer = setTimeout(
+        () => rejectPdf(new Error(`epub export timed out after ${timeoutMs}ms`)),
+        timeoutMs,
+      )
+      void activeWin
+        .loadFile(htmlPath)
+        .then(() =>
+          activeWin.webContents.printToPDF({
+            pageSize: 'A4',
+            printBackground: true,
+            preferCSSPageSize: true,
+          }),
+        )
+        .then(resolvePdf, rejectPdf)
+    })
+    await atomicWriteFile(outPath, pdfBuffer)
+  } finally {
+    if (timer) clearTimeout(timer)
+    if (win && !win.isDestroyed()) win.destroy()
+    epubHeadlessPageFiles.delete(key)
+    await rm(workDir, { recursive: true, force: true })
+  }
 }
 
 /** Standalone window mode: `npm run dev -w @genoffice/epub`, a book path passed via argv */
