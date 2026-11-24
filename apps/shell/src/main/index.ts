@@ -616,7 +616,11 @@ import {
 } from './split-memory'
 import { SPLIT_EVEN_RATIO, decideSplitDrop, paneRects, splitDropZone } from './split-layout'
 import { configureGenerateWindow } from './generate/generate-window'
-import { configurePdfToolsWindow, openPdfToolsWithFile } from './pdf-tools/pdf-tools-window'
+import {
+  cleanupPdfToolsOnQuit,
+  configurePdfToolsWindow,
+  openPdfToolsWithFile,
+} from './pdf-tools/pdf-tools-window'
 import {
   configureQuickLookWindow,
   notifyQuickLookLangOrThemeChanged,
@@ -11686,6 +11690,7 @@ function releaseAppResources(): void {
   driveService?.stop()
   void mcpHub?.stopAll()
   stopQuickLookRuntime()
+  cleanupPdfToolsOnQuit()
   shutdownSubscriptionChildren()
 }
 
@@ -11696,5 +11701,6 @@ function releaseAppResources(): void {
 process.on('exit', () => {
   fileIndexer?.stop()
   stopParseSidecar()
+  cleanupPdfToolsOnQuit()
   shutdownSubscriptionChildren()
 })

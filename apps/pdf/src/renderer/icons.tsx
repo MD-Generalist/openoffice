@@ -811,3 +811,40 @@ export function IconLink({ size = 16 }: { size?: number }): ReactElement {
     </Icon>
   )
 }
+
+/** Organize pages: 2x2 page thumbnails grid */
+export const IconOrganizePages = () => (
+  <Icon>
+    <rect x="4.5" y="4.5" width="6.2" height="6.2" rx="1" />
+    <rect x="13.3" y="4.5" width="6.2" height="6.2" rx="1" />
+    <rect x="4.5" y="13.3" width="6.2" height="6.2" rx="1" />
+    <rect x="13.3" y="13.3" width="6.2" height="6.2" rx="1" strokeDasharray="2 1.5" />
+  </Icon>
+)
+
+/** Interleave merge: alternating odd/even sheets */
+export const IconInterleave = () => (
+  <Icon>
+    <rect x="4.5" y="5" width="11" height="4.2" rx="0.8" />
+    <rect x="8.5" y="10" width="11" height="4.2" rx="0.8" />
+    <rect x="4.5" y="15" width="11" height="4.2" rx="0.8" />
+  </Icon>
+)
+
+/** Scan PDF OCR: frame corners with scanned text lines */
+export const IconOcrPdf = () => (
+  <Icon>
+    <path d="M4.5 8.5 V5.5 A1 1 0 0 1 5.5 4.5 H8.5 M15.5 4.5 H18.5 A1 1 0 0 1 19.5 5.5 V8.5 M19.5 15.5 V18.5 A1 1 0 0 1 18.5 19.5 H15.5 M8.5 19.5 H5.5 A1 1 0 0 1 4.5 18.5 V15.5" />
+    <path d="M8 9.5 H16 M8 12.5 H14.5 M8 15.5 H12.5" />
+  </Icon>
+)
+
+/** Documents to PDF: document sheets converting to PDF */
+export const IconDocsToPdf = () => (
+  <Icon>
+    <path d="M5.5 4.5 H11.5 L14.5 7.5 V15.5 A1 1 0 0 1 13.5 16.5 H5.5 A1 1 0 0 1 4.5 15.5 V5.5 A1 1 0 0 1 5.5 4.5 Z" />
+    <path d="M11.5 4.5 V7.5 H14.5 M7.5 10.5 H11.5 M7.5 13 H10.5" />
+    <path d="M15.5 12 H19.5 M17.7 10.2 L19.5 12 L17.7 13.8" />
+    <rect x="13" y="15" width="6.5" height="4.5" rx="0.8" />
+  </Icon>
+)

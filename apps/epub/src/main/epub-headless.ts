@@ -133,7 +133,7 @@ export async function buildEpubPrintHtml(book: EpubBook): Promise<string> {
       for (const m of matches) {
         const start = m.index ?? 0
         out += body.slice(cursor, start)
-        let tag = m[0]
+        const tag = m[0]
         const attrRe = /\b(src|xlink:href|href)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi
         let replaced = ''
         let attrCursor = 0

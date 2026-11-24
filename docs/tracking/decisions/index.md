@@ -158,3 +158,4 @@
 | [0160](0160-pdfium-file-parse.md)                             | 첨부·색인용 PDF 텍스트 추출 기본 경로를 번들된 PDFium WASM으로 전환한다                                          | 2026-11-21 |
 | [0161](0161-unified-connectors-and-obsidian-vault.md)         | 설정 ▸ 연동 상단에 6개 연결 서비스를 통합하고, Obsidian 볼트는 내장 로컬 커넥터로 구현한다                       | 2026-11-21 |
 | [0162](0162-hwp-engine-on-rhwp-0-9-1.md)                      | 한글 엔진과 편집기를 rhwp v0.9.1 배포판에 맞추고 상위에 들어간 패치(0023·0044·0049, 글꼴 별칭)를 뺀다            | 2026-11-23 |
+| [0163](0163-pdf-tools-v2-and-drop-input.md)                   | PDF 도구 창을 24개 직접 도구·UX 고도화로 넓히고, 끌어다 놓기는 preload `webUtils.getPathForFile`로만 허가한다    | 2026-11-24 |

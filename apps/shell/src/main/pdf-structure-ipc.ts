@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { BrowserWindow, app, dialog, ipcMain, utilityProcess, webContents } from 'electron'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import { showOpenDialogWithMemory, showSaveDialogWithMemory } from '@genoffice/electron-utils'
+import { rhwpWasmPath } from '@genoffice/file-parse'
 import { PDF_CHANNELS } from '../../../pdf/src/shared/ipc'
 import type { PdfStructureProgress } from '../../../pdf/src/shared/ipc'
 import { pdfPathGranted } from '../../../pdf/src/main/pdf-main'
@@ -46,6 +47,7 @@ function processSetup(): ProcessSetup {
     userDataDir: app.getPath('userData'),
     hbSubsetWasmPath: hbSubsetWasmPath(),
     qpdfWasmPath: qpdfWasmPath(),
+    rhwpWasmPath: rhwpWasmPath(),
   }
 }
 
