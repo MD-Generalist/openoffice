@@ -24,6 +24,7 @@
 - AI와 무관한 공용 부품: `Dropdown`, 색 선택기(문구 `eyedropper`를 넘긴 편집기에만 화면 색 따오기 줄이 생긴다, `pickScreenColor`), 찾기 패널, 리본 접기, 이미지 대화 상자·뷰어, `Markdown`, 아이콘, 글꼴 목록, WordArt 프리셋.
 - PC 글꼴 불러오기(`src/system-fonts.ts`): 워드·엑셀·파워포인트 글꼴 상자가 쓰는 `createSystemFontSource`와 훅 `useSystemFontSource`. 편집기마다 한글 이름을 묻는 다리만 넘긴다(한글 편집기는 rhwp의 찾기를 쓴다, `apps/hwp/studio-plugin/pc-fonts.mjs`).
 - 디자인 템플릿 글꼴: 폴더 `template-fonts/`(글꼴 파일, 패밀리마다의 라이선스 글, `README.md`)와 그 목록 `src/template-fonts.ts`(`@genoffice/ui/template-fonts`). 폴더는 `src/` 밖에 있어 어느 편집기 빌드에도 복사되지 않는다.
+- 앱 UI 글꼴: 폴더 `ui-fonts/`(`PretendardVariable.woff2`, `Pretendard-OFL.txt`, `README.md`)와 그 목록 `src/ui-fonts.ts`(`@genoffice/ui/ui-fonts`). `src/` 밖에 두어 설치 파일에 `resources/ui-fonts`로 한 번만 들어가고(`apps/shell/electron-builder.cjs`), `installRendererProtocol`과 다이어그램 세션이 `genoffice-app://ui-fonts/<file>`로 내준다. `tokens.css`가 문서 글꼴(`Pretendard`)과 겹치지 않는 전용 이름(`'UI Pretendard'`, 한글 범위 전용 `'UI Pretendard Hangul'`)으로 `@font-face`를 선언해 한국어 UI 전체와 AI 패널에 적용한다.
 - 고급 인쇄의 공용 화면(결정 0141): 쪽 배치 칸(`src/print-layout/PrintLayoutPanel.tsx`), 프린터·매수·한 벌씩·양면 칸(`src/print-layout/PrintJobFields.tsx`, `usePrintJob`), 배치도, 결과 미리 보기, HTML·마인드맵·다이어그램·화이트보드의 작은 인쇄 창(`SimplePrintDialog`), 양면·한 벌씩 맞추기 같은 도우미(`model.ts`, `hooks.ts`), 문구(`strings-print-layout/`, 22개 언어). 화면은 `@genoffice/print-layout/plan`만 값으로 가져온다.
 
 ## 맡지 않는 것 (경계)

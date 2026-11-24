@@ -54,7 +54,9 @@
     "./user-skills-bridge": "./src/user-skills-bridge.ts",
     "./user-skills-channels": "./src/user-skills-channels.ts",
     "./template-font-response": "./src/template-font-response.ts",
-    "./template-fonts-dir": "./src/template-fonts-dir.ts"
+    "./template-fonts-dir": "./src/template-fonts-dir.ts",
+    "./ui-font-response": "./src/ui-font-response.ts",
+    "./ui-fonts-dir": "./src/ui-fonts-dir.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
