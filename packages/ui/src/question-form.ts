@@ -4,6 +4,16 @@
  * text fallback for tool-less models.
  */
 
+import type {
+  QuestionAnswerValue,
+  QuestionCardAnswer,
+  QuestionInput,
+  QuestionSurfaceView,
+} from '@genoffice/agent-core'
+import type { QuestionCardStatus, QuestionCardSubmission } from './AiQuestionCard'
+
+export type { QuestionCardStatus } from './AiQuestionCard'
+
 export type QuestionOption = string | { readonly label: string; readonly value: string }
 
 export type QuestionFieldType = 'radio' | 'checkbox' | 'select' | 'text'
@@ -26,8 +36,6 @@ export interface QuestionFormSpec {
   readonly description?: string | undefined
   readonly questions: readonly QuestionField[]
 }
-
-export type QuestionCardStatus = 'open' | 'submitted' | 'skipped' | 'superseded'
 
 export type QuestionFormAnswers = Record<string, string | string[]>
 
@@ -250,4 +258,78 @@ export function formatQuestionFormAnswers(
     lines.push(`- ${q.label}: ${formatted || '(none)'}`)
   }
   return lines.join('\n')
+}
+
+// ── bridge to the A2UI card (kept until the text block moves to `<a2ui-json>`) ──
+
+/** A `<question-form>` spec as the view the shared card draws. */
+export function questionFormView(spec: QuestionFormSpec): QuestionSurfaceView {
+  const inputs: QuestionInput[] = spec.questions.map((q) => {
+    const base = {
+      id: q.id,
+      label: q.label,
+      ...(q.description ? { description: q.description } : {}),
+      required: q.required === true,
+    }
+    if (q.type === 'text') {
+      return {
+        ...base,
+        kind: 'TextField',
+        variant: 'shortText',
+        initial: typeof q.default === 'string' ? q.default : '',
+      }
+    }
+    const options = (q.options ?? []).map(normalizeQuestionOption)
+    const values = new Set(options.map((o) => o.value))
+    const defaults = typeof q.default === 'string' ? [q.default] : [...(q.default ?? [])]
+    const multi = q.type === 'checkbox'
+    const initial = defaults.filter((v) => values.has(v))
+    return {
+      ...base,
+      kind: 'ChoicePicker',
+      variant: multi ? 'multipleSelection' : 'mutuallyExclusive',
+      options,
+      initial: multi ? initial : initial.slice(0, 1),
+    }
+  })
+  return {
+    surfaceId: spec.id,
+    title: spec.title,
+    ...(spec.description ? { description: spec.description } : {}),
+    inputs,
+  }
+}
+
+/** The card's submission in the `<question-form>` answer shape (left to the AI: empty). */
+export function questionFormAnswersOf(
+  spec: QuestionFormSpec,
+  submission: QuestionCardSubmission,
+): QuestionFormAnswers {
+  const out: QuestionFormAnswers = {}
+  for (const q of spec.questions) {
+    const value: QuestionAnswerValue | undefined = submission.answers[q.id]
+    const list = Array.isArray(value) ? [...(value as readonly string[])] : []
+    if (q.type === 'checkbox') out[q.id] = list
+    else if (q.type === 'text') out[q.id] = typeof value === 'string' ? value : ''
+    else out[q.id] = list[0] ?? ''
+  }
+  return out
+}
+
+/** Saved `<question-form>` answers as the card's answer, for a closed card. */
+export function questionFormCardAnswer(
+  spec: QuestionFormSpec,
+  status: QuestionCardStatus,
+  answers: QuestionFormAnswers | undefined,
+): QuestionCardAnswer | undefined {
+  if (status === 'skipped') return { kind: 'skip' }
+  if (!answers) return undefined
+  const out: Record<string, QuestionAnswerValue> = {}
+  for (const q of spec.questions) {
+    const value = answers[q.id]
+    if (value === undefined) continue
+    out[q.id] =
+      q.type === 'text' ? (Array.isArray(value) ? value.join(', ') : value) : [value].flat()
+  }
+  return { kind: 'submit', answers: out, decideForMe: [] }
 }

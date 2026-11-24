@@ -8,6 +8,9 @@ import { Markdown, type MarkdownImage, type MarkdownNav } from './Markdown'
 import { AiQuestionCard } from './AiQuestionCard'
 import {
   parseQuestionFormBlocks,
+  questionFormAnswersOf,
+  questionFormCardAnswer,
+  questionFormView,
   type QuestionCardStatus,
   type QuestionFormAnswers,
   type QuestionFormSpec,
@@ -62,14 +65,17 @@ export function AiAssistantBody({
             </div>
           )
         }
+        const status = streaming ? 'open' : questionStatus
         return (
           <AiQuestionCard
             key={`${seg.spec.id}-${i}`}
             lang={lang}
-            spec={seg.spec}
-            status={streaming ? 'open' : questionStatus}
-            savedAnswers={savedAnswers}
-            onSubmit={(answers) => onQuestionSubmit?.(seg.spec, answers)}
+            view={questionFormView(seg.spec)}
+            status={status}
+            answer={questionFormCardAnswer(seg.spec, status, savedAnswers)}
+            onSubmit={(submission) =>
+              onQuestionSubmit?.(seg.spec, questionFormAnswersOf(seg.spec, submission))
+            }
             onSkip={() => onQuestionSkip?.(seg.spec)}
           />
         )
