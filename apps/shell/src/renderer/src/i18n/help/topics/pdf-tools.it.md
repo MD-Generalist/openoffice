@@ -34,6 +34,7 @@ Le schede in **Nell’editor PDF** aprono il PDF scelto in una scheda dell’edi
 - **Ripara file** recupera solo le parti ancora leggibili. Apri il nuovo file e controlla che non manchino pagine.
 - **Rimuovi pagine bianche** propone soltanto le candidate. Vengono rimosse solo le pagine spuntate, e qualsiasi pagina con almeno un carattere non è mai candidata.
 - **Rimuovi annotazioni** conserva i campi modulo e rimuove i collegamenti solo se selezionati. Il testo delle annotazioni rimosse non resta nel nuovo file.
+- **Dividi PDF** separa per intervalli personalizzati (anche uniti in un solo file), numero di pagine, segnalibri o dimensione massima, con formato del nome e sottocartella.
 
 ## Provalo per
 

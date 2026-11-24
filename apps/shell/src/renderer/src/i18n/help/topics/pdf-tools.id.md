@@ -34,6 +34,7 @@ Kartu di kelompok **Di editor PDF** membuka PDF yang dipilih di tab editor. Pili
 - **Perbaiki file** hanya memulihkan bagian yang masih dapat dibaca. Buka file baru dan periksa apakah tidak ada halaman yang hilang.
 - **Hapus halaman kosong** hanya menampilkan kandidat. Hanya halaman yang Anda centang yang dihapus, dan halaman dengan satu karakter pun tidak pernah menjadi kandidat.
 - **Hapus anotasi** mempertahankan bidang formulir dan hanya menghapus tautan jika dicentang. Isi anotasi yang dihapus tidak tersisa di file baru.
+- **Pisahkan PDF** dapat membagi menurut rentang khusus (bisa digabung menjadi satu file), jumlah halaman, markah buku, atau ukuran maksimum dengan opsi penamaan dan subfolder.
 
 ## Coba untuk
 

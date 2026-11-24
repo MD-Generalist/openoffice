@@ -34,6 +34,7 @@ Os cartões de **No editor de PDF** abrem o PDF escolhido em uma guia do editor.
 - **Reparar arquivo** recupera apenas as partes ainda legíveis. Abra o novo arquivo e confira se não falta nenhuma página.
 - **Remover páginas em branco** exibe apenas candidatas. Só as páginas marcadas são removidas, e qualquer página com pelo menos um caractere nunca aparece como candidata.
 - **Remover anotações** mantém campos de formulário e remove links apenas quando marcados. O conteúdo das anotações removidas não permanece no novo arquivo.
+- **Dividir PDF** separa por intervalos personalizados (com opção de mesclar), número de páginas, marcadores ou tamanho máximo, com escolha de nomenclatura e subpasta.
 
 ## Experimente para
 

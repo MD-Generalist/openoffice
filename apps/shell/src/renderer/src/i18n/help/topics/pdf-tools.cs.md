@@ -34,6 +34,7 @@ Karty ve skupině **V editoru PDF** otevřou vybrané PDF na kartě editoru. Př
 - **Opravit soubor** obnoví pouze části, které lze ještě přečíst. Otevřete nový soubor a zkontrolujte, zda nechybí žádná stránka.
 - **Odebrat prázdné stránky** pouze navrhne kandidáty. Odstraní se jen zaškrtnuté stránky a stránka s byť jediným znakem není nikdy navržena.
 - **Odebrat poznámky** zachová pole formulářů a odkazy smaže jen při zaškrtnutí. Obsah odstraněných poznámek v novém souboru nezůstane.
+- **Rozdělit PDF** umí dělit podle vlastních rozsahů (i sloučit do jednoho souboru), počtu stran, záložek nebo maximální velikosti souboru, s volbou názvů a podsložky.
 
 ## Vyzkoušejte pro
 

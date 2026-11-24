@@ -209,14 +209,14 @@ PDF로 자주 하는 일(합치기, 나누기, 용량 줄이기, 인쇄 준비, 
 - 편집기 페이지 탭의 **PDF 도구** 메뉴에 용량 줄이기, 암호 걸기, 암호 풀기, 파일 복구를 더했다. 2단계의 다섯 도구처럼 그 탭의 파일로 도구 창을 연다. 계획에 적은 "홈 탭에 넣기"는 하지 않고 이 메뉴 하나로 모았다.
 - qpdf.wasm은 1.33MB(gzip 0.44MB)이고 설치 파일의 `resources/wasm`에 들어간다. 라이선스는 Apache-2.0(qpdf), 감싼 패키지는 ISC다.
 
-### v2(4단계)에서 구현한 것(결정 0163)
+### v2(4단계)에서 구현한 것(결정 0165)
 
-- **도구 24개 직접 처리 + 3개 편집기 넘김 카드**: 기존 편집기 넘김 카드 가운데 **이미지 내보내기**(`pdfToImages`)와 **PDF 변환**(`convertFromPdf`)을 도구 창 직접 처리로 승격하고, **페이지 구성**(`organize`), **홀짝 교차 병합**(`interleave`), **스캔 PDF OCR**(`ocrPdf`), **문서를 PDF로 변환**(`docsToPdf`)을 더했다. 편집기 넘김 카드는 워터마크·머리글/바닥글, 페이지 자르기, 편집·서명·가림 3개로 정리했다.
+- **도구 24개 직접 처리 + 3개 편집기 넘김 카드**: 기존 편집기 넘김 카드 가운데 **이미지 내보내기**(`pdfToImages`)와 **PDF 변환**(`convertFromPdf`)을 도구 창 직접 처리로 승격하고, **페이지 구성**(`organize`), **홀짝 교차 병합**(`interleave`), **스캔 PDF OCR**(`ocr`), **문서를 PDF로 변환**(`docsToPdf`)을 더했다. 편집기 넘김 카드는 워터마크·머리글/바닥글, 페이지 자르기, 편집·서명·가림 3개로 정리했다.
 - **기존 도구 고도화**:
   - **용량 줄이기**(`compress.ts`·`qpdf.ts`): 용량 분석(`auditPdfSpace`), 5가지 압축 모드(무손실·약·보통·강·목표 용량 이진 탐색), 중복 그림 제거·Flate 레벨 9·메타데이터 제거·그림만 Rec.601 회색조·qpdf 웹 빠른 보기(선형화), 목표 미달 시 단건 확인/일괄 표시.
   - **PDF 병합**(`merge-v2.ts`·`mix-queue.ts`): PDF·이미지·문서 혼합 병합(비-PDF는 임시 폴더에서 백그라운드 변환 후 정리), 파일별 페이지 범위, 파일명 책갈피, A4/Letter 용지 크기 통일.
   - **이미지로 PDF 만들기**(`images-to-pdf.ts`·`image-recode.ts`): WebP·BMP·GIF 지원, 용지 방향(자동/세로/가로), 화질 최적화(원본/균형/경량), 이미지별 90° 회전과 썸네일 미리보기.
-- **도구 창 UX 혁신**: 크기 조절·최대화, 도구 검색과 최근 도구, OS 끌어다 놓기(preload 전용 `webUtils.getPathForFile`, 결정 0163), 도구 안 암호 즉시 해제(메모리 전용, 결과 암호 미적용 고지), 결과 다음 도구 이어쓰기(`promoteResult`/`promoteInput`), 단일 PDF 일괄 처리(`batch-orchestrator.ts`, `split` 제외).
+- **도구 창 UX 혁신**: 크기 조절·최대화, 도구 검색과 최근 도구, OS 끌어다 놓기(preload 전용 `webUtils.getPathForFile`, 결정 0165), 도구 안 암호 즉시 해제(메모리 전용, 결과 암호 미적용 고지), 결과 다음 도구 이어쓰기(`promoteResult`/`promoteInput`), 단일 PDF 일괄 처리(`batch-orchestrator.ts`, `split` 제외).
 - **문서 → PDF 헤드리스 확장**: `packages/electron-utils`와 `apps/mindmap`, `apps/epub`, `apps/shell`의 `--headless-export`에 마인드맵(`.xmind`/`.mm`)·EPUB(`.epub`)·옛 `.doc`/`.ppt`·`.odt`/`.ods`·`.txt`를 더하고, 도구 창은 `headless-runner.ts`로 셸 없이 자식 프로세스로 실행해 종료 시 정리한다.
 - **PDF 편집기 리본 확장**: `PDF_TOOLS_HANDOFF`를 14개 도구로 확장하고(페이지 구성·홀짝 교차 병합·스캔 PDF OCR·이미지 내보내기·PDF 변환 추가), 22개 언어 문구와 도움말(`pdf-tools.*.md`)을 동기화했다. `split` 도구의 코드·화면·시험은 건드리지 않았다.
 

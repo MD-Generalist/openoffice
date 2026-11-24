@@ -34,6 +34,7 @@ Günlük PDF işleri için görev odaklı ayrı bir pencere. Sonuç her zaman ye
 - **Dosyayı onar** yalnızca hâlâ okunabilen bölümleri geri getirir. Yeni dosyayı açıp hiçbir sayfanın eksik olmadığını denetleyin.
 - **Boş sayfaları kaldır** yalnızca adayları gösterir. Yalnızca işaretlediğiniz sayfalar kaldırılır ve tek bir karakter içeren sayfa bile aday olmaz.
 - **Açıklamaları kaldır** form alanlarını korur, bağlantıları ise yalnızca işaretlerseniz kaldırır. Kaldırılan açıklamaların içeriği yeni dosyada kalmaz.
+- **PDF Böl** özel aralıklar (tek dosyada birleştirme dahil), sayfa sayısı, yer imleri veya en fazla dosya boyutuna göre böler; adlandırma ve alt klasör seçeneği sunar.
 
 ## Şu durumlarda deneyin
 

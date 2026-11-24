@@ -34,6 +34,7 @@ Les cartes du groupe **Dans l’éditeur PDF** ouvrent le PDF choisi dans un ong
 - **Réparer le fichier** ne récupère que les parties encore lisibles. Ouvrez le nouveau fichier pour vérifier qu’aucune page ne manque.
 - **Supprimer les pages blanches** n’affiche que des candidates. Seules les pages que vous cochez sont supprimées, et toute page contenant ne serait-ce qu’un caractère n’est jamais proposée.
 - **Supprimer les annotations** conserve les champs de formulaire et ne supprime les liens que si vous les cochez. Le contenu des annotations supprimées ne subsiste pas dans le nouveau fichier.
+- **Diviser le PDF** découpe par plages personnalisées (avec fusion possible), nombre de pages, signets ou taille maximale, avec nommage personnalisé et sous-dossier en option.
 
 ## Exemples d’usage
 

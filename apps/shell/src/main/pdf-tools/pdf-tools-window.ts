@@ -38,10 +38,13 @@ import { imagesToPdfBytes } from '../../../../pdf/src/main/images-to-pdf'
 import { mergePdfV2Bytes } from '../../../../pdf/src/main/merge-v2'
 import { hasOcrEngineHelper } from '../../../../pdf/src/main/ocr-pdf'
 import { readPdfText } from '../../../../pdf/src/main/read-text'
+import { uniqueSplitSubfolder } from '../../../../pdf/src/main/split-pdf'
 import { parsePageRange } from '../../../../pdf/src/renderer/convert/page-range'
+import { splitSubfolderName } from '../../../../pdf/src/shared/split-plan'
 import {
   PDF_TOOLS_CHANNELS,
   type PdfBlankPagesResult,
+  type PdfBookmarksResult,
   type PdfConvertFormat,
   type PdfOrganizePageSpec,
   type PdfPickResult,
@@ -92,7 +95,9 @@ import {
   jobBytesOf,
   jobFor,
   outputNames,
+  readBookmarksBytes,
   runPdfTool,
+  runSplitPdfTool,
   toolAccepts,
   toolInputKind,
   toolMinInputs,
@@ -115,6 +120,8 @@ export interface PdfToolsWindowDeps {
   openResult(path: string): boolean
   /** Open a PDF the user picked for an editor-only tool; an open tab is only focused */
   openForEditing(path: string): boolean
+  /** Open a PDF in an editor tab and immediately launch its visual Split dialog */
+  openSplitInEditor?(path: string): boolean
   /**
    * A result's "open" while the editor it opens in is off (editor choice spec
    * 7.3): asks, then opens through `open`, shows the file in its folder, or
@@ -457,6 +464,9 @@ async function inputsFrom(
             detectedKind = 'pdf'
             pages = pdfInfo.pages
             encrypted = pdfInfo.encrypted === true
+          } else {
+            out.rejected.push({ name, problem: pdfInfo.problem })
+            continue
           }
         }
         if (!detectedKind) {
@@ -1610,6 +1620,8 @@ async function run(raw: unknown): Promise<PdfToolRunResult> {
     }
 
     let made: Uint8Array[]
+    let customNames: string[] | null = null
+    let oversizedPages: number[] = []
     if (toolRunsAsJob(tool) && (tool === 'encrypt' || tool === 'decrypt' || tool === 'repair')) {
       const unlockedPw = unlockedSecrets.get(sources[0]!.id)?.password
       const job = await runToolJob(owner, tool, sources[0]!.path, checked.options, unlockedPw)
@@ -1617,13 +1629,27 @@ async function run(raw: unknown): Promise<PdfToolRunResult> {
       made = [job.bytes]
     } else {
       try {
-        made = await runPdfTool(tool, bytes, checked.options, {
+        const depsRun = {
           recode: recodeWithChromium,
           signal: stop.signal,
-          onProgress: (done, totalCount) => sendProgress(contents, { done, total: totalCount }),
+          onProgress: (done: number, totalCount: number) =>
+            sendProgress(contents, { done, total: totalCount }),
           inputIds: sources.map((s) => s.id),
           sourceNames: sources.map((s) => s.name),
-        })
+        }
+        if (tool === 'split') {
+          const splitResult = await runSplitPdfTool(
+            bytes[0]!,
+            sources[0]!.name,
+            checked.options,
+            depsRun,
+          )
+          made = splitResult.parts
+          customNames = splitResult.names
+          oversizedPages = splitResult.oversizedPages
+        } else {
+          made = await runPdfTool(tool, bytes, checked.options, depsRun)
+        }
       } catch (err) {
         if (err instanceof PdfToolRefusal) return { ok: false, error: err.reason }
         if (stop.signal.aborted) return { ok: false, canceled: true }
@@ -1631,12 +1657,17 @@ async function run(raw: unknown): Promise<PdfToolRunResult> {
       }
     }
 
-    const names = outputNames(tool, sources[0]!.name, made.length, checked.options)
+    const names = customNames ?? outputNames(tool, sources[0]!.name, made.length, checked.options)
+    const subfolder =
+      tool === 'split' && made.length >= 2 && checked.options.splitCreateSubfolder
+        ? splitSubfolderName(sources[0]!.name, checked.options.splitPrefix)
+        : null
     const targets = await pickTargets(
       owner,
       sources[0]!.path,
       names,
       toolOutputExtension(tool, checked.options),
+      subfolder,
     )
     if (!targets) return { ok: false, canceled: true }
     for (const target of targets) {
@@ -1644,6 +1675,9 @@ async function run(raw: unknown): Promise<PdfToolRunResult> {
         return { ok: false, error: 'same-as-source' }
       }
       if (await fileHasUnsavedChanges(target)) return { ok: false, error: 'unsaved-target' }
+    }
+    if (subfolder && targets[0]) {
+      await mkdir(dirname(targets[0]), { recursive: true })
     }
     const outputs: { id: string; name: string; size: number }[] = []
     for (let i = 0; i < made.length; i++) {
@@ -1656,6 +1690,7 @@ async function run(raw: unknown): Promise<PdfToolRunResult> {
       ok: true,
       outputs,
       ...(anyUnlocked ? { notice: 'unlocked-unencrypted' as const } : {}),
+      ...(oversizedPages.length > 0 ? { oversizedPages } : {}),
     }
   } catch {
     return { ok: false, error: 'failed' }
@@ -1710,6 +1745,7 @@ async function pickTargets(
   sourcePath: string,
   names: string[],
   extension: 'pdf' | 'txt' | 'zip' | PdfConvertFormat,
+  subfolder: string | null = null,
 ): Promise<string[] | null> {
   if (names.length === 1) {
     const saved = await showSaveDialogWithMemory(dialog, owner, {
@@ -1730,8 +1766,31 @@ async function pickTargets(
   )
   const dir = folder.filePaths[0]
   if (folder.canceled || !dir) return null
+  const destDir = subfolder ? uniqueSplitSubfolder(dir, subfolder, existsSync) : dir
   const taken = new Set<string>()
-  return names.map((name) => uniqueOutputFile(dir, name, taken))
+  return names.map((name) => uniqueOutputFile(destDir, name, taken))
+}
+
+async function readBookmarksForInput(inputId: unknown): Promise<PdfBookmarksResult> {
+  const input = typeof inputId === 'string' ? inputs.get(inputId) : undefined
+  if (!input || input.kind !== 'pdf') return { ok: false, error: 'no-input' }
+  if (!existsSync(input.path)) return { ok: false, error: 'missing' }
+  try {
+    const bytes = await readPdfInputBytes(input)
+    const bookmarks = await readBookmarksBytes(bytes)
+    return { ok: true, bookmarks }
+  } catch {
+    return { ok: false, error: 'failed' }
+  }
+}
+
+async function openSplitForInput(inputId: unknown): Promise<void> {
+  const d = deps
+  const input = typeof inputId === 'string' ? inputs.get(inputId) : undefined
+  if (!d || !input || input.kind !== 'pdf' || !existsSync(input.path)) return
+  if (d.askEditorOn && !(await d.askEditorOn('pdf'))) return
+  if (d.openSplitInEditor) d.openSplitInEditor(input.path)
+  else d.openForEditing(input.path)
 }
 
 /** a thumbnail BGRA bitmap as a PNG data URL */
@@ -1937,6 +1996,13 @@ function registerIpc(): void {
   })
   ipcMain.handle(PDF_TOOLS_CHANNELS.openInEditorWithInput, (event, inputId: unknown) => {
     if (fromWindow(event)) return openInEditorWithInput(inputId)
+  })
+  ipcMain.handle(PDF_TOOLS_CHANNELS.openSplitInEditor, (event, inputId: unknown) => {
+    if (fromWindow(event)) return openSplitForInput(inputId)
+  })
+  ipcMain.handle(PDF_TOOLS_CHANNELS.readBookmarks, (event, inputId: unknown) => {
+    if (!fromWindow(event)) return { ok: false, error: 'failed' }
+    return readBookmarksForInput(inputId)
   })
   ipcMain.handle(PDF_TOOLS_CHANNELS.findBlankPages, (event, inputId: unknown) => {
     if (!fromWindow(event)) return { ok: false, error: 'failed' }

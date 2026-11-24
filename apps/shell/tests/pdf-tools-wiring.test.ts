@@ -9,7 +9,7 @@ import { PDF_TOOLS_HANDOFF } from '../../pdf/src/shared/ipc'
 import { isPdfToolId, toolInputKind } from '../src/main/pdf-tools/tools'
 
 /**
- * The PDF tools window (decisions 0030 and 0163), fixed by reading the source
+ * The PDF tools window (decisions 0030 and 0165), fixed by reading the source
  * where Electron would be needed: it never reaches an AI provider, renderer
  * file paths arrive only from the open dialog or preload-only webUtils drop
  * resolution, paths stay in the main process, the window is sandboxed and
@@ -112,6 +112,9 @@ describe('paths stay in the main process', () => {
     expect(win).toMatch(/deps\.openForEditing\(path\)/)
     // while the result's editor is off its open asks first (editor choice spec 7.3)
     expect(win).toMatch(/results\.get\(id\)[\s\S]*d\.openResult\(p(ath)?\)/)
+    // split bookmark lookup and visual-editor handoff take opaque input ids only
+    expect(win).toMatch(/PDF_TOOLS_CHANNELS\.readBookmarks[\s\S]*readBookmarksForInput/)
+    expect(win).toMatch(/PDF_TOOLS_CHANNELS\.openSplitInEditor[\s\S]*openSplitForInput/)
   })
 })
 

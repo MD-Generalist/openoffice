@@ -34,6 +34,7 @@ Karty w grupie **W edytorze PDF** otwierają wybrany plik PDF w karcie edytora. 
 - **Napraw plik** odzyskuje wyłącznie części, które nadal da się odczytać. Otwórz nowy plik i sprawdź, czy nie brakuje żadnej strony.
 - **Usuń puste strony** wskazuje jedynie propozycje. Usuwane są tylko zaznaczone strony, a strona z choćby jednym znakiem nigdy nie trafia na listę.
 - **Usuń adnotacje** zachowuje pola formularza, a linki usuwa tylko po zaznaczeniu. Treść usuniętych adnotacji nie zostaje w nowym pliku.
+- **Podziel PDF** dzieli według zakresów (z opcją scalenia), liczby stron, zakładek lub maksymalnego rozmiaru pliku, z wyborem nazewnictwa i podfolderu.
 
 ## Wypróbuj, gdy
 

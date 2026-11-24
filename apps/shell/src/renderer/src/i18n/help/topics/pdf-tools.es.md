@@ -34,6 +34,7 @@ Las tarjetas de **En el editor de PDF** abren el PDF elegido en una pestaña del
 - **Reparar archivo** recupera solo las partes aún legibles. Abra el archivo nuevo y compruebe que no falte ninguna página.
 - **Quitar páginas en blanco** solo propone candidatas. Únicamente se eliminan las páginas marcadas, y cualquier página con al menos un carácter nunca aparece como candidata.
 - **Quitar anotaciones** conserva los campos de formulario y solo borra los enlaces si los marca. El contenido de las anotaciones borradas no queda en el archivo nuevo.
+- **Dividir PDF** permite separar por rangos personalizados (con opción de combinar), cantidad de páginas, marcadores o tamaño máximo, con formato de nombre y subcarpeta.
 
 ## Pruébelo para
 

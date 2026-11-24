@@ -34,6 +34,7 @@ De kaarten onder **In de PDF-editor** openen de gekozen PDF in een editortabblad
 - **Bestand herstellen** herstelt alleen nog leesbare delen. Open het nieuwe bestand om te controleren of er geen pagina ontbreekt.
 - **Lege pagina’s verwijderen** toont alleen kandidaten. Alleen aangevinkte pagina’s worden verwijderd, en een pagina met ook maar één teken is nooit kandidaat.
 - **Aantekeningen verwijderen** behoudt formuliervelden en verwijdert links alleen wanneer u die aanvinkt. De inhoud van verwijderde opmerkingen blijft niet achter in het nieuwe bestand.
+- **PDF splitsen** splitst op eigen bereiken (desgewenst samengevoegd), pagina-aantal, bladwijzers of maximale bestandsgrootte, met naamgeving en optionele submap.
 
 ## Probeer het voor
 

@@ -34,6 +34,7 @@ Die Karten unter **Im PDF-Editor** öffnen das gewählte PDF in einem Editor-Tab
 - **Datei reparieren** stellt nur noch lesbare Teile wieder her. Prüfen Sie nach dem Öffnen, ob Seiten fehlen.
 - **Leere Seiten entfernen** schlägt leere Seiten nur vor. Entfernt werden ausschließlich die markierten Seiten; Seiten mit auch nur einem Zeichen werden nie vorgeschlagen.
 - **Anmerkungen entfernen** behält Formularfelder bei und entfernt Links nur auf ausdrückliche Auswahl. Der Inhalt entfernter Kommentare verbleibt nicht in der neuen Datei.
+- **PDF aufteilen** teilt nach eigenen Bereichen (optional zusammengeführt), Seitenanzahl, Lesezeichen oder maximaler Dateigröße – inklusive Benennung und Unterordner.
 
 ## Anwendungsbeispiele
 

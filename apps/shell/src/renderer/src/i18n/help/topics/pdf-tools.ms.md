@@ -34,6 +34,7 @@ Kad dalam **Dalam editor PDF** membuka PDF yang dipilih dalam tab editor. Pilih 
 - **Baiki fail** hanya memulihkan bahagian yang masih boleh dibaca. Buka fail baharu dan pastikan tiada halaman yang hilang.
 - **Buang halaman kosong** hanya menunjukkan calon. Hanya halaman yang anda tanda akan dibuang, dan halaman yang mempunyai walau satu aksara tidak akan dicadangkan.
 - **Buang anotasi** mengekalkan medan borang dan membuang pautan hanya apabila ditanda. Kandungan anotasi yang dibuang tidak kekal dalam fail baharu.
+- **Pisahkan PDF** menyokong pemisahan mengikut julat tersuai (boleh digabungkan), bilangan halaman, penanda buku, atau saiz maksimum dengan pilihan penamaan dan subfolder.
 
 ## Cuba untuk
 

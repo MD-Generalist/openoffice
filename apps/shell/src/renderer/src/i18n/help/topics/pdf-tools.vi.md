@@ -34,6 +34,7 @@ Các thẻ trong nhóm **Trong trình chỉnh sửa PDF** mở tệp PDF đã ch
 - **Sửa tệp** chỉ khôi phục những phần còn đọc được. Hãy mở tệp mới và kiểm tra xem có thiếu trang nào không.
 - **Xóa trang trống** chỉ gợi ý các trang ứng viên. Chỉ những trang bạn đánh dấu mới bị xóa, và trang có dù chỉ một ký tự sẽ không bao giờ bị gợi ý.
 - **Xóa chú thích** giữ nguyên ô biểu mẫu và chỉ xóa liên kết khi bạn đánh dấu. Nội dung chú thích đã xóa không còn trong tệp mới.
+- **Tách PDF** hỗ trợ tách theo phạm vi tùy chỉnh (có thể gộp thành một tệp), số trang, dấu trang hoặc dung lượng tối đa, kèm tùy chọn đặt tên và thư mục con.
 
 ## Thử dùng khi
 
