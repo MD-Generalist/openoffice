@@ -722,8 +722,8 @@ export default function App({ initialTheme }: { initialTheme: UiTheme }) {
               <QuickPrintButton
                 lang={lang}
                 align="right"
-                listPrinters={window.diagramApi.printLayout.listPrinters}
-                prefStore={window.diagramApi.printLayout}
+                listPrinters={window.diagramApi?.printLayout?.listPrinters}
+                prefStore={window.diagramApi?.printLayout}
                 getPageCount={getPrintPageCount}
                 onOpenDialog={(dest) => runPrint(dest)}
                 onQuickPrint={runQuickPrint}

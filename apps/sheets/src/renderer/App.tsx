@@ -5804,8 +5804,8 @@ export function App({
             return null
           }
         }}
-        listPrinters={() => window.desktopApi.listPrinters()}
-        quickPrintPrefStore={window.desktopApi.printLayout}
+        listPrinters={() => window.desktopApi?.listPrinters?.() ?? Promise.resolve([])}
+        quickPrintPrefStore={window.desktopApi?.printLayout}
         onQuickPrintNotice={setMessage}
         onClosePrint={() => {
           setPrintHost(null)

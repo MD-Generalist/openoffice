@@ -482,8 +482,8 @@ export default function App(): ReactElement {
         onExport={(fmt, scope) => void handleExport(fmt, scope)}
         onPrint={(dest) => handlePrint(dest)}
         onQuickPrint={handleQuickPrint}
-        listPrinters={window.whiteboardApi.exporting.printLayout.listPrinters}
-        quickPrintPrefStore={window.whiteboardApi.exporting.printLayout}
+        listPrinters={window.whiteboardApi?.exporting?.printLayout?.listPrinters}
+        quickPrintPrefStore={window.whiteboardApi?.exporting?.printLayout}
         exportModalFormat={exportModalFormat}
         onCloseExportModal={() => setExportModalFormat(null)}
         onOpenExportModal={(fmt) => setExportModalFormat(fmt)}

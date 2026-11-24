@@ -2198,8 +2198,8 @@ export default function App() {
         onPresent={startPresent}
         onOpenPrintDialog={openPrintDialog}
         onQuickPrint={runQuickPrint}
-        listPrinters={window.htmlApi.printLayout.listPrinters}
-        quickPrintPrefStore={window.htmlApi.printLayout}
+        listPrinters={window.htmlApi?.printLayout?.listPrinters}
+        quickPrintPrefStore={window.htmlApi?.printLayout}
         getPrintPageCount={getPrintPageCount}
         onQuickPrintNotice={setNotice}
       />

@@ -1194,8 +1194,8 @@ export default function App() {
             lang={lang}
             align="right"
             disabled={preview.open}
-            listPrinters={window.hwpApi.printLayout.listPrinters}
-            prefStore={window.hwpApi.printLayout}
+            listPrinters={window.hwpApi?.printLayout?.listPrinters}
+            prefStore={window.hwpApi?.printLayout}
             getPageCount={getHwpPageCount}
             onOpenDialog={(dest) => void openPreview(dest)}
             onQuickPrint={runQuickPrintHwp}

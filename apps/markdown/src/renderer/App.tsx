@@ -1568,8 +1568,8 @@ export default function App() {
         }}
         onOpenPrintDialog={(dest) => printDoc(dest)}
         onQuickPrint={runQuickPrint}
-        listPrinters={window.markdownApi.printLayout.listPrinters}
-        quickPrintPrefStore={window.markdownApi.printLayout}
+        listPrinters={window.markdownApi?.printLayout?.listPrinters}
+        quickPrintPrefStore={window.markdownApi?.printLayout}
         getPrintPageCount={getPrintPageCount}
         onQuickPrintNotice={setQuickPrintNotice}
       />

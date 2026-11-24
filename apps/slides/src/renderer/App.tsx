@@ -3614,8 +3614,8 @@ export function App() {
             setStatus(t('appPrintFailed', { error: String(err) }))
           }
         }}
-        listPrinters={() => window.slidesApi.printLayout.listPrinters?.() ?? Promise.resolve([])}
-        quickPrintPrefStore={window.slidesApi.printLayout}
+        listPrinters={() => window.slidesApi?.printLayout?.listPrinters?.() ?? Promise.resolve([])}
+        quickPrintPrefStore={window.slidesApi?.printLayout}
         getPrintPageCount={() => slides.filter((s) => !s.hidden).length}
         onQuickPrintNotice={setStatus}
         onExportImages={() => void exportImages('png')}

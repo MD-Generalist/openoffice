@@ -957,8 +957,8 @@ export default function App() {
           const result = await exporter.quickPrint()
           if (!result.ok) say('printFailed')
         }}
-        listPrinters={window.mindmapApi.printLayout.listPrinters}
-        quickPrintPrefStore={window.mindmapApi.printLayout}
+        listPrinters={window.mindmapApi?.printLayout?.listPrinters}
+        quickPrintPrefStore={window.mindmapApi?.printLayout}
       />
 
       {(notices.preserved > 0 || notices.unknownTheme || notices.imported || picking) && (

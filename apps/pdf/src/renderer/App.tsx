@@ -8679,7 +8679,7 @@ export default function App() {
   }, [])
 
   const listPdfPrinters = useCallback(
-    () => window.pdfApi.printLayout.listPrinters?.() ?? Promise.resolve([]),
+    () => window.pdfApi?.printLayout?.listPrinters?.() ?? Promise.resolve([]),
     [],
   )
 
@@ -10545,7 +10545,7 @@ export default function App() {
             busy={printing || !!printJob.progress}
             saveRestricted={documentEncrypted || encryption !== null}
             listPrinters={listPdfPrinters}
-            prefStore={window.pdfApi.printLayout}
+            prefStore={window.pdfApi?.printLayout}
             getPageCount={() => pageCount}
             onOpenDialog={(dest) => openPrintDlg(dest)}
             onQuickPrint={runQuickPrintPdf}

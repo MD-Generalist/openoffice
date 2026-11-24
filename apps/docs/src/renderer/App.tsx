@@ -7341,8 +7341,8 @@ export function App() {
         <QuickPrintButton
           lang={lang}
           disabled={!hasDoc}
-          listPrinters={() => window.desktop.listPrinters()}
-          prefStore={window.desktop.printLayout}
+          listPrinters={() => window.desktop?.listPrinters?.() ?? Promise.resolve([])}
+          prefStore={window.desktop?.printLayout}
           getPageCount={getDocsPageCount}
           onOpenDialog={openPrintDialogWithDest}
           onQuickPrint={runQuickPrintDocs}
