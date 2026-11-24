@@ -3,12 +3,21 @@ import { join } from 'node:path'
 import type { ConnectorAttachWireResult } from '@genoffice/electron-utils/connector-attach-channels'
 import type { ConnectorPickerItem } from '../../shared/connector-picker-api'
 import { atomicWriteFile } from '../atomic-write'
+import {
+  downloadImageToBytes,
+  type NormalizedImage,
+  type WebpToPngConverter,
+} from '../mcp-client/mcp-images'
 import type { NotionPickerCallAnswer, NotionToolDescriptor } from './notion-picker'
 
-/** Subdirectory under OS temp dir where Canva design snapshots and exports are stored */
+/** Subdirectory under OS temp dir where Canva design snapshots, images, and exports are stored */
 export const CANVA_ATTACH_SUBDIR = 'ieumoffice-canva-attach'
 /** Maximum number of Canva designs that may be attached in one pick */
 export const MAX_CANVA_PICKS = 20
+/** Maximum number of Canva page images automatically attached in one pick */
+export const MAX_CANVA_ATTACHED_IMAGES = 20
+/** Per-design cap on automatically exported/attached page images */
+export const MAX_CANVA_IMAGES_PER_DESIGN = 10
 /** Maximum size of an exported Canva PPTX/PDF download (100 MB) */
 export const MAX_CANVA_EXPORT_BYTES = 100 * 1024 * 1024
 /** Cleanup threshold for cached Canva attach snapshots and exports (7 days) */
@@ -17,13 +26,14 @@ const SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 export interface CanvaToolSet {
   searchTool: NotionToolDescriptor
   readTool: NotionToolDescriptor
+  pagesTool?: NotionToolDescriptor | null
   exportFormatsTool: NotionToolDescriptor | null
   exportTool: NotionToolDescriptor | null
 }
 
 /**
- * Discover Canva search, read, and export tools from the connected Canva MCP
- * server catalog.
+ * Discover Canva search, read, pages, and export tools from the connected Canva
+ * MCP server catalog.
  */
 export function findCanvaTools(tools: readonly NotionToolDescriptor[]): CanvaToolSet | null {
   const byExact = (name: string) => tools.find((t) => t.name.toLowerCase() === name) ?? null
@@ -40,6 +50,12 @@ export function findCanvaTools(tools: readonly NotionToolDescriptor[]): CanvaToo
     ) ??
     null
   if (!searchTool || !readTool) return null
+  const pagesTool =
+    byExact('get-design-pages') ??
+    tools.find(
+      (t) => t.name.toLowerCase().includes('design') && t.name.toLowerCase().includes('page'),
+    ) ??
+    null
   const exportFormatsTool =
     byExact('get-export-formats') ??
     tools.find((t) => t.name.toLowerCase().includes('export-format')) ??
@@ -50,7 +66,7 @@ export function findCanvaTools(tools: readonly NotionToolDescriptor[]): CanvaToo
       (t) => t.name.toLowerCase().includes('export') && t.name.toLowerCase().includes('design'),
     ) ??
     null
-  return { searchTool, readTool, exportFormatsTool, exportTool }
+  return { searchTool, readTool, pagesTool, exportFormatsTool, exportTool }
 }
 
 /** Build schema-compliant arguments for Canva's `search-designs` tool */
@@ -308,7 +324,7 @@ export function formatCanvaDesignMarkdown(rawOutput: string, fallbackTitle: stri
     .trim()}\n`
 }
 
-function safeFileName(title: string, id: string, ext: string, index: number): string {
+function safeBaseName(title: string, id: string, index: number): string {
   let noCtrl = ''
   for (const ch of title) {
     noCtrl += ch.charCodeAt(0) < 32 ? ' ' : ch
@@ -317,13 +333,17 @@ function safeFileName(title: string, id: string, ext: string, index: number): st
     .replace(/[<>:"/\\|?*]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 64)
+    .slice(0, 56)
   const base = cleaned || `canva-design-${index + 1}`
   const shortId = id.replace(/[^a-zA-Z0-9_-]/g, '').slice(-8) || `${Date.now().toString(36)}`
-  return `${base}-${shortId}.${ext}`
+  return `${base}-${shortId}`
 }
 
-/** Remove temporary Canva snapshot/export files older than 7 days */
+function safeFileName(title: string, id: string, ext: string, index: number): string {
+  return `${safeBaseName(title, id, index)}.${ext}`
+}
+
+/** Remove temporary Canva snapshot, image, and export files older than 7 days */
 export async function cleanupOldCanvaFiles(
   attachDir: string,
   nowMs: number = Date.now(),
@@ -337,7 +357,7 @@ export async function cleanupOldCanvaFiles(
   const cutoff = nowMs - SNAPSHOT_MAX_AGE_MS
   await Promise.all(
     entries.map(async (name) => {
-      if (!/\.(md|pptx|pdf)$/i.test(name)) return
+      if (!/\.(md|pptx|pdf|png|jpe?g|gif|webp)$/i.test(name)) return
       const full = join(attachDir, name)
       try {
         const info = await stat(full)
@@ -351,10 +371,67 @@ export async function cleanupOldCanvaFiles(
   )
 }
 
+/** Extract thumbnail image URLs from Canva `get-design-pages` or `read-design` output */
+export function extractCanvaThumbnailUrls(output: string): string[] {
+  const parsed = tryParseJson(output)
+  const urls: string[] = []
+  const seen = new Set<string>()
+  const push = (raw: string) => {
+    const trimmed = raw.trim()
+    if (!trimmed || seen.has(trimmed) || !isAllowedCanvaDownloadUrl(trimmed)) return
+    seen.add(trimmed)
+    urls.push(trimmed)
+  }
+  const visit = (val: unknown, depth = 0): void => {
+    if (depth > 10 || val === null || val === undefined) return
+    if (Array.isArray(val)) {
+      for (const x of val) visit(x, depth + 1)
+      return
+    }
+    if (typeof val !== 'object') return
+    const rec = val as Record<string, unknown>
+    const thumb = rec.thumbnail
+    if (thumb && typeof thumb === 'object') {
+      const u = (thumb as Record<string, unknown>).url
+      if (typeof u === 'string') push(u)
+    }
+    if (typeof rec.thumbnail_url === 'string') push(rec.thumbnail_url)
+    for (const [k, v] of Object.entries(rec)) {
+      if (k !== 'thumbnail') visit(v, depth + 1)
+    }
+  }
+  visit(parsed)
+  return urls
+}
+
+/** Attach page image filename notes right below matching `## Page N` headings (or at the end) */
+function appendCanvaPageImageNotes(markdown: string, pageFileNames: readonly string[]): string {
+  if (pageFileNames.length === 0) return markdown
+  let updated = markdown
+  const unmapped: string[] = []
+
+  pageFileNames.forEach((fileName, idx) => {
+    const pageNum = idx + 1
+    const headingRe = new RegExp(`(^## Page ${pageNum}\\b[^\\n]*$)`, 'm')
+    if (headingRe.test(updated)) {
+      updated = updated.replace(headingRe, `$1\n\n[Attached page image: ${fileName}]`)
+    } else {
+      unmapped.push(`- Page ${pageNum}: [Attached page image: ${fileName}]`)
+    }
+  })
+
+  if (unmapped.length > 0) {
+    updated = `${updated.trimEnd()}\n\n## Page Images\n\n${unmapped.join('\n')}\n`
+  }
+  return updated
+}
+
 export interface FetchCanvaDesignsParams {
   serverId: string
   selectedItems: readonly ConnectorPickerItem[]
   readTool: NotionToolDescriptor
+  /** Optional full Canva tool set so page images can be exported/fetched automatically */
+  tools?: Partial<CanvaToolSet>
   callForUserPicker: (
     serverId: string,
     tool: string,
@@ -363,11 +440,75 @@ export interface FetchCanvaDesignsParams {
   ) => Promise<NotionPickerCallAnswer>
   attachDir: string
   signal?: AbortSignal
+  /** Optional custom image downloader (defaults to SSRF-guarded `downloadImageToBytes`) */
+  downloadImage?: (url: string, signal?: AbortSignal) => Promise<NormalizedImage | null>
+  /** Optional WebP -> PNG converter for broad editor compatibility */
+  convertWebpToPng?: WebpToPngConverter
+  /** Maximum total page images downloaded across selected designs (defaults to 20) */
+  maxImages?: number
+}
+
+async function fetchCanvaDesignImageUrls(
+  params: FetchCanvaDesignsParams,
+  item: ConnectorPickerItem,
+  readOutput: string,
+  cap: number,
+): Promise<string[]> {
+  if (cap <= 0 || params.signal?.aborted) return []
+  const exportTool = params.tools?.exportTool ?? null
+  const pagesTool = params.tools?.pagesTool ?? null
+
+  // 1. Prefer high-resolution PNG export when the server exposes `export-design`
+  if (exportTool) {
+    const pageCount = item.pageCount && item.pageCount > 0 ? item.pageCount : 0
+    const formatSpec: Record<string, unknown> = { type: 'png' }
+    if (pageCount > cap) {
+      formatSpec.pages = Array.from({ length: cap }, (_, i) => i + 1)
+    }
+    const expRes = await params.callForUserPicker(
+      params.serverId,
+      exportTool.name,
+      {
+        design_id: item.id,
+        format: formatSpec,
+        user_intent: 'Export Canva design pages as PNG images to attach alongside design text',
+      },
+      params.signal,
+    )
+    if (expRes.ok && !expRes.isError && expRes.output.trim()) {
+      const urls = extractCanvaExportUrls(expRes.output).slice(0, cap)
+      if (urls.length > 0) return urls
+    }
+  }
+
+  // 2. Fallback: fetch page thumbnails via `get-design-pages`
+  if (pagesTool && !params.signal?.aborted) {
+    const pagesRes = await params.callForUserPicker(
+      params.serverId,
+      pagesTool.name,
+      {
+        design_id: item.id,
+        offset: 1,
+        limit: cap,
+        user_intent: 'Fetch Canva design page preview images to attach alongside design text',
+      },
+      params.signal,
+    )
+    if (pagesRes.ok && !pagesRes.isError && pagesRes.output.trim()) {
+      const thumbs = extractCanvaThumbnailUrls(pagesRes.output).slice(0, cap)
+      if (thumbs.length > 0) return thumbs
+    }
+  }
+
+  // 3. Final fallback: any thumbnail URL already present in the `read-design` JSON
+  return extractCanvaThumbnailUrls(readOutput).slice(0, cap)
 }
 
 /**
- * Fetch up to 20 selected Canva designs via `read-design` and save clean
- * Markdown snapshots into `attachDir` for AI chat attachment.
+ * Fetch up to 20 selected Canva designs via `read-design`, automatically
+ * download page images alongside them (via PNG export or page thumbnail
+ * fallback), and save Markdown snapshots + images into `attachDir` for AI chat
+ * attachment.
  */
 export async function fetchCanvaDesignsToTemp(
   params: FetchCanvaDesignsParams,
@@ -376,7 +517,14 @@ export async function fetchCanvaDesignsToTemp(
   if (items.length === 0) return { ok: false, reason: 'cancelled' }
 
   await mkdir(params.attachDir, { recursive: true })
-  const paths: string[] = []
+  const downloadImage =
+    params.downloadImage ??
+    ((url: string, signal?: AbortSignal) =>
+      downloadImageToBytes(url, { signal, convertWebpToPng: params.convertWebpToPng }))
+  const maxImages = params.maxImages ?? MAX_CANVA_ATTACHED_IMAGES
+
+  const notePaths: string[] = []
+  const imagePaths: string[] = []
   let failed = 0
 
   for (let i = 0; i < items.length; i++) {
@@ -395,18 +543,39 @@ export async function fetchCanvaDesignsToTemp(
       failed += 1
       continue
     }
-    const markdown = formatCanvaDesignMarkdown(res.output, item.title)
+
+    const baseName = safeBaseName(item.title, item.id, i)
+    const remaining = maxImages - imagePaths.length
+    const perDesignCap = Math.min(MAX_CANVA_IMAGES_PER_DESIGN, Math.max(0, remaining))
+    const imageUrls = await fetchCanvaDesignImageUrls(params, item, res.output, perDesignCap)
+    const savedNames: string[] = []
+
+    for (let p = 0; p < imageUrls.length; p++) {
+      if (params.signal?.aborted || imagePaths.length >= maxImages) break
+      const img = await downloadImage(imageUrls[p]!, params.signal)
+      if (!img) continue
+      const imgName = `${baseName}-p${p + 1}.${img.ext}`
+      const imgPath = join(params.attachDir, imgName)
+      await atomicWriteFile(imgPath, img.bytes)
+      imagePaths.push(imgPath)
+      savedNames.push(imgName)
+    }
+
+    const markdown = appendCanvaPageImageNotes(
+      formatCanvaDesignMarkdown(res.output, item.title),
+      savedNames,
+    )
     const filePath = join(params.attachDir, safeFileName(item.title, item.id, 'md', i))
     await atomicWriteFile(filePath, Buffer.from(markdown, 'utf8'))
-    paths.push(filePath)
+    notePaths.push(filePath)
   }
 
-  if (paths.length === 0) {
+  if (notePaths.length === 0) {
     return { ok: false, reason: 'failed' }
   }
   return {
     ok: true,
-    paths,
+    paths: [...notePaths, ...imagePaths],
     ...(failed > 0 ? { failed } : {}),
   }
 }
@@ -466,14 +635,21 @@ export function isAllowedCanvaDownloadUrl(raw: string): boolean {
   }
 }
 
-/** Extract the first downloadable HTTPS URL from Canva's `export-design` output */
-export function extractCanvaExportUrl(output: string): string | null {
+/** Extract all downloadable HTTPS URLs from Canva's `export-design` output */
+export function extractCanvaExportUrls(output: string): string[] {
   const parsed = tryParseJson(output)
   const urls: string[] = []
+  const seen = new Set<string>()
+  const push = (raw: string) => {
+    const trimmed = raw.trim()
+    if (!trimmed || seen.has(trimmed) || !isAllowedCanvaDownloadUrl(trimmed)) return
+    seen.add(trimmed)
+    urls.push(trimmed)
+  }
   const visit = (val: unknown, depth = 0): void => {
     if (depth > 8 || val === null || val === undefined) return
     if (typeof val === 'string') {
-      if (/^https:\/\//i.test(val.trim())) urls.push(val.trim())
+      if (/^https:\/\//i.test(val.trim())) push(val)
       return
     }
     if (Array.isArray(val)) {
@@ -489,12 +665,17 @@ export function extractCanvaExportUrl(output: string): string | null {
     }
   }
   visit(parsed)
-  for (const candidate of urls) {
-    if (isAllowedCanvaDownloadUrl(candidate)) return candidate
+  if (urls.length === 0) {
+    for (const m of output.matchAll(/https:\/\/[^\s"'<>]+/gi)) {
+      push(m[0])
+    }
   }
-  const regexMatch = output.match(/https:\/\/[^\s"'<>]+/i)
-  if (regexMatch && isAllowedCanvaDownloadUrl(regexMatch[0])) return regexMatch[0]
-  return null
+  return urls
+}
+
+/** Extract the first downloadable HTTPS URL from Canva's `export-design` output */
+export function extractCanvaExportUrl(output: string): string | null {
+  return extractCanvaExportUrls(output)[0] ?? null
 }
 
 export interface ExportCanvaDesignParams {

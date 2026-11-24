@@ -4135,10 +4135,11 @@ export function createHwpSkill(deps: HwpSkillDeps): HwpSkill {
           return insertPictureBytes(call, image.base64, image.mime, attachment, signal)
         }
         const url = textArg(call, 'url')?.trim() ?? ''
-        if (!/^https?:\/\//.test(url)) {
+        // file:// = a locally cached/generated image in the app's validated store (the main process only resolves its own UUID files)
+        if (!/^(https?|file):\/\//.test(url)) {
           return bad(
             call,
-            'give either url (a direct https image address) or attachment (the exact name of an image attached to this chat)',
+            'give either url (a direct https or cached file:// image address) or attachment (the exact name of an image attached to this chat)',
           )
         }
         return insertPictureFromUrl(call, url, null, signal)

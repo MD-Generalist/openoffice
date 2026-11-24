@@ -3,11 +3,18 @@ import { join } from 'node:path'
 import type { ConnectorAttachWireResult } from '@genoffice/electron-utils/connector-attach-channels'
 import type { ConnectorPickerItem } from '../../shared/connector-picker-api'
 import { atomicWriteFile } from '../atomic-write'
+import {
+  downloadImageToBytes,
+  type NormalizedImage,
+  type WebpToPngConverter,
+} from '../mcp-client/mcp-images'
 
-/** Subdirectory under OS temp dir where Notion page snapshots are stored */
+/** Subdirectory under OS temp dir where Notion page snapshots and images are stored */
 export const NOTION_ATTACH_SUBDIR = 'ieumoffice-notion-attach'
 /** Maximum number of Notion pages that may be attached in one pick */
 export const MAX_NOTION_PICKS = 20
+/** Maximum number of images automatically downloaded across selected Notion pages */
+export const MAX_NOTION_ATTACHED_IMAGES = 20
 /** Cleanup threshold for cached Notion attach snapshots (7 days) */
 const SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -204,7 +211,7 @@ export function parseNotionSearchResults(output: string): ConnectorPickerItem[] 
   return items
 }
 
-/** Remove temporary Notion snapshot `.md` files older than 7 days */
+/** Remove temporary Notion snapshot and image files older than 7 days */
 export async function cleanupOldNotionSnapshots(
   attachDir: string,
   nowMs: number = Date.now(),
@@ -218,7 +225,7 @@ export async function cleanupOldNotionSnapshots(
   const cutoff = nowMs - SNAPSHOT_MAX_AGE_MS
   await Promise.all(
     entries.map(async (name) => {
-      if (!name.toLowerCase().endsWith('.md')) return
+      if (!/\.(md|png|jpe?g|gif|webp)$/i.test(name)) return
       const full = join(attachDir, name)
       try {
         const info = await stat(full)
@@ -232,7 +239,7 @@ export async function cleanupOldNotionSnapshots(
   )
 }
 
-function safeSnapshotName(title: string, id: string, index: number): string {
+function safeBaseName(title: string, id: string, index: number): string {
   let noCtrl = ''
   for (const ch of title) {
     noCtrl += ch.charCodeAt(0) < 32 ? ' ' : ch
@@ -241,10 +248,14 @@ function safeSnapshotName(title: string, id: string, index: number): string {
     .replace(/[<>:"/\\|?*]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 64)
+    .slice(0, 56)
   const base = cleaned || `notion-page-${index + 1}`
   const shortId = id.replace(/[^a-zA-Z0-9_-]/g, '').slice(-8) || `${Date.now().toString(36)}`
-  return `${base}-${shortId}.md`
+  return `${base}-${shortId}`
+}
+
+function safeSnapshotName(title: string, id: string, index: number): string {
+  return `${safeBaseName(title, id, index)}.md`
 }
 
 /**
@@ -300,6 +311,76 @@ export function unwrapNotionFetchMarkdown(rawOutput: string, fallbackTitle?: str
   return `${text}\n`
 }
 
+export interface NotionImageTarget {
+  /** Start offset in the markdown string */
+  start: number
+  /** End offset in the markdown string */
+  end: number
+  /** Original matched tag or Markdown image syntax */
+  raw: string
+  /** Downloadable HTTPS URL */
+  url: string
+  /** Optional alt text from Markdown syntax */
+  alt?: string
+}
+
+const CODE_FENCE_RE = /```[\s\S]*?```|`[^`\n]*`/g
+
+function codeRanges(text: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = []
+  for (const m of text.matchAll(CODE_FENCE_RE)) {
+    if (m.index !== undefined) ranges.push([m.index, m.index + m[0].length])
+  }
+  return ranges
+}
+
+function insideRanges(index: number, ranges: readonly [number, number][]): boolean {
+  for (const [s, e] of ranges) {
+    if (index >= s && index < e) return true
+    if (s > index) break
+  }
+  return false
+}
+
+/**
+ * Locate downloadable HTTPS image references inside unwrapped Notion Markdown
+ * (`![alt](https://...)`, `<image source="https://..."/>`, `<img src="..."/>`,
+ * or `<image>https://...</image>`), skipping code blocks.
+ */
+export function extractNotionImageTargets(markdown: string): NotionImageTarget[] {
+  const excluded = codeRanges(markdown)
+  const matches: NotionImageTarget[] = []
+  const add = (start: number, end: number, raw: string, url: string, alt?: string) => {
+    if (insideRanges(start, excluded)) return
+    const trimmed = url.trim().replace(/[)>]+$/, '')
+    if (!/^https:\/\//i.test(trimmed)) return
+    // Avoid overlapping spans
+    if (matches.some((m) => start < m.end && end > m.start)) return
+    matches.push({ start, end, raw, url: trimmed, ...(alt ? { alt } : {}) })
+  }
+
+  for (const m of markdown.matchAll(
+    /<(?:image|img)\b[^>]*\b(?:source|src|url)\s*=\s*["'](https:\/\/[^"']+)["'][^>]*>/gi,
+  )) {
+    if (m.index !== undefined && m[1]) {
+      add(m.index, m.index + m[0].length, m[0], m[1])
+    }
+  }
+  for (const m of markdown.matchAll(/<image\b[^>]*>\s*(https:\/\/[^<\s]+)\s*<\/image>/gi)) {
+    if (m.index !== undefined && m[1]) {
+      add(m.index, m.index + m[0].length, m[0], m[1])
+    }
+  }
+  for (const m of markdown.matchAll(/!\[([^\]]*)\]\(\s*(https:\/\/[^\s)]+)(?:\s+[^)]*)?\)/gi)) {
+    if (m.index !== undefined && m[2]) {
+      add(m.index, m.index + m[0].length, m[0], m[2], m[1]?.trim() || undefined)
+    }
+  }
+
+  matches.sort((a, b) => a.start - b.start)
+  return matches
+}
+
 function countNonTextElements(markdown: string): number {
   const tagMatches =
     markdown.match(/<(?:image|img|file|video|audio|pdf|embed|bookmark)\b[^>]*>/gi)?.length ?? 0
@@ -323,11 +404,19 @@ export interface FetchNotionPagesParams {
   ) => Promise<NotionPickerCallAnswer>
   attachDir: string
   signal?: AbortSignal
+  /** Optional custom image downloader (defaults to SSRF-guarded `downloadImageToBytes`) */
+  downloadImage?: (url: string, signal?: AbortSignal) => Promise<NormalizedImage | null>
+  /** Optional WebP -> PNG converter for broad editor compatibility */
+  convertWebpToPng?: WebpToPngConverter
+  /** Maximum total images downloaded across selected pages (defaults to 20) */
+  maxImages?: number
 }
 
 /**
- * Fetch up to 20 selected Notion pages through the user-picker channel and save
- * each page's cleaned Markdown content as a temporary `.md` file in `attachDir`.
+ * Fetch up to 20 selected Notion pages through the user-picker channel, save
+ * each page's cleaned Markdown content as a temporary `.md` file in `attachDir`,
+ * and automatically download embedded page images alongside the snapshot so AI
+ * editors can view and insert them directly.
  */
 export async function fetchNotionPagesToTemp(
   params: FetchNotionPagesParams,
@@ -341,7 +430,15 @@ export async function fetchNotionPagesToTemp(
     schemaStringProp(params.fetchTool.inputSchema, ['id', 'page_id', 'pageId', 'url']) ??
     'id'
 
-  const paths: string[] = []
+  const downloadImage =
+    params.downloadImage ??
+    ((url: string, signal?: AbortSignal) =>
+      downloadImageToBytes(url, { signal, convertWebpToPng: params.convertWebpToPng }))
+  const maxImages = params.maxImages ?? MAX_NOTION_ATTACHED_IMAGES
+
+  const notePaths: string[] = []
+  const imagePaths: string[] = []
+  const downloadedByUrl = new Map<string, string>()
   let failed = 0
   let omittedNonText = 0
 
@@ -362,13 +459,51 @@ export async function fetchNotionPagesToTemp(
       failed += 1
       continue
     }
-    omittedNonText += countNonTextElements(cleaned)
+
+    const totalNonText = countNonTextElements(cleaned)
+    const imageTargets = extractNotionImageTargets(cleaned)
+    const pageBase = safeBaseName(item.title, item.id, i)
+    const replacements: Array<{ start: number; end: number; text: string }> = []
+    let resolvedOnPage = 0
+    let imgIndex = 0
+
+    for (const target of imageTargets) {
+      if (params.signal?.aborted) break
+      let fileName = downloadedByUrl.get(target.url)
+      if (!fileName) {
+        if (imagePaths.length >= maxImages) continue
+        const downloaded = await downloadImage(target.url, params.signal)
+        if (!downloaded) continue
+        imgIndex += 1
+        fileName = `${pageBase}-img-${imgIndex}.${downloaded.ext}`
+        const imgPath = join(params.attachDir, fileName)
+        await atomicWriteFile(imgPath, downloaded.bytes)
+        imagePaths.push(imgPath)
+        downloadedByUrl.set(target.url, fileName)
+      }
+      resolvedOnPage += 1
+      const label = target.alt ? `![${target.alt}](${fileName})` : `${target.raw}`
+      replacements.push({
+        start: target.start,
+        end: target.end,
+        text: `${label} [Attached image: ${fileName}]`,
+      })
+    }
+
+    let finalMarkdown = cleaned
+    for (let r = replacements.length - 1; r >= 0; r--) {
+      const rep = replacements[r]!
+      finalMarkdown = finalMarkdown.slice(0, rep.start) + rep.text + finalMarkdown.slice(rep.end)
+    }
+
+    omittedNonText += Math.max(0, totalNonText - resolvedOnPage)
     const filePath = join(params.attachDir, safeSnapshotName(item.title, item.id, i))
-    await atomicWriteFile(filePath, Buffer.from(cleaned, 'utf8'))
-    paths.push(filePath)
+    await atomicWriteFile(filePath, Buffer.from(finalMarkdown, 'utf8'))
+    notePaths.push(filePath)
   }
 
-  if (paths.length === 0) {
+  const paths = [...notePaths, ...imagePaths]
+  if (notePaths.length === 0) {
     return { ok: false, reason: 'failed' }
   }
   return {

@@ -52,6 +52,12 @@ import {
 } from './listing'
 import { LocalMcpError, type LocalMcpConnection, type LocalMcpState } from './local'
 import type { LocalLaunchProblem, PlannedLaunch } from './local-launch'
+import {
+  cacheTrustedPresetImagesInOutput,
+  storeMcpImageBase64,
+  type NormalizedImage,
+  type WebpToPngConverter,
+} from './mcp-images'
 import { storeOAuthAccess, type McpFetch, type McpOAuthAccess } from './oauth'
 import { OBSIDIAN_LISTED_TOOLS, obsidianServerInstructions } from './obsidian-tools'
 import {
@@ -120,6 +126,12 @@ export interface McpHubDeps {
   pickVaultFolder?(): Promise<string | null>
   /** host hooks for the built-in Obsidian vault connector */
   obsidian?: McpHubObsidianDeps
+  /** optional WebP -> PNG converter for cached MCP/preset images */
+  convertWebpToPng?: WebpToPngConverter
+  /** optional test override for downloading trusted Notion/Canva preset images */
+  downloadPresetImage?: (url: string, signal?: AbortSignal) => Promise<NormalizedImage | null>
+  /** optional test override for persisting validated MCP image bytes */
+  storeMcpImage?: (bytes: Uint8Array, mime: string) => string
 }
 
 export interface McpHub {
@@ -797,7 +809,28 @@ export function createMcpHub(deps: McpHubDeps): McpHub {
         live.loginRequired = false
         notify()
       }
-      return shapedMcpAnswer(shapeMcpResult(result, MCP_RESULT_MAX_CHARS))
+      const shaped = shapeMcpResult(result, {
+        maxChars: MCP_RESULT_MAX_CHARS,
+        onImageBlock: ({ data }) =>
+          storeMcpImageBase64(data, {
+            convertWebpToPng: deps.convertWebpToPng,
+            store: deps.storeMcpImage,
+          }),
+      })
+      const presetId = matchPresetOfServer(server)
+      if (!shaped.isError && (presetId === 'notion' || presetId === 'canva')) {
+        const enriched = await cacheTrustedPresetImagesInOutput(presetId, shaped.output, {
+          signal,
+          convertWebpToPng: deps.convertWebpToPng,
+          downloadImage: deps.downloadPresetImage,
+          storeImage: deps.storeMcpImage,
+        })
+        return shapedMcpAnswer({
+          output: enriched.slice(0, MCP_RESULT_MAX_CHARS),
+          isError: false,
+        })
+      }
+      return shapedMcpAnswer(shaped)
     } catch (error) {
       const trouble = troubleOf(error, signal)
       note(server, trouble)

@@ -27,6 +27,7 @@ import {
 } from '../../shared/connector-picker-api'
 import { connectorPickerText } from '../../renderer/src/i18n/strings-connector-picker'
 import type { McpHub } from '../mcp-client/hub'
+import type { WebpToPngConverter } from '../mcp-client/mcp-images'
 import {
   buildCanvaSearchInput,
   CANVA_ATTACH_SUBDIR,
@@ -45,7 +46,7 @@ import {
   parseNotionSearchResults,
   type NotionToolPair,
 } from './notion-picker'
-import { listObsidianPickerItems, resolveObsidianSelection } from './obsidian-picker'
+import { listObsidianPickerItems, resolveObsidianSelectionWithImages } from './obsidian-picker'
 
 export interface ConnectorPickerDeps {
   hub: McpHub
@@ -58,6 +59,8 @@ export interface ConnectorPickerDeps {
   openGeneratedPath?: (path: string) => boolean
   /** Download bytes from an HTTPS Canva export URL (via Electron net.fetch) */
   fetchUrlBytes?: (url: string, signal?: AbortSignal) => Promise<Uint8Array>
+  /** Optional WebP -> PNG converter for downloaded connector images */
+  convertWebpToPng?: WebpToPngConverter
 }
 
 export function createConnectorPicker(deps: ConnectorPickerDeps) {
@@ -241,7 +244,11 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
       if (!fromWindow(event)) return { ok: false, error: 'Unavailable' }
 
       if (activeKind === 'obsidian') {
-        const { paths, skipped } = resolveObsidianSelection(rawIds, lastItems)
+        const { paths, skipped } = await resolveObsidianSelectionWithImages(
+          rawIds,
+          lastItems,
+          deps.hub.registeredVaults(),
+        )
         if (paths.length === 0) {
           finish({ ok: false, reason: 'cancelled' })
           return { ok: true }
@@ -279,9 +286,11 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
           serverId: resolved.serverId,
           selectedItems,
           readTool: resolved.tools.readTool,
+          tools: resolved.tools,
           callForUserPicker: deps.hub.callForUserPicker,
           attachDir: canvaAttachDir,
           signal: controller.signal,
+          convertWebpToPng: deps.convertWebpToPng,
         })
         if (controller.signal.aborted) return { ok: false, error: 'Cancelled' }
         if (!fetched.ok) {
@@ -291,7 +300,7 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
         return { ok: true }
       }
 
-      // Notion page fetch -> temporary markdown snapshots
+      // Notion page fetch -> temporary markdown snapshots + embedded images
       const resolved = await resolveNotionPair(controller.signal)
       if (!resolved.ok) return { ok: false, error: resolved.error }
 
@@ -304,6 +313,7 @@ export function createConnectorPicker(deps: ConnectorPickerDeps) {
         callForUserPicker: deps.hub.callForUserPicker,
         attachDir: notionAttachDir,
         signal: controller.signal,
+        convertWebpToPng: deps.convertWebpToPng,
       })
       if (controller.signal.aborted) return { ok: false, error: 'Cancelled' }
       if (!fetched.ok) {

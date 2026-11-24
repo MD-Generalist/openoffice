@@ -51,11 +51,33 @@ function cut(output: string, maxChars: number): string {
   )
 }
 
+export interface ShapeMcpImageBlock {
+  data: string
+  mimeType?: string
+}
+
+export interface ShapeMcpResultOptions {
+  maxChars?: number
+  /**
+   * Optional main-process handler for MCP `image` content blocks. When it
+   * returns a local `file://` URL (from the app's validated image store), the
+   * block is surfaced to the model as a ready-to-insert local image reference
+   * instead of being counted as an omitted non-text item.
+   */
+  onImageBlock?: (block: ShapeMcpImageBlock) => string | null
+}
+
 /** Turn an MCP CallToolResult (as received, unchecked) into the tool output the AI gets */
 export function shapeMcpResult(
   result: unknown,
-  maxChars: number = MCP_RESULT_MAX_CHARS,
+  maxCharsOrOptions: number | ShapeMcpResultOptions = MCP_RESULT_MAX_CHARS,
 ): ShapedMcpResult {
+  const maxChars =
+    typeof maxCharsOrOptions === 'number'
+      ? maxCharsOrOptions
+      : (maxCharsOrOptions.maxChars ?? MCP_RESULT_MAX_CHARS)
+  const onImageBlock =
+    typeof maxCharsOrOptions === 'number' ? undefined : maxCharsOrOptions.onImageBlock
   if (result === null || typeof result !== 'object') {
     return { output: MCP_RESULT_UNREADABLE, isError: true }
   }
@@ -67,9 +89,26 @@ export function shapeMcpResult(
   const texts: string[] = []
   let skipped = 0
   for (const block of (content ?? []) as unknown[]) {
-    const b = block as { type?: unknown; text?: unknown } | null
+    const b = block as { type?: unknown; text?: unknown; data?: unknown; mimeType?: unknown } | null
     if (b && typeof b === 'object' && b.type === 'text' && typeof b.text === 'string') {
       texts.push(b.text)
+    } else if (
+      onImageBlock &&
+      b &&
+      typeof b === 'object' &&
+      b.type === 'image' &&
+      typeof b.data === 'string' &&
+      b.data.trim() !== ''
+    ) {
+      const savedUrl = onImageBlock({
+        data: b.data,
+        ...(typeof b.mimeType === 'string' ? { mimeType: b.mimeType } : {}),
+      })
+      if (savedUrl) {
+        texts.push(`[Image saved locally — insert into the document using url: ${savedUrl}]`)
+      } else {
+        skipped += 1
+      }
     } else skipped += 1
   }
   if (structuredContent !== undefined && structuredContent !== null) {

@@ -225,7 +225,7 @@ export function obsidianServerInstructions(activeVaults: readonly { name: string
       ? ' Multiple vaults are active: pass the `vault` argument for read_note, create_note, append_note, update_note, and delete_note.'
       : ''
   return (
-    `Built-in local Obsidian vault connector. Only .md notes inside the user's vaults are accessible ` +
-    `(hidden folders such as .obsidian are never accessed). Active vaults: ${names.join(', ')}.${multi}`
+    `Built-in local Obsidian vault connector. Only .md notes and embedded local images referenced by those notes inside the user's vaults are accessible ` +
+    `(hidden folders such as .obsidian are never accessed). When read_note includes an "Embedded images" section with local file:// URLs, pass those URLs directly to the editor's image insertion tool to embed the original images. Active vaults: ${names.join(', ')}.${multi}`
   )
 }

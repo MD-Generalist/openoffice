@@ -3,6 +3,7 @@ import {
   app,
   dialog,
   ipcMain,
+  nativeImage,
   net,
   safeStorage,
   shell,
@@ -18,6 +19,7 @@ import { createMcpHub, redirectSafeFetch, type McpHub } from './hub'
 import { registerMcpHubIpc } from './hub-ipc'
 import { createLocalMcpConnection } from './local'
 import { plannedLaunch } from './local-launch'
+import { storeMcpImageBase64, storeMcpImageBytes, type WebpToPngConverter } from './mcp-images'
 import { createRemoteMcpConnection } from './remote'
 import { createMcpRuntimeKit, mcpRuntimesRoot } from './runtimes'
 import { safeStorageMcpCodec } from './secrets'
@@ -68,6 +70,13 @@ export function startMcpHub(deps: McpHubAppDeps): McpHub {
     return win && !win.isDestroyed() ? win.webContents : null
   }
 
+  const convertWebpToPng: WebpToPngConverter = (bytes) => {
+    const img = nativeImage.createFromBuffer(Buffer.from(bytes))
+    if (img.isEmpty()) return null
+    const png = img.toPNG()
+    return png.byteLength > 0 ? new Uint8Array(png.buffer, png.byteOffset, png.byteLength) : null
+  }
+
   const hub = createMcpHub({
     store,
     remote: (server, oauth) =>
@@ -90,6 +99,7 @@ export function startMcpHub(deps: McpHubAppDeps): McpHub {
         // results are shaped and cut here, in the main process, as the hub does a remote
         // server's (spec 5.5): one answer form reaches the windows and the relays
         workRoot: join(app.getPath('temp'), LOCAL_WORK_DIR_NAME),
+        onImageBlock: ({ data }) => storeMcpImageBase64(data, { convertWebpToPng }),
       }),
     kit,
     plannedLaunch: (server) => plannedLaunch(server, kit),
@@ -119,6 +129,7 @@ export function startMcpHub(deps: McpHubAppDeps): McpHub {
           : await dialog.showOpenDialog({ properties: ['openDirectory'] })
       return result.canceled || result.filePaths.length === 0 ? null : (result.filePaths[0] ?? null)
     },
+    convertWebpToPng,
     obsidian: {
       homeDir: app.getPath('home'),
       userData,
@@ -126,6 +137,7 @@ export function startMcpHub(deps: McpHubAppDeps): McpHub {
       hasUnsavedChanges: fileHasUnsavedChanges,
       parseFileToText,
       trashItem: (absPath) => shell.trashItem(absPath),
+      cacheImageBytes: (bytes) => storeMcpImageBytes(bytes, { convertWebpToPng }),
     },
   })
 
