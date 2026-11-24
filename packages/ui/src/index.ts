@@ -700,23 +700,25 @@ export {
   type AiDiagnosticsStringKey,
 } from './strings-ai-diagnostics'
 export {
+  A2UI_JSON_CLOSE_TAG,
+  A2UI_JSON_OPEN_TAG,
+  QUESTION_FORM_CLOSE_TAG,
   QUESTION_FORM_MAX_OPTIONS,
   QUESTION_FORM_MAX_QUESTIONS,
   QUESTION_FORM_MIN_QUESTIONS,
-  formatQuestionFormAnswers,
-  initialQuestionFormAnswers,
-  isQuestionFormComplete,
+  QUESTION_FORM_OPEN_TAG,
   normalizeQuestionOption,
-  parseQuestionFormBlocks,
+  parseQuestionBlocks,
+  questionFormView,
   validateQuestionFormSpec,
   type NormalizedQuestionOption,
+  type QuestionBlockFormat,
+  type QuestionBlockSegment,
   type QuestionField,
   type QuestionFieldType,
-  type QuestionFormAnswers,
-  type QuestionFormSegment,
   type QuestionFormSpec,
   type QuestionOption,
-} from './question-form'
+} from './question-blocks'
 export {
   AiQuestionCard,
   AiQuestionCardPending,

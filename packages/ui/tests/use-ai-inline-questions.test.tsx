@@ -156,9 +156,45 @@ describe('useAiInlineQuestions', () => {
   it('keeps the text-block card states and supersedes open ones', () => {
     mount()
     act(() => hook.markTextCard('m-1', 'open'))
-    act(() => hook.markTextCard('m-2', 'submitted', { a: 'x' }))
+    const answer = { kind: 'submit', answers: { a: ['x'] }, decideForMe: [] } as const
+    act(() => hook.markTextCard('m-2', 'submitted', answer))
     act(() => hook.supersedeOpen())
     expect(hook.textCardStates['m-1']?.status).toBe('superseded')
-    expect(hook.textCardStates['m-2']).toEqual({ status: 'submitted', answers: { a: 'x' } })
+    expect(hook.textCardStates['m-2']).toEqual({ status: 'submitted', answer })
+  })
+
+  it('writes the follow-up message as readable lines, not JSON', () => {
+    mount()
+    const view = {
+      surfaceId: 's',
+      title: '방향',
+      inputs: [
+        {
+          kind: 'ChoicePicker',
+          id: 'who',
+          label: '누가 듣나요?',
+          required: false,
+          variant: 'mutuallyExclusive',
+          options: [{ label: '학부모', value: 'parents' }],
+          initial: [],
+        },
+        {
+          kind: 'TextField',
+          id: 'notes',
+          label: '메모',
+          required: false,
+          variant: 'shortText',
+          initial: '',
+        },
+      ],
+    } as const
+    expect(
+      hook.formatFollowUp('ko', view, {
+        kind: 'submit',
+        answers: { notes: '짧게' },
+        decideForMe: ['who'],
+      }),
+    ).toBe('[방향]\n- 누가 듣나요?: 알아서 정해 줘\n- 메모: 짧게')
+    expect(hook.formatFollowUp('ko', view, { kind: 'skip' })).toMatch(/^\[방향\] /)
   })
 })

@@ -12,12 +12,9 @@ import {
   type QuestionCardAnswer,
   type QuestionSurfaceView,
 } from '@genoffice/agent-core'
+import type { Lang } from '@genoffice/i18n'
 import type { QuestionCardStatus, QuestionCardSubmission } from './AiQuestionCard'
-import {
-  formatQuestionFormAnswers,
-  type QuestionFormAnswers,
-  type QuestionFormSpec,
-} from './question-form'
+import { questionAnswerText } from './question-answer-text'
 
 export interface ActiveQuestionCardState {
   /** Unique per card: use it as the React key of the drawn card. */
@@ -28,9 +25,11 @@ export interface ActiveQuestionCardState {
   readonly answer?: QuestionCardAnswer | undefined
 }
 
+/** The state of the text-block card of one reply. */
 export interface TextQuestionCardState {
-  status: QuestionCardStatus
-  answers?: QuestionFormAnswers
+  readonly status: QuestionCardStatus
+  /** The answer given, shown once the card is `submitted`. */
+  readonly answer?: QuestionCardAnswer | undefined
 }
 
 export interface AiInlineQuestions {
@@ -44,16 +43,21 @@ export interface AiInlineQuestions {
   readonly skipToolCard: () => void
   /** A new message: closes open cards (the tool answers skip) and resets the one-card limit. */
   readonly supersedeOpen: () => void
+  /** Text-block card states, keyed by the caller (for example `m-<message index>`). */
   readonly textCardStates: Record<string, TextQuestionCardState>
   readonly markTextCard: (
     cardKey: string,
     status: QuestionCardStatus,
-    answers?: QuestionFormAnswers,
+    answer?: QuestionCardAnswer,
   ) => void
+  /**
+   * The person's follow-up message for a text-block card answer (submit or skip):
+   * readable lines in the person's UI language, no JSON (`questionAnswerText`).
+   */
   readonly formatFollowUp: (
-    spec: QuestionFormSpec,
-    answers: QuestionFormAnswers,
-    skipped?: boolean,
+    lang: Lang,
+    view: QuestionSurfaceView,
+    answer: QuestionCardAnswer,
   ) => string
 }
 
@@ -140,18 +144,18 @@ export function useAiInlineQuestions(): AiInlineQuestions {
   }, [askQuestionsSkill, settle])
 
   const markTextCard = useCallback(
-    (cardKey: string, status: QuestionCardStatus, answers?: QuestionFormAnswers) => {
+    (cardKey: string, status: QuestionCardStatus, answer?: QuestionCardAnswer) => {
       setTextCardStates((prev) => ({
         ...prev,
-        [cardKey]: { status, ...(answers ? { answers } : {}) },
+        [cardKey]: { status, ...(answer ? { answer } : {}) },
       }))
     },
     [],
   )
 
   const formatFollowUp = useCallback(
-    (spec: QuestionFormSpec, answers: QuestionFormAnswers, skipped = false) =>
-      formatQuestionFormAnswers(spec, answers, skipped),
+    (lang: Lang, view: QuestionSurfaceView, answer: QuestionCardAnswer) =>
+      questionAnswerText(lang, view, answer),
     [],
   )
 
