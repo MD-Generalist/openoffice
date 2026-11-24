@@ -56,7 +56,17 @@ export const pl = {
   drivePick: 'Wybierz z Dysku Google',
   drivePicking: 'Wybierz pliki w oknie Google, które otworzyło się w przeglądarce…',
   drivePickNote:
-    'GenOffice może otworzyć tylko te pliki z Dysku, które wybierzesz w oknie Google. Raz wybrane pliki zostają na tej liście.',
+    'GenOffice może otworzyć tylko te pliki z Dysku, które wybierzesz w oknie Google. Zaznacz wiele plików naraz w folderze (Ctrl+A lub Shift), aby dodać je do tej listy i otwierać później bez ponownego logowania.',
+  driveAddedMany: 'Dodano plików do listy: {n}. Kliknij dowolny plik poniżej, aby go otworzyć.',
+  drivePickerTitle: 'Załącz z Dysku Google',
+  drivePickerEmpty:
+    'Nie dodano jeszcze plików z Dysku. Kliknij „Dodaj z Dysku Google” powyżej, aby je wybrać.',
+  drivePickerNoMatches: 'Brak pasujących plików.',
+  drivePickMore: 'Dodaj z Dysku Google',
+  drivePickerAttach: 'Załącz',
+  drivePickerSelected: 'Wybrano: {n}',
+  drivePickerLimit: 'Jednorazowo można załączyć maksymalnie {max} plików.',
+  drivePickerWorking: 'Pobieranie plików…',
   driveTrainingTitle: 'Zanim użyjesz plików z Dysku z AI',
   driveTrainingBody:
     'Google nie pozwala przekazywać plików z Dysku do usługi AI, która trenuje na nich swoje modele. Osobiste plany Claude, ChatGPT i Codex mogą używać Twoich rozmów do trenowania, jeśli tego nie wyłączysz: w Claude w Ustawienia → Prywatność, w ChatGPT w Ustawienia → Kontrola danych → „Improve the model for everyone”. Dostawcy z kluczem API domyślnie nie trenują na danych z API. Darmowe połączenia AI nigdy nie dostają plików z Dysku.',

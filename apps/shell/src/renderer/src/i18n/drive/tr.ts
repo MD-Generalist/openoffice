@@ -55,7 +55,17 @@ export const tr = {
   drivePick: 'Google Drive’dan seç',
   drivePicking: 'Tarayıcınızda açılan Google penceresinde dosyaları seçin…',
   drivePickNote:
-    'GenOffice yalnızca Google’ın penceresinde seçtiğiniz Drive dosyalarını açabilir. Bir kez seçtiğiniz dosyalar bu listede kalır.',
+    'GenOffice yalnızca Google’ın penceresinde seçtiğiniz Drive dosyalarını açabilir. Bir klasördeki birden çok dosyayı aynı anda seçip (Ctrl+A veya Shift) bu listeye eklerseniz, daha sonra yeniden oturum açmadan doğrudan kullanabilirsiniz.',
+  driveAddedMany: 'Listeye {n} dosya eklendi. Açmak için aşağıdaki herhangi bir dosyaya tıklayın.',
+  drivePickerTitle: 'Google Drive’dan ekle',
+  drivePickerEmpty:
+    'Henüz Drive dosyası eklenmedi. Dosya seçmek için yukarıdaki “Google Drive’dan ekle” düğmesine tıklayın.',
+  drivePickerNoMatches: 'Eşleşen dosya yok.',
+  drivePickMore: 'Google Drive’dan ekle',
+  drivePickerAttach: 'Ekle',
+  drivePickerSelected: '{n} seçildi',
+  drivePickerLimit: 'Tek seferde en fazla {max} dosya ekleyebilirsiniz.',
+  drivePickerWorking: 'Dosyalar alınıyor…',
   driveTrainingTitle: 'Drive dosyalarını AI ile kullanmadan önce',
   driveTrainingBody:
     'Google, Drive dosyalarının bunları modellerini eğitmek için kullanan bir AI hizmetine gitmesine izin vermez. Kişisel Claude, ChatGPT ve Codex planları, siz kapatmadığınız sürece sohbetlerinizi eğitim için kullanabilir: Claude’da Ayarlar → Gizlilik bölümünden, ChatGPT’de Ayarlar → Veri kontrolleri → “Modeli herkes için geliştir” bölümünden. API anahtarı sağlayıcıları varsayılan olarak API verileriyle eğitim yapmaz. Ücretsiz AI bağlantılarına hiçbir zaman Drive dosyası verilmez.',

@@ -56,7 +56,17 @@ export const hi = {
   drivePick: 'Google Drive से चुनें',
   drivePicking: 'ब्राउज़र में खुली Google विंडो में फ़ाइलें चुनें…',
   drivePickNote:
-    'GenOffice केवल वही Drive फ़ाइलें खोल सकता है जो आप Google की विंडो में चुनते हैं। एक बार चुनी गई फ़ाइलें इस सूची में बनी रहती हैं।',
+    'GenOffice केवल वही Drive फ़ाइलें खोल सकता है जो आप Google की विंडो में चुनते हैं। किसी फ़ोल्डर में एक साथ कई फ़ाइलें (Ctrl+A या Shift) चुनकर इस सूची में जोड़ दें, ताकि बाद में बिना दोबारा साइन इन किए उनका उपयोग कर सकें।',
+  driveAddedMany: 'सूची में {n} फ़ाइलें जोड़ी गईं। खोलने के लिए नीचे किसी भी फ़ाइल पर क्लिक करें।',
+  drivePickerTitle: 'Google Drive से संलग्न करें',
+  drivePickerEmpty:
+    'अभी कोई Drive फ़ाइल नहीं जोड़ी गई है। फ़ाइलें चुनने के लिए ऊपर “Google Drive से जोड़ें” पर क्लिक करें।',
+  drivePickerNoMatches: 'कोई मेल खाने वाली फ़ाइल नहीं है।',
+  drivePickMore: 'Google Drive से जोड़ें',
+  drivePickerAttach: 'संलग्न करें',
+  drivePickerSelected: '{n} चयनित',
+  drivePickerLimit: 'आप एक बार में अधिकतम {max} फ़ाइलें संलग्न कर सकते हैं।',
+  drivePickerWorking: 'फ़ाइलें लाई जा रही हैं…',
   driveTrainingTitle: 'AI के साथ Drive फ़ाइलें इस्तेमाल करने से पहले',
   driveTrainingBody:
     'Google ऐसी AI सेवा को Drive फ़ाइलें भेजने की अनुमति नहीं देता जो उनसे अपने मॉडल प्रशिक्षित करती है। Claude, ChatGPT और Codex के निजी प्लान आपकी चैट को प्रशिक्षण के लिए इस्तेमाल कर सकते हैं, जब तक आप इसे बंद न करें: Claude में सेटिंग्स → गोपनीयता में, ChatGPT में सेटिंग्स → डेटा नियंत्रण → “Improve the model for everyone” में। API कुंजी वाले प्रदाता डिफ़ॉल्ट रूप से API डेटा पर प्रशिक्षण नहीं करते। मुफ़्त AI कनेक्शन को कभी Drive फ़ाइलें नहीं दी जातीं।',

@@ -78,9 +78,20 @@ describe('googleAuthUrl', () => {
     const one = new URL(googleAuthUrl(client.clientId, 1, 'c', 's', { multiple: false }))
     expect(one.searchParams.get('trigger_onepick')).toBe('true')
     expect(one.searchParams.has('allow_multiple')).toBe(false)
-    const many = new URL(googleAuthUrl(client.clientId, 1, 'c', 's', { multiple: true }))
+    expect(one.searchParams.has('login_hint')).toBe(false)
+    const many = new URL(
+      googleAuthUrl(client.clientId, 1, 'c', 's', { multiple: true }, 'kim@example.com'),
+    )
     expect(many.searchParams.get('allow_multiple')).toBe('true')
     expect(many.searchParams.get('scope')).toBe(DRIVE_SCOPE)
+    expect(many.searchParams.get('login_hint')).toBe('kim@example.com')
+  })
+
+  it('ignores an invalid login_hint', () => {
+    const bad = new URL(googleAuthUrl(client.clientId, 1, 'c', 's', undefined, 'not an email'))
+    expect(bad.searchParams.has('login_hint')).toBe(false)
+    const empty = new URL(googleAuthUrl(client.clientId, 1, 'c', 's', undefined, '   '))
+    expect(empty.searchParams.has('login_hint')).toBe(false)
   })
 })
 
@@ -94,9 +105,9 @@ describe('pickedFileIds', () => {
     expect(pickedFileIds(null)).toEqual([])
   })
 
-  it('hands on at most fifty', () => {
-    const ids = Array.from({ length: 80 }, (_, i) => `f${i}`)
-    expect(pickedFileIds(ids.join(','))).toHaveLength(50)
+  it('hands on at most two hundred', () => {
+    const ids = Array.from({ length: 240 }, (_, i) => `f${i}`)
+    expect(pickedFileIds(ids.join(','))).toHaveLength(200)
   })
 })
 

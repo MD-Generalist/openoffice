@@ -11019,6 +11019,7 @@ app.whenReady().then(async () => {
     userData: () => app.getPath('userData'),
     settingsPath: APP_SETTINGS_PATH,
     lang: () => currentLang(),
+    theme: () => currentTheme(),
     window: () => shellWindow,
     // a Drive copy opens like any local file; the Drive service already chose the
     // copy. A pick of a turned-off editor's file asks first (spec 7.2).

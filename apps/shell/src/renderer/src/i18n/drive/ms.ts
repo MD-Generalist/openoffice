@@ -55,7 +55,17 @@ export const ms = {
   drivePick: 'Pilih daripada Google Drive',
   drivePicking: 'Pilih fail dalam tetingkap Google yang terbuka dalam pelayar anda…',
   drivePickNote:
-    'GenOffice hanya boleh membuka fail Drive yang anda pilih dalam tetingkap Google. Fail yang pernah anda pilih kekal dalam senarai ini.',
+    'GenOffice hanya boleh membuka fail Drive yang anda pilih dalam tetingkap Google. Pilih beberapa fail serentak di dalam folder (Ctrl+A atau Shift) untuk menambahkannya ke senarai ini dan menggunakannya semula tanpa log masuk lagi.',
+  driveAddedMany: '{n} fail ditambah ke senarai. Klik mana-mana fail di bawah untuk membukanya.',
+  drivePickerTitle: 'Lampirkan daripada Google Drive',
+  drivePickerEmpty:
+    'Belum ada fail Drive ditambah. Klik “Tambah daripada Google Drive” di atas untuk memilih fail.',
+  drivePickerNoMatches: 'Tiada fail yang sepadan.',
+  drivePickMore: 'Tambah daripada Google Drive',
+  drivePickerAttach: 'Lampirkan',
+  drivePickerSelected: '{n} dipilih',
+  drivePickerLimit: 'Anda boleh melampirkan sehingga {max} fail sekali gus.',
+  drivePickerWorking: 'Mendapatkan fail…',
   driveTrainingTitle: 'Sebelum menggunakan fail Drive dengan AI',
   driveTrainingBody:
     'Google tidak membenarkan fail Drive dihantar kepada perkhidmatan AI yang menggunakannya untuk melatih modelnya. Pelan peribadi Claude, ChatGPT dan Codex mungkin menggunakan sembang anda untuk latihan melainkan anda mematikannya: dalam Claude di Tetapan → Privasi, dalam ChatGPT di Tetapan → Kawalan data → “Improve the model for everyone”. Penyedia kunci API secara lalai tidak melatih model dengan data API. Sambungan AI percuma tidak pernah diberi fail Drive.',

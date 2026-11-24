@@ -54,7 +54,17 @@ export const ko = {
   drivePick: 'Google 드라이브에서 고르기',
   drivePicking: '브라우저에 열린 Google 창에서 파일을 고르세요…',
   drivePickNote:
-    'GenOffice는 Google 창에서 고른 드라이브 파일만 열 수 있습니다. 한 번 고른 파일은 이 목록에 남습니다.',
+    'GenOffice는 Google 창에서 고른 드라이브 파일만 열 수 있습니다. 폴더 안에서 여러 파일을 한꺼번에 선택(Ctrl+A·Shift)해 추가해 두면, 그다음부터는 다시 로그인하지 않고 이 목록에서 바로 쓸 수 있습니다.',
+  driveAddedMany: '{n}개 파일을 목록에 추가했습니다. 아래 목록에서 클릭해 열 수 있습니다.',
+  drivePickerTitle: 'Google 드라이브에서 첨부',
+  drivePickerEmpty:
+    '아직 추가한 드라이브 파일이 없습니다. 위의 “Google 드라이브에서 파일 추가”를 눌러 파일을 추가하세요.',
+  drivePickerNoMatches: '일치하는 파일이 없습니다.',
+  drivePickMore: 'Google 드라이브에서 파일 추가',
+  drivePickerAttach: '첨부',
+  drivePickerSelected: '{n}개 선택됨',
+  drivePickerLimit: '한 번에 최대 {max}개까지 첨부할 수 있습니다.',
+  drivePickerWorking: '파일을 가져오는 중…',
   driveTrainingTitle: '드라이브 파일을 AI와 쓰기 전에',
   driveTrainingBody:
     'Google은 드라이브 파일을 모델 학습에 쓰는 AI 서비스로 보내는 것을 허락하지 않습니다. Claude·ChatGPT·Codex 개인 요금제는 끄지 않으면 대화를 학습에 쓸 수 있습니다. Claude는 설정 → 개인정보 보호에서, ChatGPT는 설정 → 데이터 제어의 “모두를 위한 모델 개선”에서 끄세요. API 키 제공자는 기본적으로 API로 받은 내용을 학습에 쓰지 않습니다. 무료 AI 연결에는 드라이브 파일을 보내지 않습니다.',
