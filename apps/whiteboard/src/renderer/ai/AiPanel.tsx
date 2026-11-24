@@ -1157,7 +1157,8 @@ export function AiPanel({
       msgQueue.enqueue(text, { atts, skillUse })
       setPrompt('')
       // a message sent while a card waits closes it: the run goes on without the answer
-      if (inlineQuestions.waitingForPerson) inlineQuestions.supersedeOpen()
+      // (and cannot ask again in this run)
+      inlineQuestions.closeOpenCard()
     })
   }
 
@@ -1192,6 +1193,8 @@ export function AiPanel({
     clearMarks()
     skills.resetConversation()
     skillCards.reset()
+    // question cards belong to the chat: an open one answers skip, all states go
+    inlineQuestions.resetConversation()
     attachmentsRef.current = []
     setAttachments([])
     setAttachNotice(null)

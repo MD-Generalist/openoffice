@@ -43,6 +43,18 @@ export interface AiInlineQuestions {
   readonly skipToolCard: () => void
   /** A new message: closes open cards (the tool answers skip) and resets the one-card limit. */
   readonly supersedeOpen: () => void
+  /**
+   * A message accepted (queued) while the run is busy: closes the open tool card as
+   * `superseded` and the tool answers skip, so the run goes on and the queued message
+   * can follow. The one-card limit of the run stays: the model cannot ask again in it.
+   */
+  readonly closeOpenCard: () => void
+  /**
+   * A new chat, a switched conversation or a panel reset: cards belong to their
+   * conversation. An open tool card answers skip; the tool card and the text-block
+   * card states are dropped, and the one-card limit is reset.
+   */
+  readonly resetConversation: () => void
   /** Text-block card states, keyed by the caller (for example `m-<message index>`). */
   readonly textCardStates: Record<string, TextQuestionCardState>
   readonly markTextCard: (
@@ -143,6 +155,20 @@ export function useAiInlineQuestions(): AiInlineQuestions {
     })
   }, [askQuestionsSkill, settle])
 
+  const closeOpenCard = useCallback(() => {
+    settle(SKIP)
+    setActiveToolCard((prev) =>
+      prev && prev.status === 'open' ? { ...prev, status: 'superseded' } : prev,
+    )
+  }, [settle])
+
+  const resetConversation = useCallback(() => {
+    askQuestionsSkill.resetTurn()
+    settle(SKIP)
+    setActiveToolCard(null)
+    setTextCardStates((prev) => (Object.keys(prev).length === 0 ? prev : {}))
+  }, [askQuestionsSkill, settle])
+
   const markTextCard = useCallback(
     (cardKey: string, status: QuestionCardStatus, answer?: QuestionCardAnswer) => {
       setTextCardStates((prev) => ({
@@ -166,6 +192,8 @@ export function useAiInlineQuestions(): AiInlineQuestions {
     submitToolCard,
     skipToolCard,
     supersedeOpen,
+    closeOpenCard,
+    resetConversation,
     textCardStates,
     markTextCard,
     formatFollowUp,

@@ -71,6 +71,7 @@ import {
   type ProjectMemoryLine,
   type SkillChipRef,
   type SkillUse,
+  type TextQuestionCardState,
 } from '@genoffice/ui'
 import type {
   AddFolderResult,
@@ -206,6 +207,8 @@ function askToolRecordOf(call: AgentToolCall, execution: ToolExecution): ToolAct
 interface MemoryChat {
   messages: AskMessage[]
   model: AgentMessage[]
+  /** its answered text-block cards, so they stay answered when it shows again */
+  textCards: Record<string, TextQuestionCardState>
 }
 
 /** a person-triggered memory consolidation that went through ("N → M [undo]") */
@@ -245,6 +248,8 @@ export function KbAskPanel({
   const [messages, setMessages] = useState<AskMessage[]>([])
   const [draft, setDraft] = useState('')
   const inlineQuestions = useAiInlineQuestions()
+  const textCardStatesRef = useRef(inlineQuestions.textCardStates)
+  textCardStatesRef.current = inlineQuestions.textCardStates
   const [busy, setBusy] = useState(false)
   const [corpusCount, setCorpusCount] = useState<number | null>(null)
   const corpusRef = useRef<KbFileInfo[]>([])
@@ -386,6 +391,11 @@ export function KbAskPanel({
       showingProjectRef.current = false
       const kept = memoryChatRef.current
       memoryChatRef.current = null
+      // question cards belong to their chat: an open one answers skip, the shown chat's go
+      inlineQuestions.resetConversation()
+      for (const [key, card] of Object.entries(kept?.textCards ?? {})) {
+        inlineQuestions.markTextCard(key, card.status, card.answer)
+      }
       setMessages(kept?.messages ?? [])
       loop?.reset()
       // another chat shows: no MCP choices of the one before (user MCP spec 7.6)
@@ -398,8 +408,11 @@ export function KbAskPanel({
       memoryChatRef.current = {
         messages: messagesRef.current,
         model: [...(loop?.messages ?? [])],
+        textCards: textCardStatesRef.current,
       }
     }
+    // question cards belong to their chat: an open one answers skip, the shown chat's go
+    inlineQuestions.resetConversation()
     showingProjectRef.current = true
     setMessages(opened.entries.map(askMessageOf))
     loop?.reset()

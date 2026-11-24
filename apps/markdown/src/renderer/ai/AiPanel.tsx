@@ -458,6 +458,8 @@ export function AiPanel({
       // nothing can run right now: the message stays queued, and in front of "not connected"
       // the queue is paused so it does not start by itself after a sign-in
       if (!sendGateRef.current.admitQueued(() => msgQueueRef.current.setPaused(true))) return false
+      // the queued message starts its own run: it gets its one card
+      inlineQuestions.supersedeOpen()
       return send(text, text, null, meta.skillUse)
     },
   })
@@ -1144,6 +1146,8 @@ export function AiPanel({
     skills.resetConversation()
     skillCards.reset()
     skillTemplates.reset()
+    // question cards belong to the chat: an open one answers skip, all states go
+    inlineQuestions.resetConversation()
   }
 
   /** "New chat": a new project chat when a project is chosen, else the reset as before */
@@ -1325,6 +1329,9 @@ export function AiPanel({
     skillsRef.current.consume(skillUse)
     msgQueue.enqueue(text, { skillUse })
     setPrompt('')
+    // a message sent while a card waits closes it: the run goes on without the answer
+    // (and cannot ask again in this run)
+    inlineQuestions.closeOpenCard()
   }
 
   const retry = (): void => {

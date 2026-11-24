@@ -1,6 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
+import { readFileSync } from 'node:fs'
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
@@ -887,5 +888,23 @@ describe('a created document and the project folder', () => {
     expect(notesAfterCreate(notes, '/home/me/P/a.md', null, labels)).toBeNull()
     expect(notesAfterCreate(notes, undefined, '/home/me/P', labels)).toBeNull()
     expect(pathInsideFolder('/home/me/Project2/a.md', '/home/me/Project')).toBe(false)
+  })
+})
+
+/** the source of one function of a panel, from its opening line to its closing brace */
+function panelSection(file: string, start: string, end = '\n  }\n'): string {
+  const src = readFileSync(new URL(file, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const at = src.indexOf(start)
+  if (at < 0) throw new Error(`${start} not found in ${file}`)
+  return src.slice(at, src.indexOf(end, at))
+}
+
+describe('home AI question: question cards follow the conversation (a2ui spec 4)', () => {
+  it('switching chats drops the cards of the chat left and resets the one-card limit', () => {
+    const opened = panelSection('../src/renderer/src/KbAskPanel.tsx', 'const showOpenedChat = ')
+    expect(opened.match(/inlineQuestions\.resetConversation\(\)/g)).toHaveLength(2)
+    // the in-memory chat keeps its answered text-block cards for when it shows again
+    expect(opened).toContain('textCards: textCardStatesRef.current')
+    expect(opened).toContain('inlineQuestions.markTextCard(key, card.status, card.answer)')
   })
 })

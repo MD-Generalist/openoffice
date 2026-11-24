@@ -461,6 +461,59 @@ describe('the question card', () => {
     })
   })
 
+  /** Enter in the composer while a reply runs: the draft joins the queue */
+  function queueMessage(text: string): void {
+    const box = container.querySelector<HTMLTextAreaElement>('.ai-input-box textarea')!
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+    act(() => {
+      setter?.call(box, text)
+      box.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    act(() => {
+      box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+  }
+
+  it('closes a waiting card for a queued message; only the queued run may ask again', async () => {
+    ;(window as unknown as { projectApi: unknown }).projectApi = fakeStore()
+    // 1: asks; 2: asks again in the same run (refused); 3: the run ends; 4: the queued run asks
+    const { api, requests } = fakeApi((_request, nth) =>
+      nth === 1 || nth === 2 || nth === 4
+        ? toolCall('ask_questions', SURFACE)
+        : [{ type: 'delta', text: 'Done.' }, { type: 'done' }],
+    )
+    await mount(api, fakeFrame())
+    await sendMessage('draw a flow')
+    expect(questionCards().map((c) => c.dataset.status)).toEqual(['open'])
+    queueMessage('just pick one')
+    await settle(32)
+    // the first card closed and its run went on: the second ask in that run opened no
+    // card (else the run would still wait on it), and the queued run's ask did
+    expect(requests).toHaveLength(4)
+    expect(questionCards().map((c) => c.dataset.status)).toEqual(['open'])
+  })
+
+  it('takes the waiting card away with "New chat", and the next chat may ask', async () => {
+    ;(window as unknown as { projectApi: unknown }).projectApi = fakeStore()
+    const { api } = fakeApi((_request, nth) =>
+      nth === 1 || nth === 2
+        ? toolCall('ask_questions', SURFACE)
+        : [{ type: 'delta', text: 'Done.' }, { type: 'done' }],
+    )
+    await mount(api, fakeFrame())
+    await sendMessage('draw a flow')
+    expect(questionCards()).toHaveLength(1)
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(`[aria-label="${aiStrings.en.aiNewChat}"]`)!
+        .click(),
+    )
+    await settle()
+    expect(questionCards()).toHaveLength(0)
+    await sendMessage('draw another flow')
+    expect(questionCards().map((c) => c.dataset.status)).toEqual(['open'])
+  })
+
   it('draws a reopened question call and question block read-only', async () => {
     const output = JSON.stringify({
       version: '1.0',
