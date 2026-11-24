@@ -558,7 +558,7 @@ test.describe('mind map editor in the shell', () => {
     }
   })
 
-  test('a headless export of a .xmind is refused with the input-file exit code', async () => {
+  test('a headless export of a .xmind writes a PDF file', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'genoffice-mindmap-headless-'))
     const mapPath = join(dir, 'trip.xmind')
     const outPath = join(dir, 'trip.pdf')
@@ -588,15 +588,15 @@ test.describe('mind map editor in the shell', () => {
           },
         )
       })
-      // 2 = the input cannot be exported: reported, not crashed
-      expect(result.code).toBe(2)
+      expect(result.code).toBe(0)
       const envelope = JSON.parse(result.stdout.trim().split('\n').at(-1)!) as {
         status: string
-        error?: string
+        output_path?: string
       }
-      expect(envelope.status).toBe('error')
-      expect(envelope.error).toMatch(/cannot export/)
-      expect(existsSync(outPath)).toBe(false)
+      expect(envelope.status).toBe('ok')
+      expect(existsSync(outPath)).toBe(true)
+      const bytes = await readFile(outPath)
+      expect(bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

@@ -33,16 +33,18 @@ On failure the JSON envelope is
 
 ## Supported inputs
 
-| extension                                    | module   |
-| -------------------------------------------- | -------- |
-| `.docx`                                      | docs     |
-| `.xlsx` `.xlsm` `.xls` `.csv`                | sheets   |
-| `.pptx`                                      | slides   |
-| `.md` `.markdown`                            | markdown |
-| `.html` `.htm`                               | html     |
-| `.hwp` `.hwpx`                               | hwp      |
-| `.drawio` `.dio` `.drawio.svg` `.drawio.png` | diagram  |
+| extension                                    | module     |
+| -------------------------------------------- | ---------- |
+| `.docx` `.doc` `.odt`                        | docs       |
+| `.xlsx` `.xlsm` `.xls` `.ods` `.csv` `.tsv`  | sheets     |
+| `.pptx` `.ppt`                               | slides     |
+| `.md` `.markdown` `.txt`                     | markdown   |
+| `.html` `.htm`                               | html       |
+| `.hwp` `.hwpx`                               | hwp        |
+| `.drawio` `.dio` `.drawio.svg` `.drawio.png` | diagram    |
 | `.whiteboard`                                | whiteboard |
+| `.xmind` `.mm`                               | mindmap    |
+| `.epub`                                      | epub       |
 
 ## Whiteboards
 
