@@ -84,8 +84,9 @@ const WHEN_TO_ASK =
 const TOOL_DEF: AgentToolDef = {
   name: ASK_QUESTIONS_TOOL,
   description: [
-    'Show the person an inline question card and wait for the answers.',
+    'Show the person an inline question card and wait for the answers. This card is the only way to ask the person something: never ask in plain reply text.',
     WHEN_TO_ASK,
+    'Ask everything the work needs in this one card, the subject too (a required TextField) when the request names none; after the answers, do the work without asking again.',
     `Input: ${FORMAT_RULE_LINES.join('\n')}`,
     'Result: an A2UI action message. "submit" carries context.answers (input id -> value) and context.decideForMe (ids left for you to choose); "skip" means choose sensible defaults yourself. An invalid card returns "<location>: <reason>" lines instead; fix them and call again.',
     `Example: ${EXAMPLE}`,
@@ -148,7 +149,9 @@ const SYSTEM_PROMPT = [
   '- Call `ask_questions` ONLY when using a purpose-built creation skill or when key direction (audience, length, tone, format) is genuinely ambiguous.',
   '- If the person already gave enough detail, proceed immediately without asking.',
   '- Ask at most ONCE per run, with 1-5 short questions and sensible starting values.',
-  '- After the answers, continue the work; choose yourself for ids in decideForMe or when the card was skipped.',
+  '- Every question for the person goes into this card. Never ask in the text of your reply while this tool is available.',
+  '- Put everything the work needs into that one card, including the subject itself (a required TextField) when the request names none.',
+  '- After the answers, continue the work right away: choose yourself for ids in decideForMe, for anything still open, or when the card was skipped, and say in your reply what you assumed. Do not ask again.',
 ].join('\n')
 
 /**

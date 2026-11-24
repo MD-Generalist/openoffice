@@ -24,7 +24,7 @@ The tool names below are those of the HTML editor's AI panel. In another window,
 
 ## 2. Decide, then hand it over
 
-Settle these from the request and the material. Ask only for what is missing and matters.
+Settle these from the request and the material. Ask only for what is missing and matters, all in one `ask_questions` card, never as a question in your reply text.
 
 1. **Reader and purpose** in one line, and the one thing the reader should take away.
 2. **Length:** number of sections for a screen page (four to seven), number of pages for paper.
