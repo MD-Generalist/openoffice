@@ -122,7 +122,9 @@ import {
   type ProjectPanel,
   useSubscriptionUsageUpdates,
   aiChangesLabels,
+  isQuestionToolActivity,
   printLayoutText,
+  useAiInlineQuestions,
 } from '@genoffice/ui'
 
 import {
@@ -266,7 +268,14 @@ interface StoredChatEntry {
   readonly role: 'user' | 'assistant'
   readonly text: string
   readonly tools?:
-    readonly { name: string; summary: string; isError?: boolean; output?: string }[] | undefined
+    | readonly {
+        name: string
+        summary: string
+        isError?: boolean
+        input?: string
+        output?: string
+      }[]
+    | undefined
   readonly attachments?:
     readonly { name: string; path?: string; ext?: string; sizeBytes?: number }[] | undefined
   readonly scope?: AiScopeQuoteData | undefined
@@ -281,13 +290,25 @@ function storedChatMessageOf(m: StoredChatEntry): AiChatMessage {
   return {
     role: m.role,
     text: m.text,
+    restored: true,
     tools:
-      m.tools?.map((t) => ({
-        summary: t.summary,
-        isError: !!t.isError,
-        ...(t.name ? { name: t.name } : {}),
-        ...(t.output ? { output: t.output.slice(0, 2000) } : {}),
-      })) ?? [],
+      m.tools?.map((t) =>
+        // a question card keeps its input and whole output so the reopened chat redraws it
+        isQuestionToolActivity(t)
+          ? {
+              summary: t.summary,
+              isError: !!t.isError,
+              name: t.name,
+              ...(t.input !== undefined ? { input: t.input } : {}),
+              ...(t.output !== undefined ? { output: t.output } : {}),
+            }
+          : {
+              summary: t.summary,
+              isError: !!t.isError,
+              ...(t.name ? { name: t.name } : {}),
+              ...(t.output ? { output: t.output.slice(0, 2000) } : {}),
+            },
+      ) ?? [],
     // stored metadata only: no thumbnail read for history, the chips render name/size
     ...(m.attachments && m.attachments.length > 0
       ? {
@@ -1800,6 +1821,8 @@ export function App({
   const sendGateRef = useRef(sendGate)
   sendGateRef.current = sendGate
 
+  // the question card of the run: its skill joins the loop, its card and state go to the panel
+  const inlineQuestions = useAiInlineQuestions()
   const agentLoopRef = useRef<AgentLoop | null>(null)
   if (!agentLoopRef.current) {
     agentLoopRef.current = new AgentLoop({
@@ -1826,6 +1849,7 @@ export function App({
           () => imageGenRef.current,
           () => availableAttachments(),
         ),
+        inlineQuestions.askQuestionsSkill,
         // the person's skills: use_skill, read_skill_file, propose_skill (app-run tools)
         ...panelUserSkills({
           editor: 'sheets',
@@ -2147,6 +2171,8 @@ export function App({
     setHistoricChat([])
     skillCards.reset()
     skillTemplates.reset()
+    // question cards belong to the chat: an open one answers skip, all states go
+    inlineQuestions.resetConversation()
     // Unsent composer attachments would otherwise ride into the next chat's
     // file context (availableAttachments merges sent + live) — same as docs
     // (#224) and slides. The typed draft itself is kept.
@@ -3917,6 +3943,8 @@ export function App({
       return
     }
     onAdmitted?.()
+    // a new message closes a card still open and gives this run its one card
+    inlineQuestions.supersedeOpen()
     lastSkillUseRef.current = skillUse
     skillTemplatesRef.current.noteRequest(instruction)
     runToolsRef.current = []
@@ -5868,6 +5896,7 @@ export function App({
         chat={chat}
         historicChat={historicChat}
         aiProject={project}
+        aiQuestions={inlineQuestions}
         renderSkillCard={skillCards.render}
         skillNotes={skillTemplates.notes}
         onTemplateSkill={(request) => skillTemplatesRef.current.onTemplateSkill(request)}

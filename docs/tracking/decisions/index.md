@@ -159,3 +159,4 @@
 | [0161](0161-unified-connectors-and-obsidian-vault.md)         | 설정 ▸ 연동 상단에 6개 연결 서비스를 통합하고, Obsidian 볼트는 내장 로컬 커넥터로 구현한다                        | 2026-11-21 |
 | [0162](0162-hwp-engine-on-rhwp-0-9-1.md)                      | 한글 엔진과 편집기를 rhwp v0.9.1 배포판에 맞추고 상위에 들어간 패치(0023·0044·0049, 글꼴 별칭)를 뺀다             | 2026-11-23 |
 | [0163](0163-print-upgrade-destination-preview-overlays.md)    | 인쇄 출력 대상(프린터·PDF·그림) 통합, 10개 편집기 온디맨드 라이브 미리보기, 워터마크·머리글/바닥글·한글 범위 확장 | 2026-11-23 |
+| [0164](0164-a2ui-question-card.md)                            | AI 질문 카드(`ask_questions`)를 A2UI v1.0 메시지로 주고받고, HTML·슬라이드의 옛 질문 도구를 없앤다                | 2026-11-24 |

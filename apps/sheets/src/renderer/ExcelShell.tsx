@@ -23,6 +23,7 @@ import {
   type QuickPrintPrefStore,
   type SkillUse,
   type AiComposerDocs,
+  type AiInlineQuestions,
 } from '@genoffice/ui'
 
 import {
@@ -296,6 +297,8 @@ interface ExcelShellProps {
   readonly historicChat?: readonly AiChatMessage[]
   /** the project folder parts of the AI panel (chip, chat menu, notices) */
   readonly aiProject?: AiPanelProject | undefined
+  /** the run's question card (its skill is in App.tsx's loop) */
+  readonly aiQuestions?: AiInlineQuestions | undefined
   /** the skill card for a key a chat message carries */
   readonly renderSkillCard?: ((key: string) => ReactNode) | undefined
   /** the template flow's lines and its preview card, after the chat's messages */
@@ -558,6 +561,7 @@ export function ExcelShell({
   chat,
   historicChat,
   aiProject,
+  aiQuestions,
   renderSkillCard,
   skillNotes,
   onTemplateSkill,
@@ -1213,6 +1217,7 @@ export function ExcelShell({
             onExpand={aiDock.onExpand}
             onCollapse={() => setIsCopilotOpen(false)}
             project={aiProject}
+            inlineQuestions={aiQuestions}
           />
         )}
         <div className="sheet-main">
