@@ -16,6 +16,12 @@ export type IpcStreamErrorKind =
   | 'timeout'
   | 'credits'
   | 'network'
+  /** proxy authentication or proxy connection failure */
+  | 'proxy-error'
+  /** TLS / SSL certificate verification failure */
+  | 'cert-error'
+  /** DNS or host unreachable / offline network failure */
+  | 'network-unreachable'
   | 'overloaded'
   /** no usable provider */
   | 'not-connected'
@@ -191,8 +197,8 @@ export interface IpcTransportOptions<S> {
  */
 export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTransport {
   const timeoutText = () =>
-    options.errorText?.({ kind: 'timeout' }) ??
     options.timeoutErrorText?.() ??
+    options.errorText?.({ kind: 'timeout' }) ??
     options.unknownErrorText()
   const causeText = (cause: IpcStreamErrorCause, carried: string | undefined): string => {
     if (cause.kind === 'timeout') return timeoutText()

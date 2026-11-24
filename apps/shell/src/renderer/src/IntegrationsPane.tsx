@@ -1,7 +1,9 @@
 import { MCP_SERVER_NAME, mcpLaunch, SKILL_NAME, type McpLaunch } from '@genoffice/cli/mcp-launch'
 import { PRODUCT_REPO_SLUG } from '@genoffice/i18n'
 import { useCallback, useEffect, useState } from 'react'
-import type { TFunc } from './locale'
+import { useI18n, type TFunc } from './locale'
+import { buildCodingAgentGuide } from './agent-guide-text'
+import { diagnosticsUiText } from './i18n/strings-diagnostics'
 import { McpServerSection } from './McpServerSection'
 import { DriveSettingsCard } from './DriveSettingsCard'
 import { McpServersCard } from './mcp/McpServersCard'
@@ -66,6 +68,7 @@ export function IntegrationsPane({
   /** the person's own MCP servers (an AI feature): left out while AI is off */
   mcpServers?: boolean
 }) {
+  const { lang } = useI18n()
   const [status, setStatus] = useState<IntegrationsStatus | null>(null)
   const [pending, setPending] = useState<Pending | null>(null)
   const [busy, setBusy] = useState(false)
@@ -465,6 +468,20 @@ export function IntegrationsPane({
 
         <h5 className="set-intg-sub">{t('intgStep2Title')}</h5>
         <div className="set-field-desc set-intg-lead">{t('intgStep2Desc')}</div>
+        <div className="set-field" data-testid="copy-agent-guide-row">
+          <div className="set-field-text">
+            <div className="set-field-label">{diagnosticsUiText(lang, 'copyAgentGuide')}</div>
+          </div>
+          <button
+            type="button"
+            className="set-btn"
+            onClick={() => copy(buildCodingAgentGuide(lang), 'agent-guide')}
+          >
+            {copied === 'agent-guide'
+              ? diagnosticsUiText(lang, 'copiedAgentGuide')
+              : diagnosticsUiText(lang, 'copyAgentGuide')}
+          </button>
+        </div>
         {examples}
         <div className="set-field-desc set-intg-lead">{t('intgMcpTryNote')}</div>
       </section>

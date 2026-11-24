@@ -1,6 +1,7 @@
 import {
   AI_QUEUE_LABELS,
   AiAttachMenu,
+  AiAssistantBody,
   AiBlockedNotice,
   AiComposer,
   AiRunStopNotice,
@@ -12,6 +13,7 @@ import {
   type AiModelPickerBridge,
   AiPanelHeader,
   AiPanelSideButton,
+  AiQuestionCard,
   AiQueueStrip,
   AiReplyFooter,
   AiScopeQuote,
@@ -21,11 +23,14 @@ import {
   AiToolsUnsupportedNotice,
   AiReplyProgress,
   AiWorkSteps,
-  Markdown,
   AiEmptyHints,
   aiPanelWidthAtPointer,
   aiSubscriptionText,
+  buildMemoBatchPromptSection,
+  openGenerateForCurrentDocument,
+  useAiInlineQuestions,
   useAiSendGate,
+  type ReviewMemoItem,
   useChatRunQueue,
   useScrollToBottom,
   type DriveAttachPicked,
@@ -97,6 +102,7 @@ import {
   type SelectionScope,
 } from './selection-scope'
 import { createHwpSkill, type HwpChange } from './hwp-skill'
+import { hwpMemosToReviewMemos } from './memo-attach'
 import {
   hwpChangeCount,
   hwpChangeLine,
@@ -274,6 +280,8 @@ export function AiPanel({
   const chatNowRef = useRef(chat)
   chatNowRef.current = chat
   const [prompt, setPrompt] = useState('')
+  const inlineQuestions = useAiInlineQuestions()
+  const [attachedMemos, setAttachedMemos] = useState<ReviewMemoItem[]>([])
   const [busy, setBusy] = useState(false)
 
   // a request handed over by the document check: it waits in the input box for the user
@@ -848,6 +856,7 @@ export function AiPanel({
       skill: composeWithDrive('hwp+files', '', () => loopRef.current?.messages ?? [], [
         skillRef.current.skill,
         createFilesSkill(() => availableAttachmentsRef.current()),
+        inlineQuestions.askQuestionsSkill,
         // the person's skills: use_skill, read_skill_file, propose_skill (app-run tools)
         ...panelUserSkills({
           editor: 'hwp',
@@ -1193,8 +1202,12 @@ export function AiPanel({
   /** A send typed in the composer: the chosen skills are read first, then it goes out. */
   const sendPrompt = (): void => {
     const text = prompt.trim()
-    if (!text) return
-    skills.withSkills(text, (skillUse) => send(text, undefined, undefined, skillUse))
+    if (!text && attachedMemos.length === 0) return
+    inlineQuestions.supersedeOpen()
+    const memoBlock = buildMemoBatchPromptSection(attachedMemos)
+    const composed = memoBlock ? (text ? `${memoBlock}\n\n${text}` : memoBlock) : text
+    if (attachedMemos.length > 0) setAttachedMemos([])
+    skills.withSkills(composed, (skillUse) => send(composed, undefined, undefined, skillUse))
   }
 
   /** "Continue with …" on a blocked run: that provider becomes the selection, then the request reruns */
@@ -1555,7 +1568,21 @@ export function AiPanel({
               ) : (
                 entry.text && (
                   <div dir="auto">
-                    <Markdown text={entry.text} />
+                    <AiAssistantBody
+                      lang={lang}
+                      text={entry.text}
+                      streaming={entry.streaming}
+                      questionStatus={inlineQuestions.textCardStates[`m-${i}`]?.status}
+                      savedAnswers={inlineQuestions.textCardStates[`m-${i}`]?.answers}
+                      onQuestionSubmit={(spec, answers) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'submitted', answers)
+                        send(inlineQuestions.formatFollowUp(spec, answers, false))
+                      }}
+                      onQuestionSkip={(spec) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'skipped')
+                        send(inlineQuestions.formatFollowUp(spec, {}, true))
+                      }}
+                    />
                   </div>
                 )
               )}
@@ -1579,10 +1606,44 @@ export function AiPanel({
                 />
               )}
               <AiReplyProgress reply={entry} thinking={t('aiThinking')} working={t('aiWorking')} />
-              {showToolbar && <AiReplyFooter lang={lang} isLast={isLast} copyText={entry.text} />}
+              {showToolbar && (
+                <AiReplyFooter
+                  lang={lang}
+                  isLast={isLast}
+                  copyText={entry.text}
+                  nextSteps={
+                    isLast
+                      ? {
+                          context: {
+                            aiVisible: true,
+                            streaming: Boolean(entry.streaming),
+                            completedNormally: !entry.isError && !entry.blocked && !entry.stop,
+                            editorKind: 'hwp',
+                            editedDocument: Boolean(entry.changes),
+                            qualityIssueCount: 0,
+                            usedSkillName: entry.skills?.[0]?.title,
+                            canGenerateOtherDoc: true,
+                            hasSavedPath: Boolean(filePath),
+                          },
+                          onGenerateOtherDoc: openGenerateForCurrentDocument,
+                        }
+                      : undefined
+                  }
+                />
+              )}
             </div>
           )
         })}
+        {inlineQuestions.activeToolCard && (
+          <AiQuestionCard
+            lang={lang}
+            spec={inlineQuestions.activeToolCard.spec}
+            status={inlineQuestions.activeToolCard.status}
+            savedAnswers={inlineQuestions.activeToolCard.answers}
+            onSubmit={inlineQuestions.submitToolCard}
+            onSkip={inlineQuestions.skipToolCard}
+          />
+        )}
         {skillTemplates.notes}
         {/* an MCP tool waiting for the person's yes (user MCP spec 7.4) */}
         <McpPermissionCard lang={lang} />
@@ -1663,42 +1724,66 @@ export function AiPanel({
           value={prompt}
           busy={busy}
           header={
-            scope && (
-              <div className="ai-scope-row">
-                <span className="ai-scope-hint">
-                  <button
-                    className="ai-scope-label"
-                    onClick={() => setScopePreviewOpen((open) => !open)}
-                    aria-expanded={scopePreviewOpen}
-                    data-tip={t('aiScopeSelectionTip')}
-                  >
-                    {t('aiScopeSelection', { words: countWords(scopeText(scope)) })}
-                  </button>
-                  <button
-                    className="ai-scope-clear"
-                    onClick={() => setScopeCleared(scope.key)}
-                    data-tip={t('aiScopeClearTitle')}
-                    aria-label={t('aiScopeClearTitle')}
-                  >
-                    <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden>
-                      <path
-                        d="M4 4l8 8M12 4l-8 8"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </button>
-                </span>
-                {scopePreviewOpen && (
-                  <div className="ai-scope-preview">
-                    {scopeText(scope).length > 400
-                      ? `${scopeText(scope).slice(0, 400)}…`
-                      : scopeText(scope)}
+            (scope || attachedMemos.length > 0) && (
+              <>
+                {attachedMemos.length > 0 && (
+                  <div className="ai-review-memo-chips">
+                    {attachedMemos.map((memo) => (
+                      <span key={memo.id} className="ai-review-memo-chip">
+                        <span>
+                          {memo.location} · {memo.excerpt.slice(0, 32)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAttachedMemos((prev) => prev.filter((m) => m.id !== memo.id))
+                          }
+                          aria-label="Remove memo"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
                   </div>
                 )}
-              </div>
+                {scope && (
+                  <div className="ai-scope-row">
+                    <span className="ai-scope-hint">
+                      <button
+                        className="ai-scope-label"
+                        onClick={() => setScopePreviewOpen((open) => !open)}
+                        aria-expanded={scopePreviewOpen}
+                        data-tip={t('aiScopeSelectionTip')}
+                      >
+                        {t('aiScopeSelection', { words: countWords(scopeText(scope)) })}
+                      </button>
+                      <button
+                        className="ai-scope-clear"
+                        onClick={() => setScopeCleared(scope.key)}
+                        data-tip={t('aiScopeClearTitle')}
+                        aria-label={t('aiScopeClearTitle')}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden>
+                          <path
+                            d="M4 4l8 8M12 4l-8 8"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </button>
+                    </span>
+                    {scopePreviewOpen && (
+                      <div className="ai-scope-preview">
+                        {scopeText(scope).length > 400
+                          ? `${scopeText(scope).slice(0, 400)}…`
+                          : scopeText(scope)}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )
           }
           placeholder={t('aiComposerPlaceholder')}
@@ -1716,6 +1801,18 @@ export function AiPanel({
                 onPickPc={() => void pickAttachments()}
                 onPickedDocs={attachFromDrive}
                 onPickedDrive={attachFromDrive}
+                memoAttach={{
+                  listMemos: async () => {
+                    if (typeof bridgeRef.current?.listMemos !== 'function') return []
+                    const listed = await bridgeRef.current.listMemos().catch(() => ({ memos: [] }))
+                    return hwpMemosToReviewMemos(listed.memos)
+                  },
+                  onAttachMemos: (items) =>
+                    setAttachedMemos((prev) => {
+                      const seen = new Set(prev.map((m) => m.id))
+                      return [...prev, ...items.filter((m) => !seen.has(m.id))]
+                    }),
+                }}
               />
               <McpServerButton lang={lang} />
             </>

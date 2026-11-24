@@ -439,3 +439,21 @@ function inferAlign(
   if (rightDev <= tol) return 'right'
   return 'left'
 }
+
+/** One block per line. A recognized scan is edited by patching its picture, so a
+    "paragraph" there buys nothing and costs a lot: a form's column of handwritten
+    entries (12시간 / 8시간 / 3시간 …) clusters into one block, and fixing one entry
+    would then cover and retype the whole column. */
+export function splitBlockLines(blocks: readonly TextBlock[]): TextBlock[] {
+  return blocks.flatMap((b) =>
+    b.lines.length <= 1
+      ? [b]
+      : b.lines.map((l): TextBlock => ({
+          rect: [...l.rect],
+          fontSize: l.fontSize,
+          lineHeight: l.fontSize * 1.2,
+          align: 'left',
+          lines: [l],
+        })),
+  )
+}

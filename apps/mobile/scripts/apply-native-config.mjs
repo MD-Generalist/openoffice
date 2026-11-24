@@ -35,8 +35,45 @@ function replaceOrInsertBlock(content, startMarker, endMarker, block, anchorRege
   return content.slice(0, match.index) + block.trim() + '\n' + content.slice(match.index)
 }
 
+const GRADLE_SIGNING_BLOCK = `// IEUM_MOBILE_GRADLE_SIGNING_START
+android {
+    val ieumVersionCode = System.getenv("IEUM_ANDROID_VERSION_CODE")?.toIntOrNull()
+    if (ieumVersionCode != null && ieumVersionCode > 0) {
+        defaultConfig {
+            versionCode = ieumVersionCode
+        }
+    }
+    val ieumKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+    val ieumKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+    val ieumKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+    val ieumKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+    if (
+        !ieumKeystorePath.isNullOrBlank() &&
+        !ieumKeystorePassword.isNullOrBlank() &&
+        !ieumKeyAlias.isNullOrBlank() &&
+        !ieumKeyPassword.isNullOrBlank() &&
+        file(ieumKeystorePath).exists()
+    ) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(ieumKeystorePath)
+                storePassword = ieumKeystorePassword
+                keyAlias = ieumKeyAlias
+                keyPassword = ieumKeyPassword
+            }
+        }
+        buildTypes {
+            getByName("release") {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+}
+// IEUM_MOBILE_GRADLE_SIGNING_END`
+
 export function applyAndroidConfig(genRoot = GEN_DIR) {
-  const androidAppMain = join(genRoot, 'android', 'app', 'src', 'main')
+  const androidAppDir = join(genRoot, 'android', 'app')
+  const androidAppMain = join(androidAppDir, 'src', 'main')
   const manifestPath = join(androidAppMain, 'AndroidManifest.xml')
   if (!existsSync(manifestPath)) {
     return { applied: false, reason: 'gen/android not initialized' }
@@ -83,7 +120,30 @@ export function applyAndroidConfig(genRoot = GEN_DIR) {
     /<\/application>/,
   )
   writeFileSync(manifestPath, manifest, 'utf8')
-  return { applied: true, manifestPath }
+
+  // Inject env-driven release signing & versionCode override into Gradle when present.
+  const gradlePath = join(androidAppDir, 'build.gradle.kts')
+  if (existsSync(gradlePath)) {
+    let gradle = readFileSync(gradlePath, 'utf8')
+    const anchor = /apply\s*\(\s*from\s*=\s*file\("tauri\.build\.gradle\.kts"\)\s*\)/
+    if (
+      gradle.includes('// IEUM_MOBILE_GRADLE_SIGNING_START') ||
+      anchor.test(gradle)
+    ) {
+      gradle = replaceOrInsertBlock(
+        gradle,
+        '// IEUM_MOBILE_GRADLE_SIGNING_START',
+        '// IEUM_MOBILE_GRADLE_SIGNING_END',
+        GRADLE_SIGNING_BLOCK,
+        anchor,
+      )
+    } else {
+      gradle = `${gradle.trimEnd()}\n\n${GRADLE_SIGNING_BLOCK}\n`
+    }
+    writeFileSync(gradlePath, gradle, 'utf8')
+  }
+
+  return { applied: true, manifestPath, gradlePatched: existsSync(gradlePath) }
 }
 
 function findIosInfoPlist(iosRoot) {

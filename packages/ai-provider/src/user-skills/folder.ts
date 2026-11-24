@@ -10,6 +10,8 @@ import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { mcpServersOfSkill } from '@genoffice/agent-core/skill-mcp-refs'
 import { skillEditorsOf } from '@genoffice/agent-core/skill-editors'
 import {
+  IEUM_CRAFT_KEY,
+  IEUM_EXAMPLE_KEY,
   IEUM_SOURCE_FILE,
   IEUM_EDITORS_KEY,
   IEUM_TEMPLATE_KEY,
@@ -20,6 +22,7 @@ import {
   SKILL_SCRIPT_EXTENSIONS,
   SKILL_TEMPLATE_FOLDER,
   SKILL_TEXT_EXTENSIONS,
+  parseCraftSlugs,
 } from './constants'
 import { parseSkillMd, type ParsedSkillMd } from './frontmatter'
 import { isReservedUserSkillName, isValidUserSkillName, userSkillId } from './names'
@@ -174,6 +177,8 @@ export async function readUserSkillFolder(
   const name = frontName && isValidUserSkillName(frontName) ? frontName : folderName
   const template = normalizeSkillTemplatePath(parsed?.metadata[IEUM_TEMPLATE_KEY])
   const title = parsed?.metadata[IEUM_TITLE_KEY]?.trim() || name
+  const craft = parseCraftSlugs(parsed?.metadata[IEUM_CRAFT_KEY])
+  const example = parsed?.metadata[IEUM_EXAMPLE_KEY]?.trim() || undefined
   const files = listed?.files ?? []
   return {
     id: userSkillId(options.source, name, options.plugin),
@@ -194,6 +199,8 @@ export async function readUserSkillFolder(
       (options.agentOnlyNames?.has(name) === true ||
         options.agentOnlyNames?.has(folderName) === true),
     fileEditors: skillEditorsOf(parsed?.metadata[IEUM_EDITORS_KEY]),
+    ...(craft ? { craft } : {}),
+    ...(example ? { example } : {}),
     files: files.length,
     bytes: listed?.bytes ?? 0,
     unreadable,

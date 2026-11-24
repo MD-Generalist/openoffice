@@ -9,8 +9,9 @@ import {
   unlink,
   writeFile,
 } from 'node:fs/promises'
-import { basename, isAbsolute, join, posix, win32 } from 'node:path'
+import { basename, dirname, isAbsolute, join, posix, win32 } from 'node:path'
 import { tempPathBeside } from '@genoffice/electron-utils/atomic-write'
+import { ATTACHABLE_IMAGE_EXTS, ATTACHABLE_IMAGE_MAX_BYTES } from '@genoffice/file-parse'
 import { atomicWriteFile } from '../atomic-write'
 import {
   comparablePath,
@@ -19,6 +20,7 @@ import {
   samePath,
   type RefusalContext,
 } from '../projects/paths'
+import { sniffImageFormat } from './mcp-images'
 
 /**
  * Built-in local Obsidian Vault engine.
@@ -44,6 +46,8 @@ export interface ObsidianVaultDeps {
   hasUnsavedChanges(absPath: string): Promise<boolean> | boolean
   parseFileToText(absPath: string): Promise<{ ok: boolean; text?: string; error?: string }>
   trashItem(absPath: string): Promise<void>
+  /** Optional safe local cache hook so `read_note` can expose embedded vault images as file:// URLs */
+  cacheImageBytes?: (bytes: Uint8Array, mime: string) => string | null
   platform?: NodeJS.Platform
 }
 
@@ -396,6 +400,240 @@ function extractWikilinks(text: string): string[] {
   return [...targets]
 }
 
+const MAX_SCAN_IMAGES = 10_000
+
+export interface MarkdownImageRef {
+  /** Exact raw target string inside the note (for model mapping) */
+  raw: string
+  /** Normalized relative path / file name target */
+  target: string
+  /** True for Obsidian `![[target]]` wikilink embeds (searched vault-wide by filename if needed) */
+  isWikilink: boolean
+}
+
+function imageExtOf(target: string): string {
+  const cleaned = target.split(/[?#]/)[0]?.trim() ?? ''
+  const dot = cleaned.lastIndexOf('.')
+  if (dot < 0) return ''
+  return cleaned.slice(dot + 1).toLowerCase()
+}
+
+function decodeTargetSafely(raw: string): string {
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
+/**
+ * Extract local image references (`![[img.png]]`, `![alt](path/img.png)`,
+ * `<img src="path/img.png">`) from a Markdown note, skipping code blocks and
+ * remote/data URLs.
+ */
+export function extractMarkdownImageRefs(text: string): MarkdownImageRef[] {
+  const clean = stripCodeBlocks(text)
+  const found: MarkdownImageRef[] = []
+  const seen = new Set<string>()
+  const push = (raw: string, candidate: string, isWikilink: boolean) => {
+    const stripped = candidate.trim().replace(/^<|>$/g, '').split(/[?#]/)[0]?.trim()
+    if (!stripped) return
+    if (/^(?:https?:|data:|file:|blob:|mailto:)/i.test(stripped)) return
+    const decoded = decodeTargetSafely(stripped)
+    const ext = imageExtOf(decoded)
+    if (!ATTACHABLE_IMAGE_EXTS.has(ext)) return
+    const key = `${isWikilink ? 'w' : 'm'}:${decoded.toLowerCase()}`
+    if (seen.has(key)) return
+    seen.add(key)
+    found.push({ raw, target: decoded, isWikilink })
+  }
+
+  // Obsidian wikilink embeds: ![[photo.png]] or ![[assets/photo.png|300]]
+  for (const m of clean.matchAll(/!\[\[([^[\]\r\n]+)\]\]/g)) {
+    const inner = (m[1] ?? '').split('|')[0]?.split('#')[0]?.trim() ?? ''
+    if (inner) push(m[0], inner, true)
+  }
+  // Standard Markdown images: ![alt](path/to/image.png "title") or ![alt](<path with space.png>)
+  for (const m of clean.matchAll(
+    /!\[[^\]]*\]\(\s*(?:<([^>\r\n]+)>|([^)\s\r\n]+))(?:\s+[^)]*)?\)/g,
+  )) {
+    const target = (m[1] ?? m[2] ?? '').trim()
+    if (target) push(m[0], target, false)
+  }
+  // HTML <img src="relative/image.png">
+  for (const m of clean.matchAll(/<img\b[^>]*\bsrc\s*=\s*["']([^"'\r\n]+)["'][^>]*>/gi)) {
+    const target = (m[1] ?? '').trim()
+    if (target) push(m[0], target, false)
+  }
+  return found
+}
+
+interface ScannedImage {
+  relPath: string
+  absPath: string
+  nameLower: string
+}
+
+async function scanVaultImages(
+  vaultRoot: string,
+  platform: NodeJS.Platform,
+): Promise<ScannedImage[]> {
+  if (await assertVaultRoot(vaultRoot, platform)) return []
+  const images: ScannedImage[] = []
+
+  const walk = async (dir: string, relPrefix: string): Promise<void> => {
+    if (images.length >= MAX_SCAN_IMAGES) return
+    let entries
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (images.length >= MAX_SCAN_IMAGES) return
+      const name = entry.name
+      if (!isPlainSegment(name) || name.startsWith('.')) continue
+      const full = join(dir, name)
+      const info = await lstatOrNull(full)
+      if (!info || info.isSymbolicLink()) continue
+      const rel = relPrefix ? `${relPrefix}/${name}` : name
+      if (info.isDirectory()) {
+        await walk(full, rel)
+      } else if (
+        info.isFile() &&
+        info.nlink <= 1 &&
+        info.size > 0 &&
+        info.size <= ATTACHABLE_IMAGE_MAX_BYTES &&
+        ATTACHABLE_IMAGE_EXTS.has(imageExtOf(name))
+      ) {
+        images.push({ relPath: rel, absPath: full, nameLower: name.toLowerCase() })
+      }
+    }
+  }
+
+  await walk(vaultRoot, '')
+  return images
+}
+
+async function validateVaultImageRelPath(
+  vaultRoot: string,
+  relPosix: string,
+  platform: NodeJS.Platform,
+): Promise<{ absPath: string; relPath: string } | null> {
+  const clean = relPosix.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+  if (!clean) return null
+  const segments = clean.split('/')
+  for (const seg of segments) {
+    if (!isPlainSegment(seg) || seg.startsWith('.')) return null
+  }
+  const last = segments[segments.length - 1] ?? ''
+  if (!ATTACHABLE_IMAGE_EXTS.has(imageExtOf(last))) return null
+  let dir = vaultRoot
+  for (const seg of segments.slice(0, -1)) {
+    dir = join(dir, seg)
+    const info = await lstatOrNull(dir)
+    if (!info || info.isSymbolicLink() || !info.isDirectory()) return null
+  }
+  if (!samePath(await realpath(dir), dir, platform)) return null
+  const target = join(dir, last)
+  const info = await lstatOrNull(target)
+  if (
+    !info ||
+    info.isSymbolicLink() ||
+    !info.isFile() ||
+    info.nlink > 1 ||
+    info.size <= 0 ||
+    info.size > ATTACHABLE_IMAGE_MAX_BYTES
+  ) {
+    return null
+  }
+  return { absPath: target, relPath: segments.join('/') }
+}
+
+export interface ResolvedVaultImage {
+  raw: string
+  absPath: string
+  relPath: string
+}
+
+/**
+ * Safely resolve local images referenced inside a vault note. Enforces every
+ * Obsidian vault security invariant (no hidden segments, no `..` escape, no
+ * symlinks/junctions, no hardlinks, size <= ATTACHABLE_IMAGE_MAX_BYTES).
+ */
+export async function resolveVaultEmbeddedImages(
+  vaultRoot: string,
+  noteAbsPath: string,
+  noteText: string,
+  options: { platform?: NodeJS.Platform; maxImages?: number } = {},
+): Promise<ResolvedVaultImage[]> {
+  const platform = options.platform ?? process.platform
+  const maxImages = options.maxImages ?? 20
+  const refs = extractMarkdownImageRefs(noteText)
+  if (refs.length === 0 || maxImages <= 0) return []
+  if (await assertVaultRoot(vaultRoot, platform)) return []
+
+  const noteDirAbs = dirname(noteAbsPath)
+  const rootPrefix = comparablePath(vaultRoot, platform)
+  const noteDirCmp = comparablePath(noteDirAbs, platform)
+  const noteRelDir =
+    noteDirCmp === rootPrefix
+      ? ''
+      : noteDirAbs
+          .slice(vaultRoot.length)
+          .replace(/^[\\/]+/, '')
+          .replace(/\\/g, '/')
+
+  let cachedScan: ScannedImage[] | null = null
+  const getScan = async () => {
+    if (!cachedScan) cachedScan = await scanVaultImages(vaultRoot, platform)
+    return cachedScan
+  }
+
+  const resolved: ResolvedVaultImage[] = []
+  const seenAbs = new Set<string>()
+
+  for (const ref of refs) {
+    if (resolved.length >= maxImages) break
+    const normTarget = ref.target.replace(/\\/g, '/')
+    if (looksAbsolute(normTarget)) continue
+
+    let hit: { absPath: string; relPath: string } | null = null
+
+    // 1. Relative to the note's folder (resolving `./` and `../` strictly inside vault root)
+    const relJoined = posix.normalize(noteRelDir ? `${noteRelDir}/${normTarget}` : normTarget)
+    if (!relJoined.startsWith('..') && !relJoined.startsWith('/')) {
+      hit = await validateVaultImageRelPath(vaultRoot, relJoined, platform)
+    }
+
+    // 2. Relative to the vault root (common in Obsidian when attachment folder is vault-rooted)
+    if (!hit) {
+      const rootJoined = posix.normalize(normTarget.replace(/^\/+/, ''))
+      if (!rootJoined.startsWith('..') && !rootJoined.startsWith('/')) {
+        hit = await validateVaultImageRelPath(vaultRoot, rootJoined, platform)
+      }
+    }
+
+    // 3. Vault-wide filename lookup for Obsidian wikilinks (`![[photo.png]]`)
+    if (!hit && ref.isWikilink && !normTarget.includes('/')) {
+      const targetLower = normTarget.toLowerCase()
+      const scanned = await getScan()
+      const match = scanned.find((img) => img.nameLower === targetLower)
+      if (match) {
+        hit = await validateVaultImageRelPath(vaultRoot, match.relPath, platform)
+      }
+    }
+
+    if (!hit) continue
+    const cmp = comparablePath(hit.absPath, platform)
+    if (seenAbs.has(cmp)) continue
+    seenAbs.add(cmp)
+    resolved.push({ raw: ref.raw, absPath: hit.absPath, relPath: hit.relPath })
+  }
+
+  return resolved
+}
+
 function resolveWikilinks(
   links: readonly string[],
   notes: readonly ScannedNote[],
@@ -730,11 +968,37 @@ export async function executeObsidianTool(
       linkSection = `\n\nWikilinks:\n${formatted.join('\n')}`
     }
 
+    let imageSection = ''
+    if (deps.cacheImageBytes) {
+      const embedded = await resolveVaultEmbeddedImages(vault.path, resolved.absPath, fullText, {
+        platform,
+        maxImages: 10,
+      })
+      const cachedLines: string[] = []
+      for (const img of embedded) {
+        try {
+          const buf = await readFile(img.absPath)
+          const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+          const fmt = sniffImageFormat(bytes)
+          if (!fmt) continue
+          const localUrl = deps.cacheImageBytes(bytes, fmt.mime)
+          if (localUrl) cachedLines.push(`- ${img.raw} (${img.relPath}) -> ${localUrl}`)
+        } catch {
+          // Skip unreadable image files without failing the note read
+        }
+      }
+      if (cachedLines.length > 0) {
+        imageSection =
+          '\n\nEmbedded images (insert directly into the document using these local file:// URLs):\n' +
+          cachedLines.join('\n')
+      }
+    }
+
     return {
       output:
         `[${vault.name}] ${resolved.relPath} — characters ${offset}..${end} of ${fullText.length}` +
         (more ? ` (continue with offset=${end})` : ' (end)') +
-        `\n\n${slice}${linkSection}`,
+        `\n\n${slice}${linkSection}${imageSection}`,
       isError: false,
     }
   }

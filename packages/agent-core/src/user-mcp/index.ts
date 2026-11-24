@@ -34,7 +34,12 @@ export {
   shapeMcpResult,
   shapedMcpAnswer,
 } from './result'
-export type { McpCallAnswer, ShapedMcpResult } from './result'
+export type {
+  McpCallAnswer,
+  ShapeMcpImageBlock,
+  ShapeMcpResultOptions,
+  ShapedMcpResult,
+} from './result'
 export {
   guardReceivedContent,
   keepInsideRefusal,

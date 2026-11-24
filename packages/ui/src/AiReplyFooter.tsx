@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import type { Lang } from '@genoffice/i18n'
 import type { AgentTokenUsage } from '@genoffice/agent-core'
 import { AiUsageChip } from './AiUsageChip'
+import { AiNextSteps, type AiNextStepsProps } from './AiNextSteps'
 import { IconCheck, IconCopy, IconRetry } from './icons'
 import { aiPanelText } from './strings-ai-panel'
 
@@ -19,6 +20,8 @@ export interface AiReplyFooterProps {
   readonly onRetry?: (() => void) | undefined
   /** Per-reply token usage placed at the trailing edge of the row */
   readonly usage?: AgentTokenUsage | undefined
+  /** Optional contextual next-step chips shown only on the latest completed reply (T3/T9) */
+  readonly nextSteps?: Omit<AiNextStepsProps, 'lang'> | undefined
 }
 
 /**
@@ -33,6 +36,7 @@ export function AiReplyFooter({
   onCopy,
   onRetry,
   usage,
+  nextSteps,
 }: AiReplyFooterProps): React.JSX.Element | null {
   const [copied, setCopied] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -49,7 +53,7 @@ export function AiReplyFooter({
   const hasUsage =
     usage !== undefined && (usage.inputTokens !== undefined || usage.outputTokens !== undefined)
 
-  if (!showCopy && !showRetry && !hasUsage) return null
+  if (!showCopy && !showRetry && !hasUsage && !nextSteps) return null
 
   const handleCopy = () => {
     if (onCopy) {
@@ -69,38 +73,43 @@ export function AiReplyFooter({
   const retryLabel = aiPanelText(lang, 'regenerateReply')
 
   return (
-    <div className={`ai-reply-footer${isLast ? ' is-last' : ''}`}>
-      {(showCopy || showRetry) && (
-        <span className="ai-reply-footer-actions">
-          {showCopy && (
-            <button
-              type="button"
-              className="ai-reply-footer-btn ai-msg-tool-btn"
-              onClick={handleCopy}
-              data-tip={copyLabel}
-              aria-label={copyLabel}
-            >
-              {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
-            </button>
+    <>
+      {(showCopy || showRetry || hasUsage) && (
+        <div className={`ai-reply-footer${isLast ? ' is-last' : ''}`}>
+          {(showCopy || showRetry) && (
+            <span className="ai-reply-footer-actions">
+              {showCopy && (
+                <button
+                  type="button"
+                  className="ai-reply-footer-btn ai-msg-tool-btn"
+                  onClick={handleCopy}
+                  data-tip={copyLabel}
+                  aria-label={copyLabel}
+                >
+                  {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+                </button>
+              )}
+              {showRetry && (
+                <button
+                  type="button"
+                  className="ai-reply-footer-btn ai-msg-tool-btn"
+                  onClick={onRetry}
+                  data-tip={retryLabel}
+                  aria-label={retryLabel}
+                >
+                  <IconRetry size={14} />
+                </button>
+              )}
+            </span>
           )}
-          {showRetry && (
-            <button
-              type="button"
-              className="ai-reply-footer-btn ai-msg-tool-btn"
-              onClick={onRetry}
-              data-tip={retryLabel}
-              aria-label={retryLabel}
-            >
-              <IconRetry size={14} />
-            </button>
+          {hasUsage && usage && (
+            <span className="ai-reply-footer-usage">
+              <AiUsageChip usage={usage} lang={lang} />
+            </span>
           )}
-        </span>
+        </div>
       )}
-      {hasUsage && usage && (
-        <span className="ai-reply-footer-usage">
-          <AiUsageChip usage={usage} lang={lang} />
-        </span>
-      )}
-    </div>
+      {isLast && nextSteps && <AiNextSteps lang={lang} {...nextSteps} />}
+    </>
   )
 }

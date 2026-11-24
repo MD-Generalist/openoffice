@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   listObsidianPickerItems,
   resolveObsidianSelection,
+  resolveObsidianSelectionWithImages,
 } from '../src/main/connector-picker/obsidian-picker'
 import {
   cleanupOldNotionSnapshots,
+  extractNotionImageTargets,
   fetchNotionPagesToTemp,
   findNotionTools,
   parseNotionSearchResults,
@@ -15,6 +17,7 @@ import {
 } from '../src/main/connector-picker/notion-picker'
 import {
   buildCanvaSearchInput,
+  cleanupOldCanvaFiles,
   exportCanvaDesignToTemp,
   fetchCanvaDesignsToTemp,
   findCanvaTools,
@@ -22,6 +25,13 @@ import {
   isAllowedCanvaDownloadUrl,
   parseCanvaSearchResults,
 } from '../src/main/connector-picker/canva-picker'
+
+const TINY_PNG = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+])
+const TINY_JPG = new Uint8Array([
+  0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+])
 
 let tempDir: string
 let vaultDir: string
@@ -70,6 +80,40 @@ describe('Obsidian note picker backend', () => {
       many,
     )
     expect(capped.paths).toHaveLength(20)
+  })
+
+  it('automatically attaches local vault images referenced in picked notes while refusing hidden and escaping paths', async () => {
+    await mkdir(join(vaultDir, 'assets'), { recursive: true })
+    await mkdir(join(vaultDir, '.obsidian'), { recursive: true })
+    const wikiImg = join(vaultDir, 'assets', 'diagram.png')
+    const relImg = join(vaultDir, 'assets', 'chart.jpg')
+    const hiddenImg = join(vaultDir, '.obsidian', 'secret.png')
+    const outsideImg = join(tempDir, 'outside.png')
+    await writeFile(wikiImg, TINY_PNG)
+    await writeFile(relImg, TINY_JPG)
+    await writeFile(hiddenImg, TINY_PNG)
+    await writeFile(outsideImg, TINY_PNG)
+
+    await writeFile(
+      join(vaultDir, 'Alpha.md'),
+      [
+        '# Alpha',
+        '![[diagram.png|400]]',
+        '![Chart](assets/chart.jpg)',
+        '![Hidden](.obsidian/secret.png)',
+        '![Escape](../outside.png)',
+        '![Remote](https://example.com/remote.png)',
+      ].join('\n'),
+      'utf8',
+    )
+
+    const vaults = [{ id: 'v1', name: 'MyVault', path: vaultDir, enabled: true }]
+    const listed = await listObsidianPickerItems(vaults, async () => false)
+    const alpha = listed.items.find((i) => i.title === 'Alpha')!
+
+    const resolved = await resolveObsidianSelectionWithImages([alpha.id], listed.items, vaults)
+    expect(resolved.paths).toEqual([alpha.id, wikiImg, relImg])
+    expect(resolved.skipped).toBe(0)
   })
 })
 
@@ -141,6 +185,7 @@ describe('Notion page picker backend', () => {
       },
       callForUserPicker,
       attachDir,
+      downloadImage: async () => null,
     })
     expect(res.ok).toBe(true)
     if (res.ok) {
@@ -149,6 +194,47 @@ describe('Notion page picker backend', () => {
       expect(res.omittedNonText).toBe(2)
       const saved = await readFile(res.paths[0]!, 'utf8')
       expect(saved).toContain('# Roadmap 2026')
+    }
+  })
+
+  it('automatically downloads embedded Notion images alongside snapshots and omits only truly unavailable items', async () => {
+    const markdown = [
+      '# Product Spec',
+      '![Hero](https://prod-files-secure.s3.us-west-2.amazonaws.com/hero.png)',
+      '<image source="https://img.notionusercontent.com/flow.jpg" />',
+      '<file url="https://f.example/report.pdf" />',
+    ].join('\n\n')
+    expect(extractNotionImageTargets(markdown)).toHaveLength(2)
+
+    const downloadImage = vi.fn(async (url: string) =>
+      url.endsWith('.jpg')
+        ? { bytes: TINY_JPG, mime: 'image/jpeg' as const, ext: 'jpg' as const }
+        : { bytes: TINY_PNG, mime: 'image/png' as const, ext: 'png' as const },
+    )
+
+    const res = await fetchNotionPagesToTemp({
+      serverId: 'notion-1',
+      selectedItems: [{ id: 'page-999', title: 'Product Spec', subtitle: '2026-11-24' }],
+      fetchTool: {
+        name: 'notion-fetch',
+        inputSchema: { type: 'object', properties: { id: { type: 'string' } } },
+      },
+      callForUserPicker: async () => ({ ok: true, output: markdown, isError: false }),
+      attachDir,
+      downloadImage,
+    })
+
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.paths).toHaveLength(3)
+      expect(res.paths[0]).toMatch(/\.md$/)
+      expect(res.paths[1]).toMatch(/\.png$/)
+      expect(res.paths[2]).toMatch(/\.jpg$/)
+      // Only the <file> tag remains omitted; both images were downloaded
+      expect(res.omittedNonText).toBe(1)
+      const saved = await readFile(res.paths[0]!, 'utf8')
+      expect(saved).toContain('[Attached image:')
+      expect(downloadImage).toHaveBeenCalledTimes(2)
     }
   })
 
@@ -275,5 +361,68 @@ describe('Canva design picker backend', () => {
       expect(exportRes.format).toBe('pptx')
       expect(exportRes.path).toMatch(/\.pptx$/)
     }
+  })
+
+  it('automatically attaches Canva page PNG images alongside Markdown and falls back to thumbnails', async () => {
+    const tools = findCanvaTools([
+      { name: 'search-designs' },
+      { name: 'read-design' },
+      { name: 'get-design-pages' },
+      { name: 'export-design' },
+    ])!
+    expect(tools.pagesTool?.name).toBe('get-design-pages')
+
+    const canvaDir = join(tempDir, 'canva-images')
+    const attachRes = await fetchCanvaDesignsToTemp({
+      serverId: 'canva-1',
+      selectedItems: [{ id: 'DAHCFRp2u74', title: '수업 자료', subtitle: '', pageCount: 2 }],
+      readTool: tools.readTool,
+      tools,
+      callForUserPicker: async (_sid, toolName) => {
+        if (toolName === 'export-design') {
+          return {
+            ok: true,
+            output: JSON.stringify({
+              urls: [
+                'https://export-download.canva.com/page-1.png',
+                'https://export-download.canva.com/page-2.png',
+              ],
+            }),
+            isError: false,
+          }
+        }
+        return {
+          ok: true,
+          output: JSON.stringify({
+            design_metadata: { title: '수업 자료', page_count: 2 },
+            design_content: [
+              { page_number: 1, elements: [{ text: '1쪽 제목' }] },
+              { page_number: 2, elements: [{ text: '2쪽 정리' }] },
+            ],
+          }),
+          isError: false,
+        }
+      },
+      downloadImage: async () => ({ bytes: TINY_PNG, mime: 'image/png', ext: 'png' }),
+      attachDir: canvaDir,
+    })
+
+    expect(attachRes.ok).toBe(true)
+    if (attachRes.ok) {
+      expect(attachRes.paths).toHaveLength(3)
+      expect(attachRes.paths[0]).toMatch(/\.md$/)
+      expect(attachRes.paths[1]).toMatch(/-p1\.png$/)
+      expect(attachRes.paths[2]).toMatch(/-p2\.png$/)
+      const md = await readFile(attachRes.paths[0]!, 'utf8')
+      expect(md).toContain('[Attached page image:')
+    }
+
+    // Cleanup removes stale images as well as markdown/exports
+    const oldPng = join(canvaDir, 'stale.png')
+    await writeFile(oldPng, TINY_PNG)
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
+    await utimes(oldPng, eightDaysAgo, eightDaysAgo)
+    await cleanupOldCanvaFiles(canvaDir)
+    await expect(readFile(oldPng)).rejects.toThrow()
   })
 })

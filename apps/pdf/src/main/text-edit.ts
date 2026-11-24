@@ -30,6 +30,8 @@ export const FPDF_PAGEOBJ_TEXT = 1
 const FPDF_FONT_TYPE1 = 1
 const FPDF_FONT_TRUETYPE = 2
 const FPDF_TEXTRENDERMODE_FILL_STROKE = 2
+/** Neither filled nor stroked: an OCR layer laid over a page picture */
+const FPDF_TEXTRENDERMODE_INVISIBLE = 3
 const FPDF_TEXTRENDERMODE_FILL_STROKE_CLIP = 6
 const FPDF_LINEJOIN_ROUND = 1
 
@@ -1576,6 +1578,51 @@ function segmentLine(
   return segs
 }
 
+/** Per-code-unit styles of an insert's text from its styleRuns (offsets index the
+    text itself — nothing is re-planned, unlike an edit). Whitespace inside or right
+    after a styled word rides with it, as in an edit. null = uniform insert. */
+export function insertCharStyles(
+  input: Pick<TextInsertInput, 'text' | 'styleRuns'>,
+): (RunStyle | null)[] | null {
+  const runs = input.styleRuns
+  if (!runs || runs.length === 0) return null
+  const out: (RunStyle | null)[] = new Array<RunStyle | null>(input.text.length).fill(null)
+  for (const r of runs) {
+    const style: RunStyle = {
+      color: r.color,
+      font: r.font,
+      size: r.size,
+      bold: r.bold,
+      italic: r.italic,
+    }
+    for (let k = Math.max(0, r.start); k < Math.min(input.text.length, r.end); k++) {
+      if (input.text[k] !== '\n') out[k] = style
+    }
+  }
+  return out.some((s) => s !== null) ? out : null
+}
+
+/** Horizontal stretch that makes one line exactly `fitWidth` pt wide (an OCR layer
+    fitted to the recognized box, so selection and search highlights land on the
+    ink). 1 when there is no target or a char cannot be measured. */
+export function fitStretch(
+  line: string,
+  styles: (RunStyle | null)[] | null,
+  fitWidth: number | undefined,
+  advancePt: (cp: number, style: RunStyle | null) => number | null,
+): number {
+  if (!fitWidth || !(fitWidth > 0)) return 1
+  let width = 0
+  let cu = 0
+  for (const ch of line) {
+    const a = advancePt(ch.codePointAt(0)!, styles?.[cu] ?? null)
+    if (a === null) return 1
+    width += a
+    cu += ch.length
+  }
+  return width > 0 ? fitWidth / width : 1
+}
+
 /** One original text object the rebuild keeps (translated, not redrawn) */
 interface KeepPlanObj {
   src: PageTextObj
@@ -2331,32 +2378,58 @@ export function applyTextInserts(
       // subsetted and loaded a font per line — a 40-page scan wrote on the
       // order of 2000 font objects. The subset covers the merged text of every
       // line sharing the face, so each line still has its glyphs.
-      const faceKeyOf = (input: TextInsertInput): string =>
-        `${input.font ?? ''}|${input.bold ? 1 : 0}|${input.italic ? 1 : 0}`
-      const faces = new Map<string, { input: TextInsertInput; editIndex: number }[]>()
+      const faceOf = (input: TextInsertInput, s: RunStyle | null) => ({
+        font: s?.font ?? input.font,
+        bold: s?.bold ?? !!input.bold,
+        italic: s?.italic ?? !!input.italic,
+      })
+      const faceKeyOf = (input: TextInsertInput, s: RunStyle | null = null): string => {
+        const f = faceOf(input, s)
+        return `${f.font ?? ''}|${f.bold ? 1 : 0}|${f.italic ? 1 : 0}`
+      }
+      // Every face an insert draws with: its own, plus each one its selection
+      // styles pick; each face's subset covers the text it draws in every insert
+      const charStylesOf = new Map<TextInsertInput, (RunStyle | null)[] | null>()
+      const keysOf = new Map<TextInsertInput, Set<string>>()
+      const faces = new Map<
+        string,
+        { sample: TextInsertInput; face: ReturnType<typeof faceOf>; text: string }
+      >()
       for (const pageInserts of byPage.values())
-        for (const entry of pageInserts) {
-          const key = faceKeyOf(entry.input)
-          faces.set(key, [...(faces.get(key) ?? []), entry])
+        for (const { input } of pageInserts) {
+          const styles = insertCharStyles(input)
+          charStylesOf.set(input, styles)
+          const keys = new Set<string>([faceKeyOf(input)])
+          if (!faces.has(faceKeyOf(input)))
+            faces.set(faceKeyOf(input), { sample: input, face: faceOf(input, null), text: '' })
+          for (let k = 0; k < input.text.length; k++) {
+            const ch = input.text[k]!
+            if (ch === '\n') continue
+            const s = styles?.[k] ?? null
+            const key = faceKeyOf(input, s)
+            keys.add(key)
+            let f = faces.get(key)
+            if (!f) faces.set(key, (f = { sample: input, face: faceOf(input, s), text: '' }))
+            f.text += ch
+          }
+          keysOf.set(input, keys)
         }
       const faceCache = new Map<
         string,
         { font: number; truetype: boolean; syntheticBold: boolean; failed?: string }
       >()
-      for (const [key, group] of faces) {
-        const first = group[0]!.input
-        const merged = group.map(({ input }) => input.text.replace(/\n/g, '')).join('')
+      for (const [key, { sample, face, text: merged }] of faces) {
         const pseudoEdit: TextEditInput = {
           pageIndex: 0,
           rect: [0, 0, 0, 0],
           oldText: '',
           newText: merged,
-          fontSize: first.fontSize,
-          newFontSize: first.fontSize,
-          newColor: first.color,
-          newFont: first.font,
-          newBold: first.bold,
-          newItalic: first.italic,
+          fontSize: sample.fontSize,
+          newFontSize: sample.fontSize,
+          newColor: sample.color,
+          newFont: face.font,
+          newBold: face.bold,
+          newItalic: face.italic,
         }
         try {
           const { bytes: fontBytes, syntheticBold } = await resolveRebuildFont(
@@ -2378,96 +2451,120 @@ export function applyTextInserts(
           if (!font) throw new Error('FPDFText_LoadFont failed')
           faceCache.set(key, { font, truetype: isTruetype(fontBytes), syntheticBold })
         } catch (err) {
-          const reason = errMsg(err)
-          faceCache.set(key, { font: 0, truetype: true, syntheticBold: false, failed: reason })
-          for (const { input, editIndex } of group)
-            skipped.push({ editIndex, pageIndex: input.pageIndex, reason })
+          faceCache.set(key, { font: 0, truetype: true, syntheticBold: false, failed: errMsg(err) })
         }
       }
-      for (const [pageIndex, pageInserts] of byPage) {
-        const page = m._FPDF_LoadPage(doc, pageIndex)
-        if (!page) throw new Error(`could not load page ${pageIndex + 1}`)
-        let applied = 0
-        try {
-          for (const { input, editIndex } of pageInserts) {
-            const text = input.text.trim()
-            if (!text) {
-              skipped.push({ editIndex, pageIndex, reason: 'empty inserted text' })
-              continue
-            }
-            const face = faceCache.get(faceKeyOf(input))
-            if (!face || face.failed) continue // recorded as skipped with the face
-            const created: number[] = []
-            try {
-              const font = face.font
-              const matrixPtr = m._malloc(24)
-              try {
-                const leading = input.lineLeading ?? input.fontSize * LINE_GAP
-                const [a, b, c, d] = textInsertAxes(input.rotate)
-                for (const [lineIndex, line] of input.text.split('\n').entries()) {
-                  if (!line) continue
-                  const obj = m._FPDFPageObj_CreateTextObj(doc, font, input.fontSize)
-                  const textPtr = utf16Ptr(m, line)
-                  const ok = m._FPDFText_SetText(obj, textPtr)
-                  m._free(textPtr)
-                  if (!ok) {
-                    m._FPDFPageObj_Destroy(obj)
-                    throw new Error('FPDFText_SetText failed on inserted object')
-                  }
-                  const offset = input.lineXOffsets?.[lineIndex] ?? 0
-                  const drop = lineIndex * leading
-                  m.HEAPF32.set(
-                    [
-                      a,
-                      b,
-                      c,
-                      d,
-                      input.origin[0] + a * offset - c * drop,
-                      input.origin[1] + b * offset - d * drop,
-                    ],
-                    matrixPtr >> 2,
-                  )
-                  m._FPDFPageObj_SetMatrix(obj, matrixPtr)
-                  m._FPDFPageObj_SetFillColor(
-                    obj,
-                    input.color[0],
-                    input.color[1],
-                    input.color[2],
-                    255,
-                  )
-                  if (input.invisible) {
-                    // render mode 3 (invisible): the standard OCR-layer form.
-                    // White fill still shows on grey paper, photos and dark
-                    // headers, and lights up under selection.
-                    m._FPDFTextObj_SetTextRenderMode(obj, 3)
-                  }
-                  if (face.syntheticBold && !input.invisible)
-                    strokeObject(
-                      m,
-                      obj,
-                      [input.color[0], input.color[1], input.color[2], 255],
-                      syntheticBoldWidth(input.fontSize),
-                    )
-                  created.push(obj)
-                }
-              } finally {
-                m._free(matrixPtr)
+      const widthPtr = m._malloc(4)
+      try {
+        for (const [pageIndex, pageInserts] of byPage) {
+          const page = m._FPDF_LoadPage(doc, pageIndex)
+          if (!page) throw new Error(`could not load page ${pageIndex + 1}`)
+          let applied = 0
+          try {
+            for (const { input, editIndex } of pageInserts) {
+              const text = input.text.trim()
+              if (!text) {
+                skipped.push({ editIndex, pageIndex, reason: 'empty inserted text' })
+                continue
               }
-              for (const obj of created) m._FPDFPage_InsertObject(page, obj)
-              if (!face.truetype) embeddedCff = true
-              applied++
-            } catch (err) {
-              for (const obj of created) m._FPDFPageObj_Destroy(obj)
-              skipped.push({ editIndex, pageIndex, reason: errMsg(err) })
+              const failed = [...(keysOf.get(input) ?? [])]
+                .map((key) => faceCache.get(key)?.failed)
+                .find((reason) => reason !== undefined)
+              if (failed !== undefined) {
+                skipped.push({ editIndex, pageIndex, reason: failed })
+                continue
+              }
+              const styles = charStylesOf.get(input) ?? null
+              const faceFor = (s: RunStyle | null) => faceCache.get(faceKeyOf(input, s))!
+              const sizeOf = (s: RunStyle | null) =>
+                s?.size !== undefined && s.size > 0 ? s.size : input.fontSize
+              // Advance of one codepoint in text-space pt, with the face and size
+              // that draws it (the same measure the edit rebuild positions with)
+              const advancePt = (cp: number, s: RunStyle | null): number | null =>
+                m._FPDFFont_GetGlyphWidth(faceFor(s).font, cp, 1, widthPtr)
+                  ? m.HEAPF32[widthPtr >> 2]! * sizeOf(s)
+                  : null
+              const created: number[] = []
+              try {
+                const matrixPtr = m._malloc(24)
+                try {
+                  const leading = input.lineLeading ?? input.fontSize * LINE_GAP
+                  const [a, b, c, d] = textInsertAxes(input.rotate)
+                  let lineStart = 0
+                  for (const [lineIndex, line] of input.text.split('\n').entries()) {
+                    const lineStyles = styles
+                      ? styles.slice(lineStart, lineStart + line.length)
+                      : null
+                    lineStart += line.length + 1
+                    if (!line) continue
+                    const segs = segmentLine(line, lineStyles, advancePt)
+                    const stretch = fitStretch(line, lineStyles, input.fitWidth, advancePt)
+                    const offset = input.lineXOffsets?.[lineIndex] ?? 0
+                    const drop = lineIndex * leading
+                    for (const seg of segs) {
+                      if (!seg.text) continue
+                      const face = faceFor(seg.style)
+                      const size = sizeOf(seg.style)
+                      const color = seg.style?.color ?? input.color
+                      const obj = m._FPDFPageObj_CreateTextObj(doc, face.font, size)
+                      const textPtr = utf16Ptr(m, seg.text)
+                      const ok = m._FPDFText_SetText(obj, textPtr)
+                      m._free(textPtr)
+                      if (!ok) {
+                        m._FPDFPageObj_Destroy(obj)
+                        throw new Error('FPDFText_SetText failed on inserted object')
+                      }
+                      const x = offset + seg.xPt * stretch
+                      m.HEAPF32.set(
+                        [
+                          a * stretch,
+                          b * stretch,
+                          c,
+                          d,
+                          input.origin[0] + a * x - c * drop,
+                          input.origin[1] + b * x - d * drop,
+                        ],
+                        matrixPtr >> 2,
+                      )
+                      m._FPDFPageObj_SetMatrix(obj, matrixPtr)
+                      m._FPDFPageObj_SetFillColor(obj, color[0], color[1], color[2], 255)
+                      if (input.invisible) {
+                        // render mode 3 (invisible): the standard OCR-layer form.
+                        // White fill still shows on grey paper, photos and dark
+                        // headers, and lights up under selection.
+                        m._FPDFTextObj_SetTextRenderMode(obj, 3)
+                      }
+                      if (face.syntheticBold && !input.invisible)
+                        strokeObject(
+                          m,
+                          obj,
+                          [color[0], color[1], color[2], 255],
+                          syntheticBoldWidth(size),
+                        )
+                      created.push(obj)
+                      if (!face.truetype) embeddedCff = true
+                    }
+                  }
+                } finally {
+                  m._free(matrixPtr)
+                }
+                for (const obj of created) m._FPDFPage_InsertObject(page, obj)
+                applied++
+              } catch (err) {
+                for (const obj of created) m._FPDFPageObj_Destroy(obj)
+                skipped.push({ editIndex, pageIndex, reason: errMsg(err) })
+              }
             }
+            if (applied > 0 && !m._FPDFPage_GenerateContent(page)) {
+              throw new Error(`could not regenerate page ${pageIndex + 1}`)
+            }
+            appliedTotal += applied
+          } finally {
+            m._FPDF_ClosePage(page)
           }
-          if (applied > 0 && !m._FPDFPage_GenerateContent(page)) {
-            throw new Error(`could not regenerate page ${pageIndex + 1}`)
-          }
-          appliedTotal += applied
-        } finally {
-          m._FPDF_ClosePage(page)
         }
+      } finally {
+        m._free(widthPtr)
       }
       if (appliedTotal === 0) return { bytes, skipped }
       const saved = saveDoc(m, doc)
@@ -2751,10 +2848,37 @@ async function validateTextEditsInner(
       const colPtr = m._malloc(16)
       try {
         const objects = collectTextObjects(m, page, textPage)
+        // Text nobody can see (a scanner's or our own OCR layer over a page picture):
+        // rewriting or moving it would change nothing on screen, so the editor turns
+        // the edit into a patch over the picture instead. Told whether or not the
+        // run matches — an unmatched OCR run is still OCR.
+        const invisibleIn = (objs: PageTextObj[]) =>
+          objs.length > 0 &&
+          objs.every(
+            (t) => m._FPDFTextObj_GetTextRenderMode(t.obj) === FPDF_TEXTRENDERMODE_INVISIBLE,
+          )
         for (const e of pageEdits) {
           const res = matchEdit(objects, e)
           if ('reason' in res) {
-            results[indexOf.get(e)!] = { reason: res.reason }
+            const near = objects.filter(
+              (t) =>
+                t.bounds[0] < e.rect[2] &&
+                t.bounds[2] > e.rect[0] &&
+                t.bounds[1] < e.rect[3] &&
+                t.bounds[3] > e.rect[1],
+            )
+            results[indexOf.get(e)!] = {
+              reason: res.reason,
+              ...(invisibleIn(near) ? { invisible: true } : {}),
+            }
+            continue
+          }
+          if (invisibleIn(res.matches)) {
+            results[indexOf.get(e)!] = {
+              reason: null,
+              bounds: matchBounds(res.matches),
+              invisible: true,
+            }
             continue
           }
           // Same gates the apply path enforces: a move must own its objects outright,

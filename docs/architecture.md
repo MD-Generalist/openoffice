@@ -6,7 +6,9 @@
 
 ```
 apps/shell      껍데기 앱. 창, 탭, 홈 화면, 설정, 첫 실행 안내, 자동 업데이트, 파일 색인과 지식 자료 검색,
-                앱 안 MCP 서버, 명령어가 실행 중인 앱에 말을 거는 제어 창구, 만들기 창, AI 없이 바꾸기, 출처 기록,
+                전역 빠른 전환기(Ctrl+Shift+P/⌘⇧P 팝업 BrowserWindow), 버전 타임라인 IPC와 용량 관리,
+                미리보기 포함 진단 파일(.zip) 내보내기, 공용 품질 조각(resources/builtin-craft),
+                앱 안 MCP 서버, 명령어가 실행 중인 앱에 말을 거는 제어 창구, 만들기 창(편집기 전용 브리지 포함), AI 없이 바꾸기, 출처 기록,
                 AI 창의 "이음오피스 문서에서 첨부"가 쓰는 문서 고르기 창, 프로젝트 폴더의 길잡이(목록·믿음·폴더 읽고 쓰기),
                 사용자 MCP 서버의 허브(연결·실행·로그인·실행 환경 받기, 결정 0100)
 apps/docs       워드(.docx) 편집기. 뒷단이 공용 AI 창구(`ai:*`)를 등록한다. 설치본에서는 모든 편집기의
@@ -29,12 +31,13 @@ apps/whiteboard 화이트보드(.whiteboard) 편집기. React/SVG 캔버스, Exc
                 문서 모델·ZIP 저장·편집 계획·선언형 템플릿·Excalidraw 변환은 packages/whiteboard-engine(Rust WASM)이 맡는다
 packages/ai-provider   제공자 목록, 제공자 선택 규칙, 구독 프로그램 실행부, 키 방식 제공자 연결
 packages/ai-search     검색·이미지 생성·미디어 분석 도구, 자동 호출 경로의 구독 요청 차례
-packages/agent-core    AI 실행 반복(모델 → 도구 → 모델), 화면↔뒷단 전송 통로, 가리기
-packages/ui            편집기들이 함께 쓰는 AI 화면 부품과 그 문구(22개 언어)
+packages/agent-core    AI 실행 반복(모델 → 도구 → 모델), 화면↔뒷단 전송 통로, 가리기, 공용 앱 도구 `ask_questions`, 정적 품질 점검 코어
+packages/ui            편집기들이 함께 쓰는 AI 화면 부품(`AiQuestionCard`, `AiNextSteps`, `ReviewMemoPicker`, `AiQualityBadge`, `VersionTimelineDrawer`, `Tweaks` 스타일)과 그 문구(22개 언어), 5단계 텍스트·알파 채움·그림자 토큰
 packages/i18n          화면 언어 목록, 제품 이름 한 곳 정의
 packages/cli           터미널 명령어 `ieumoffice`, MCP 도구, 에이전트 스킬 설치
 packages/electron-utils 편집기 뒷단 공용 도구(메뉴, 저장소 주소, 원격 이미지 받기 등), 저장하지 않은 파일 확인,
-                       생성 요청을 새 탭에 맡겨 두는 곳(`generate-handoff.ts`)
+                       생성 요청을 새 탭에 맡겨 두는 곳(`generate-handoff.ts`), 편집기 전용 만들기 창 브리지(`generate-editor-bridge.ts`),
+                       영구 버전 타임라인 저장소와 프리로드 브리지(`version-timeline-store.ts`, `version-timeline-bridge.ts`)
 packages/odt-engine    ODT 열기(다리 docx로 바꾸기), 고친 부분만 원본 ODT에 되돌려 쓰기, docx → 새 ODT
 packages/pdf-structure PDF의 문서 나무(다시 흐르는 글), Markdown·EPUB 쓰기, 그림 원본 꺼내기, AI 페이지 읽기,
                        번역, 번역 PDF 써 넣기, 문서 작업 엔진, 결과 보관소. pdf2docx의 IR을 읽기만 한다

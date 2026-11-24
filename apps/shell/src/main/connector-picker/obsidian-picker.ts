@@ -1,8 +1,16 @@
+import { readFile } from 'node:fs/promises'
 import type { ConnectorPickerItem } from '../../shared/connector-picker-api'
-import { listVaultNotesForPicker, type VaultEntryLike } from '../mcp-client/obsidian-vault'
+import {
+  listVaultNotesForPicker,
+  resolveVaultEmbeddedImages,
+  type VaultEntryLike,
+} from '../mcp-client/obsidian-vault'
+import { comparablePath } from '../projects/paths'
 
 /** Maximum number of notes that may be attached in one pick */
 export const MAX_OBSIDIAN_PICKS = 20
+/** Maximum total embedded vault images automatically attached alongside picked notes */
+export const MAX_OBSIDIAN_ATTACHED_IMAGES = 20
 const MAX_ID_LENGTH = 4096
 
 /**
@@ -63,4 +71,55 @@ export function resolveObsidianSelection(
     paths.push(raw)
   }
   return { paths, skipped }
+}
+
+/**
+ * Resolve chosen Obsidian notes and automatically collect local vault images
+ * referenced inside those notes (`![[img.png]]`, `![alt](assets/img.png)`,
+ * `<img src="...">`) under full vault security invariants.
+ */
+export async function resolveObsidianSelectionWithImages(
+  rawIds: unknown,
+  listedItems: readonly ConnectorPickerItem[] | null,
+  vaults: readonly VaultEntryLike[],
+  options: { platform?: NodeJS.Platform; maxImages?: number } = {},
+): Promise<{ paths: string[]; skipped: number }> {
+  const base = resolveObsidianSelection(rawIds, listedItems)
+  if (base.paths.length === 0 || !listedItems || vaults.length === 0) return base
+
+  const platform = options.platform ?? process.platform
+  const maxImages = options.maxImages ?? MAX_OBSIDIAN_ATTACHED_IMAGES
+  const itemById = new Map<string, ConnectorPickerItem>()
+  for (const item of listedItems) itemById.set(item.id, item)
+  const vaultById = new Map<string, VaultEntryLike>()
+  for (const v of vaults) vaultById.set(v.id, v)
+
+  const imagePaths: string[] = []
+  const seenImages = new Set<string>()
+
+  for (const notePath of base.paths) {
+    if (imagePaths.length >= maxImages) break
+    const item = itemById.get(notePath)
+    const vault = item?.vaultId ? vaultById.get(item.vaultId) : undefined
+    if (!vault) continue
+    let text: string
+    try {
+      text = await readFile(notePath, 'utf8')
+    } catch {
+      continue
+    }
+    const embedded = await resolveVaultEmbeddedImages(vault.path, notePath, text, {
+      platform,
+      maxImages: maxImages - imagePaths.length,
+    })
+    for (const img of embedded) {
+      if (imagePaths.length >= maxImages) break
+      const cmp = comparablePath(img.absPath, platform)
+      if (seenImages.has(cmp)) continue
+      seenImages.add(cmp)
+      imagePaths.push(img.absPath)
+    }
+  }
+
+  return { paths: [...base.paths, ...imagePaths], skipped: base.skipped }
 }

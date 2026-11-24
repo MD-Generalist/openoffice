@@ -4342,6 +4342,7 @@ describe('the skill as the model sees it', () => {
     expect(skill.tools.map((tool) => tool.name)).toEqual([
       'read_document',
       'read_memos',
+      'reply_memo',
       'find_text',
       'web_search',
       'read_url',

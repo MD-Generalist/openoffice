@@ -546,7 +546,8 @@ export function executeTool(
     case 'insert_image': {
       if (editedExternally(editor)) return fail(STALE_DOC_ERROR, t('aiToolInsertImage'))
       const url = String(call.input.url ?? '')
-      if (!/^https?:\/\//.test(url)) return fail('invalid url', t('aiToolInsertImage'))
+      // file:// = a locally cached/generated image in the app's validated store (the main process only resolves its own UUID files)
+      if (!/^(https?|file):\/\//.test(url)) return fail('invalid url', t('aiToolInsertImage'))
       return insertImageFromUrl(editor, url, call.input, signal, {
         fail: t('aiToolInsertImage'),
         done: t('aiToolInsertImageDone'),

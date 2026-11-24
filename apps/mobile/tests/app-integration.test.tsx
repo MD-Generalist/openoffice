@@ -159,11 +159,17 @@ describe('apply-native-config idempotency for Android and iOS', () => {
   it('injects Android manifest + FileProvider and iOS Info.plist + Entitlements idempotently', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'ieum-native-cfg-'))
     try {
-      const androidMain = join(tmp, 'android', 'app', 'src', 'main')
+      const androidApp = join(tmp, 'android', 'app')
+      const androidMain = join(androidApp, 'src', 'main')
       mkdirSync(androidMain, { recursive: true })
       writeFileSync(
         join(androidMain, 'AndroidManifest.xml'),
         '<manifest><application><activity android:name=".MainActivity"></activity></application></manifest>',
+        'utf8',
+      )
+      writeFileSync(
+        join(androidApp, 'build.gradle.kts'),
+        'android {\n  namespace = "com.ieumoffice.mobile"\n}\napply(from = file("tauri.build.gradle.kts"))\n',
         'utf8',
       )
 
@@ -187,6 +193,10 @@ describe('apply-native-config idempotency for Android and iOS', () => {
         true,
       )
       expect(existsSync(join(androidMain, 'res', 'mipmap-xxxhdpi', 'ic_launcher.png'))).toBe(true)
+      const gradle = readFileSync(join(androidApp, 'build.gradle.kts'), 'utf8')
+      expect(gradle.match(/IEUM_MOBILE_GRADLE_SIGNING_START/g)?.length).toBe(1)
+      expect(gradle).toContain('ANDROID_KEYSTORE_PATH')
+      expect(gradle).toContain('IEUM_ANDROID_VERSION_CODE')
 
       const i1 = applyIosConfig(tmp)
       const i2 = applyIosConfig(tmp)

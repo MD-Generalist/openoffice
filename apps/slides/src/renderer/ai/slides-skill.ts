@@ -9,7 +9,18 @@ import type {
 import type { AgentToolCall, AgentToolDef, ReadUrlResult, SlideComment } from '../../shared/ipc'
 import { OP_GROUPS, opGuide, opGuideCatalog, opSignatureIndex } from '@genoffice/pptx-ops/op-docs'
 import { auditSlideLayout, formatAudit } from '@genoffice/pipelines/slides/layout-audit'
-import { findSlideTemplate, listSlideTemplates } from '@genoffice/pipelines/slides/templates'
+import {
+  findSlideTemplate,
+  formatDeckStructurePromptNote,
+  listSlideTemplates,
+  type SlideDeckStructure,
+} from '@genoffice/pipelines/slides/templates'
+import {
+  REPLY_COMMENT_TOOL,
+  executeReplyCommentTool,
+  type ReplyCommentDeps,
+} from './comment-reply-tool'
+import { speakerNotesPromptAddition } from './speaker-notes-option'
 import { runLayoutScript, type LayoutScriptElement } from './layout-script'
 import {
   extractLayoutSkeleton,
@@ -143,6 +154,12 @@ export interface DeckAccess {
   ): Promise<{ ok: boolean; error?: string; imageFailures?: { page: number; url: string }[] }>
   /** Survey: shows a card with options and waits for the user's choices, returning an answer summary. */
   askClarification?(questions: ClarifyQuestion[]): Promise<{ answers: string; cancelled?: boolean }>
+  /** Optional PowerPoint-compatible comment reply handler (T10) */
+  replyComment?: ReplyCommentDeps
+  /** Optional speaker-notes separation toggle (default OFF) (T11) */
+  speakerNotesSeparate?(): boolean
+  /** Optional purpose-specific deck structure preset (T11) */
+  deckStructure?(): SlideDeckStructure | undefined
   /**
    * In-tool image search (embedded in the tool):
    * given English keywords, returns an array of real image URLs (at most N).
@@ -337,6 +354,7 @@ const TOOLS: AgentToolDef[] = [
       'List the deck\'s review comments in page order: page number, hidden flag, id "authorId:idx", author, ISO time and text. The ids are what apply_ops deleteComment takes — delete a comment only when the user asks.',
     inputSchema: { type: 'object', properties: {}, required: [] },
   },
+  REPLY_COMMENT_TOOL,
   {
     name: 'execute_slide_script',
     description:
@@ -1178,16 +1196,21 @@ export function createSlidesSkill(access: DeckAccess): AgentSkill {
         access.imageAttachmentNames?.() ?? [],
         'pass url=attachment://<name> to insert_web_image',
       )
+      const speakerNote = speakerNotesPromptAddition(access.speakerNotesSeparate?.())
+      const structureNote = formatDeckStructurePromptNote(access.deckStructure?.())
       return (
         brandText(systemPrompt, 'en') +
         mediaToolsOffNote(hiddenMediaTools(access)) +
         attached +
-        redact
+        redact +
+        speakerNote +
+        (structureNote ? `\n\n${structureNote}` : '')
       )
     },
     // live view: the predicates are re-read before every model request
     get tools() {
       const hidden = hiddenMediaTools(access)
+      if (!access.replyComment) hidden.add(REPLY_COMMENT_TOOL.name)
       return hidden.size ? TOOLS.filter((t) => !hidden.has(t.name)) : TOOLS
     },
     buildContext: () => {
@@ -1641,6 +1664,13 @@ async function executeTool(
         mutated: false,
         summary: t('aiSumReadComments'),
       }
+    }
+
+    case 'reply_comment': {
+      if (!access.replyComment) {
+        return fail('reply_comment unavailable', 'reply_comment is not configured in this view')
+      }
+      return executeReplyCommentTool(call.input, access.replyComment)
     }
 
     case 'execute_layout_script':

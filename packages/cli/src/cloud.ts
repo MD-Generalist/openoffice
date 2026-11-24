@@ -267,6 +267,12 @@ const NEXT_STEP: Record<NonNullable<MediaToolFailure['errorCode']>, string> = {
     'do not retry: the subscription CLI came up with tools it must not have, so nothing was run; tell the user',
   credits: 'do not retry: the provider account is out of credit, tell the user',
   network: 'check the network connection (HTTPS_PROXY is honoured), then retry once',
+  'proxy-error':
+    'check HTTPS_PROXY / HTTP_PROXY environment settings or corporate proxy rules, then retry once',
+  'cert-error':
+    'check the TLS / corporate CA certificate configuration (NODE_EXTRA_CA_CERTS), then retry once',
+  'network-unreachable':
+    'check that the device is online and the provider endpoint is reachable, then retry once',
   overloaded: 'the provider is busy: retry once in a minute',
   timeout: 'retry once; if it times out again, continue without it',
   'context-limit':

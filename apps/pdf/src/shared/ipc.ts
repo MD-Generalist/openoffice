@@ -694,6 +694,23 @@ export interface TextInsertInput {
   align?: 'left' | 'center' | 'right'
   /** Final displayed page rotation; insertion matrix counter-rotates text into screen space. */
   rotate?: number
+  /** Selection-level styles: [start,end) code-unit ranges into text, ascending and
+      non-overlapping (a line break counts as one unit). Each present field overrides the
+      whole-insert value (color / font / fontSize / bold / italic) for its range;
+      each line splits into one text object per distinct style. */
+  styleRuns?: {
+    start: number
+    end: number
+    color?: [number, number, number]
+    font?: string
+    size?: number
+    bold?: boolean
+    italic?: boolean
+  }[]
+  /** Stretch or squeeze every line horizontally to exactly this many pt. The OCR
+      bake fits each run to its recognized box, so selections and search hits sit
+      on the scan's ink instead of a font's natural width. */
+  fitWidth?: number
   /** PDF text render mode 3 — present, selectable and searchable, never painted.
       The OCR bake layer's inserts: white glyphs would still show on grey paper,
       photos and dark headers, and light up under selection. */
@@ -704,6 +721,10 @@ export interface TextInsertInput {
 export interface TextEditValidation {
   /** null = the edit would apply; string = reason it would be skipped */
   reason: string | null
+  /** The run (or, when it did not match, every text object under the edit rect) is
+      drawn invisible (render mode 3): an OCR layer over a page picture. Rewriting or
+      moving it changes nothing visible, so editors patch the picture instead. */
+  invisible?: true
   /** Ink bounds [x1,y1,x2,y2] of the matched text objects (PDF user space). The renderer's
       edit rect is a pdf.js layout box (font metrics); glyph ink can poke out of it, so the
       preview cover must use the engine's real bounds or remnants of the old run show through */
@@ -766,6 +787,10 @@ export type ImageEditInput =
       /** Final display rotation of the page (0/90/180/270); the image content is
           counter-rotated so it shows upright on rotated pages */
       rotate?: number
+      /** Place it right above the topmost picture under rect, whatever the page
+          draws before or after that picture (a scan's ink patch: over the scan,
+          under any text). `layer` applies when no picture lies under rect. */
+      overPicture?: true
     }
   | {
       kind: 'transformImage'

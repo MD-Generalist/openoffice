@@ -1,9 +1,12 @@
 import {
   AiAttachMenu,
+  AiAssistantBody,
   AiChangesCard,
   aiPanelWidthAtPointer,
   AiPanelHeader,
   AiPanelSideButton,
+  AiQualityBadge,
+  AiQuestionCard,
   AiReplyFooter,
   AiScrollToBottom,
   AiModelPicker,
@@ -26,8 +29,12 @@ import {
   aiContextConfirmText,
   aiRunErrorText,
   aiSubscriptionText,
+  buildMemoBatchPromptSection,
   clipboardPictureIsRendering,
+  openGenerateForCurrentDocument,
+  useAiInlineQuestions,
   useAiSendGate,
+  type ReviewMemoItem,
   type DriveAttachPicked,
   McpPermissionCard,
   McpServerButton,
@@ -85,6 +92,9 @@ import {
   type ClarifyQuestion,
   type DeckProgressEvent,
 } from './slides-skill'
+import { slidesCommentsToReviewMemos } from './memo-attach'
+import { runSlidesStaticQualityAudit } from './slides-static-qc'
+import type { QualityFinding } from '@genoffice/agent-core'
 import { extractJsonObject, parseOutlineJson } from './outline-json'
 import { createDeckContextGate } from './deck-context-gate'
 import { buildPageSystemPrompt } from './page-system-prompt'
@@ -449,6 +459,8 @@ interface AiPanelProps {
   onFocusChange?: (slideIndex: number, nodeKeyId?: string) => void
   /** Drop the items a submission finished with (successful and unrunnable alike) */
   onQueueConsume?: (keys: string[]) => void
+  onOpenTweaks?: () => void
+  onAiDoneRecord?: (promptSummary: string) => void
 }
 
 /** Resizable panel width: always opens at the default (drag-resize lasts for
@@ -504,11 +516,16 @@ export function AiPanel({
   onFocusChange,
   onQueueConsume,
   templateDocument,
+  onOpenTweaks,
+  onAiDoneRecord,
 }: AiPanelProps) {
   const { t, lang } = useI18n()
   // Panel chrome follows the UI language; message text follows its own content (dir=auto below)
   const isRtl = lang === 'ar' || lang === 'he'
   const [input, setInput] = useState('')
+  const inlineQuestions = useAiInlineQuestions()
+  const [attachedMemos, setAttachedMemos] = useState<ReviewMemoItem[]>([])
+  const [qualityFindings, setQualityFindings] = useState<QualityFinding[]>([])
   // Shared AI panel pref (Settings → General): the bespoke slides composer
   // must honor it like the shared AiComposer does.
   const { spellcheck } = useAiPanelPrefs()
@@ -1358,6 +1375,16 @@ export function AiPanel({
         }
       },
       getCommentSummary: () => getCommentSummaryRef.current?.() ?? { total: 0, pages: [] },
+      replyComment: {
+        getSlideComments: async (slideIndex) => {
+          const all = await window.slidesApi.getAllComments()
+          return Array.isArray(all) ? (all[slideIndex] ?? []) : []
+        },
+        addComment: async (op) => {
+          await window.slidesApi.addComment({ slideIndex: op.slideIndex, text: op.text })
+        },
+        fitWidthPx: () => fitWidthPx,
+      },
       applySlide: (i, updated) => applySlideRef.current(i, updated),
       applyDeck: (all, goTo) => applyDeckRef.current(all, goTo),
       landGeneratedPages: async (
@@ -1761,6 +1788,7 @@ export function AiPanel({
       skill: composeWithDrive('slides+files', '', () => loopRef.current?.messages ?? [], [
         createSlidesSkill(access),
         createFilesSkill(availableAttachments, (path) => readAttachmentPathsRef.current.add(path)),
+        inlineQuestions.askQuestionsSkill,
         // the person's skills: use_skill, read_skill_file, propose_skill (app-run tools)
         ...panelUserSkills({
           editor: 'slides',
@@ -1863,6 +1891,14 @@ export function AiPanel({
           const handedDone = handedRunRef.current.settle(!cancelled)
           void finishHistoryBatch().finally(() => {
             setBusy(false)
+            if (!cancelled && ranTools) {
+              setQualityFindings(
+                runSlidesStaticQualityAudit(slidesRef.current, {
+                  userPrompt: lastInstructionRef.current,
+                }).findings,
+              )
+              onAiDoneRecord?.(lastInstructionRef.current)
+            }
             // Post-generation layout QC: only after a completed run that landed generated pages
             if (cancelled) qcPagesRef.current = []
             const qc =
@@ -2011,8 +2047,12 @@ export function AiPanel({
 
   const run = () => {
     const text = input.trim()
-    if (!text) return
-    skills.withSkills(text, (skillUse) => runWith(text, undefined, undefined, skillUse))
+    if (!text && attachedMemos.length === 0) return
+    inlineQuestions.supersedeOpen()
+    const memoBlock = buildMemoBatchPromptSection(attachedMemos)
+    const composed = memoBlock ? (text ? `${memoBlock}\n\n${text}` : memoBlock) : text
+    if (attachedMemos.length > 0) setAttachedMemos([])
+    skills.withSkills(composed, (skillUse) => runWith(composed, undefined, undefined, skillUse))
   }
 
   /** Enter while a reply runs: the draft joins the queue above the composer */
@@ -2824,7 +2864,21 @@ export function AiPanel({
               {entry.role === 'assistant' ? (
                 entry.text && (
                   <div dir="auto">
-                    <Markdown text={entry.text} />
+                    <AiAssistantBody
+                      lang={lang}
+                      text={entry.text}
+                      streaming={entry.streaming}
+                      questionStatus={inlineQuestions.textCardStates[`m-${i}`]?.status}
+                      savedAnswers={inlineQuestions.textCardStates[`m-${i}`]?.answers}
+                      onQuestionSubmit={(spec, answers) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'submitted', answers)
+                        runWith(inlineQuestions.formatFollowUp(spec, answers, false))
+                      }}
+                      onQuestionSkip={(spec) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'skipped')
+                        runWith(inlineQuestions.formatFollowUp(spec, {}, true))
+                      }}
+                    />
                   </div>
                 )
               ) : (
@@ -2873,6 +2927,21 @@ export function AiPanel({
                 thinking={t('aiThinking')}
                 working={t('aiContinuing')}
               />
+              {isLast && !busy && qualityFindings.length > 0 && (
+                <AiQualityBadge
+                  lang={lang}
+                  findings={qualityFindings}
+                  aiVisible
+                  onFixWithAi={() => {
+                    const summary = qualityFindings
+                      .map((f) => `- [${f.severity}] ${f.message}`)
+                      .join('\n')
+                    runWith(
+                      `Please fix the following quality audit findings in the slides:\n${summary}`,
+                    )
+                  }}
+                />
+              )}
               {entry.role === 'assistant' && (showToolbar || entry.usage) && (
                 <AiReplyFooter
                   lang={lang}
@@ -2882,6 +2951,26 @@ export function AiPanel({
                     showToolbar && isLast && !busy && lastInstructionRef.current ? retry : undefined
                   }
                   usage={entry.usage}
+                  nextSteps={
+                    isLast
+                      ? {
+                          context: {
+                            aiVisible: true,
+                            streaming: Boolean(entry.streaming),
+                            completedNormally: !entry.error && !entry.blocked,
+                            editorKind: 'slides',
+                            editedDocument: Boolean(runChanges),
+                            qualityIssueCount: qualityFindings.length,
+                            usedSkillName: entry.skills?.[0]?.title,
+                            canGenerateOtherDoc: true,
+                            hasSavedPath: Boolean(currentFilePath),
+                          },
+                          onRunAi: (prompt) => runWith(prompt),
+                          onOpenTweaks,
+                          onGenerateOtherDoc: openGenerateForCurrentDocument,
+                        }
+                      : undefined
+                  }
                 />
               )}
               {clarifyAnswers
@@ -2899,6 +2988,16 @@ export function AiPanel({
             </div>
           )
         })}
+        {inlineQuestions.activeToolCard && (
+          <AiQuestionCard
+            lang={lang}
+            spec={inlineQuestions.activeToolCard.spec}
+            status={inlineQuestions.activeToolCard.status}
+            savedAnswers={inlineQuestions.activeToolCard.answers}
+            onSubmit={inlineQuestions.submitToolCard}
+            onSkip={inlineQuestions.skipToolCard}
+          />
+        )}
         {skillTemplates.notes}
         {/* an MCP tool waiting for the person's yes (user MCP spec 7.4) */}
         <McpPermissionCard lang={lang} />
@@ -3118,6 +3217,17 @@ export function AiPanel({
                   onPickPc={() => void pickAttachments()}
                   onPickedDocs={attachFromDrive}
                   onPickedDrive={attachFromDrive}
+                  memoAttach={{
+                    listMemos: async () => {
+                      const all = (await getAllCommentsRef.current?.().catch(() => [])) ?? []
+                      return slidesCommentsToReviewMemos(all)
+                    },
+                    onAttachMemos: (items) =>
+                      setAttachedMemos((prev) => {
+                        const seen = new Set(prev.map((m) => m.id))
+                        return [...prev, ...items.filter((m) => !seen.has(m.id))]
+                      }),
+                  }}
                 />
                 {skills.composer && (
                   <button

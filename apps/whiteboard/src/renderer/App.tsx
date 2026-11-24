@@ -6,9 +6,32 @@
  * - In-app MCP queries (`read`, `apply`, `bytes`)
  * - AI panel visibility (`useAppChoice` + `aiVisible`) and handoff
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
-import { aiVisible, useAppChoice, useAutoSavePref, useSplitPaneFocusPing } from '@genoffice/ui'
+import {
+  aiVisible,
+  tweaksText,
+  useAppChoice,
+  useAutoSavePref,
+  useSplitPaneFocusPing,
+  VersionTimelineDrawer,
+  versionTimelineText,
+  type DrawerVersionEntry,
+} from '@genoffice/ui'
+import '@genoffice/ui/tweaks-panel.css'
+import type { BoardDocument } from '@genoffice/whiteboard-engine'
+import {
+  VERSION_TIMELINE_BRIDGE_KEY,
+  type VersionTimelineBridge,
+} from '@genoffice/electron-utils/version-timeline-channels'
+import {
+  commitWhiteboardTweaks,
+  DEFAULT_WHITEBOARD_TWEAKS,
+  resetWhiteboardTweaks,
+  type WhiteboardTweaksState,
+} from './tweaks/whiteboard-tweaks'
+import { WhiteboardTweaksPanel } from './tweaks/WhiteboardTweaksPanel'
+import { WhiteboardTimelineAdapter } from './timeline/whiteboard-timeline-adapter'
 import type {
   ExportFormat,
   ExportPageImage,
@@ -28,10 +51,15 @@ const RECOVERY_INTERVAL_MS = 20_000
 const TOAST_MS = 4000
 
 export default function App(): ReactElement {
-  const { t } = useI18n()
+  const { lang, t } = useI18n()
   const appChoice = useAppChoice(window.aiOfficeEditorChoice)
   const showAi = aiVisible(appChoice)
   const [aiOpen, setAiOpen] = useWhiteboardAiOpen()
+  const [tweaksOpen, setTweaksOpen] = useState(false)
+  const [tweaksState, setTweaksState] = useState<WhiteboardTweaksState>(DEFAULT_WHITEBOARD_TWEAKS)
+  const tweaksBaselineRef = useRef<BoardDocument | null>(null)
+  const [timelineOpen, setTimelineOpen] = useState(false)
+  const [timelineEntries, setTimelineEntries] = useState<DrawerVersionEntry[]>([])
 
   const [session, setSession] = useState<WhiteboardSession | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -56,6 +84,31 @@ export default function App(): ReactElement {
   const aiOpenRef = useRef(aiOpen)
   aiOpenRef.current = aiOpen
   const savingRef = useRef(false)
+
+  const timelineAdapter = useMemo(() => {
+    const bridge = (window as unknown as Record<string, VersionTimelineBridge | undefined>)[
+      VERSION_TIMELINE_BRIDGE_KEY
+    ]
+    const rawId = (session?.getDocument().id ?? 'untitled').replace(/[^a-zA-Z0-9_-]/g, '_')
+    const docKey = session?.getFilePath() || `whiteboard_${rawId}`
+    return new WhiteboardTimelineAdapter(bridge, docKey, () => sessionRef.current)
+  }, [session])
+  const timelineAdapterRef = useRef(timelineAdapter)
+  timelineAdapterRef.current = timelineAdapter
+
+  const refreshTimeline = useCallback(() => {
+    void timelineAdapterRef.current.list().then((items) => setTimelineEntries(items))
+  }, [])
+
+  useEffect(() => {
+    if (timelineOpen) refreshTimeline()
+  }, [timelineOpen, refreshTimeline])
+
+  const openTweaks = useCallback(() => {
+    const s = sessionRef.current
+    if (s) tweaksBaselineRef.current = structuredClone(s.getDocument())
+    setTweaksOpen(true)
+  }, [])
 
   useSplitPaneFocusPing()
 
@@ -127,42 +180,46 @@ export default function App(): ReactElement {
   }, [session])
 
   // Save handler (2-step saveTarget -> save for atomic write & save-conflict guard).
-  const performSave = useCallback(async (mode: SaveMode): Promise<boolean> => {
-    const s = sessionRef.current
-    if (!s || savingRef.current) return false
-    savingRef.current = true
-    setSaveStatus('saving')
-    try {
-      const target = await window.whiteboardApi.core.saveTarget({
-        mode,
-        suggestedName: s.getDocument().title || undefined,
-        sourcePath: s.getImportSourcePath(),
-      })
-      if (!target.ok) {
-        setSaveStatus('idle')
+  const performSave = useCallback(
+    async (mode: SaveMode): Promise<boolean> => {
+      const s = sessionRef.current
+      if (!s || savingRef.current) return false
+      savingRef.current = true
+      setSaveStatus('saving')
+      try {
+        const target = await window.whiteboardApi.core.saveTarget({
+          mode,
+          suggestedName: s.getDocument().title || undefined,
+          sourcePath: s.getImportSourcePath(),
+        })
+        if (!target.ok) {
+          setSaveStatus('idle')
+          return false
+        }
+        const serialized = await s.serializeForSave({ updateThumbnail: true })
+        const saved = await window.whiteboardApi.core.save({
+          token: target.token,
+          mode,
+          bytes: serialized.bytes,
+          unchanged: serialized.unchanged,
+        })
+        if (!saved.ok) {
+          setSaveStatus(saved.canceled ? 'idle' : 'failed')
+          return false
+        }
+        s.markSaved(saved.filePath)
+        setSaveStatus('saved')
+        void timelineAdapterRef.current.record('save').then(() => refreshTimeline())
+        return true
+      } catch {
+        setSaveStatus('failed')
         return false
+      } finally {
+        savingRef.current = false
       }
-      const serialized = await s.serializeForSave({ updateThumbnail: true })
-      const saved = await window.whiteboardApi.core.save({
-        token: target.token,
-        mode,
-        bytes: serialized.bytes,
-        unchanged: serialized.unchanged,
-      })
-      if (!saved.ok) {
-        setSaveStatus(saved.canceled ? 'idle' : 'failed')
-        return false
-      }
-      s.markSaved(saved.filePath)
-      setSaveStatus('saved')
-      return true
-    } catch {
-      setSaveStatus('failed')
-      return false
-    } finally {
-      savingRef.current = false
-    }
-  }, [])
+    },
+    [refreshTimeline],
+  )
 
   // Auto-save timer (only when already saved to disk and dirty).
   useEffect(() => {
@@ -414,8 +471,66 @@ export default function App(): ReactElement {
           setOpen={setAiOpen}
           handoff={handoff}
           onHandoffConsumed={() => setHandoff(null)}
+          onOpenTweaks={openTweaks}
+          onAiDoneRecord={(summary) =>
+            void timelineAdapterRef.current
+              .record('ai', { promptSummary: summary })
+              .then(() => refreshTimeline())
+          }
         />
       )}
+      <div className="wb-noai-tools" role="group">
+        <button
+          type="button"
+          className="ieum-tweaks-btn"
+          onClick={() => (tweaksOpen ? setTweaksOpen(false) : openTweaks())}
+        >
+          {tweaksText(lang, 'title')}
+        </button>
+        <button
+          type="button"
+          className="ieum-tweaks-btn"
+          onClick={() => setTimelineOpen((v) => !v)}
+        >
+          {versionTimelineText(lang, 'title')}
+        </button>
+      </div>
+      {tweaksOpen && (
+        <WhiteboardTweaksPanel
+          lang={lang}
+          value={tweaksState}
+          onChange={(next) => {
+            setTweaksState(next)
+            const base = tweaksBaselineRef.current ?? session.getDocument()
+            commitWhiteboardTweaks(session, base, next)
+          }}
+          onReset={() => {
+            setTweaksState(DEFAULT_WHITEBOARD_TWEAKS)
+            if (tweaksBaselineRef.current) {
+              resetWhiteboardTweaks(session, tweaksBaselineRef.current)
+            }
+          }}
+          onClose={() => setTweaksOpen(false)}
+        />
+      )}
+      <VersionTimelineDrawer
+        open={timelineOpen}
+        lang={lang}
+        entries={timelineEntries}
+        onSaveCheckpoint={async (label) => {
+          await timelineAdapterRef.current.record('checkpoint', { label })
+          refreshTimeline()
+        }}
+        onRestore={async (entry) => {
+          await timelineAdapterRef.current.restore(entry.id)
+          refreshTimeline()
+        }}
+        onDelete={async (entry) => {
+          await timelineAdapterRef.current.deleteEntry(entry.id)
+          refreshTimeline()
+        }}
+        onClose={() => setTimelineOpen(false)}
+      />
       {printDialogOpen && (
         <WhiteboardPrintDialog
           api={window.whiteboardApi}
