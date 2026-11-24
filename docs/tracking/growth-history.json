@@ -20743,21 +20743,21 @@
   },
   {
     "date": "2026-11-24",
-    "totalDownloads": 84390,
+    "totalDownloads": 84819,
     "installs": {
-      "windows": 60198,
-      "macos": 20870,
-      "linux": 3322
+      "windows": 60472,
+      "macos": 21002,
+      "linux": 3345
     },
-    "updateChecks": 185648,
+    "updateChecks": 188039,
     "releaseCount": 16,
-    "stars": 928,
-    "forks": 168,
+    "stars": 930,
+    "forks": 169,
     "releases": [
       {
         "tag": "v0.13.2",
         "publishedAt": "2026-11-22T11:21:13Z",
-        "downloads": 5166
+        "downloads": 5590
       },
       {
         "tag": "v0.13.1",
@@ -20767,7 +20767,7 @@
       {
         "tag": "v0.13.0",
         "publishedAt": "2026-11-17T09:56:45Z",
-        "downloads": 8265
+        "downloads": 8269
       },
       {
         "tag": "v0.12.12",
@@ -20777,7 +20777,7 @@
       {
         "tag": "v0.12.11",
         "publishedAt": "2026-11-05T08:55:32Z",
-        "downloads": 8097
+        "downloads": 8098
       },
       {
         "tag": "v0.12.10",
@@ -20839,57 +20839,57 @@
       {
         "release": "v0.13.2",
         "asset": "IeumOffice-0.13.2-arm64-mac.zip",
-        "downloads": 838
+        "downloads": 897
       },
       {
         "release": "v0.13.2",
         "asset": "IeumOffice-0.13.2-arm64.dmg",
-        "downloads": 444
+        "downloads": 499
       },
       {
         "release": "v0.13.2",
         "asset": "IeumOffice-0.13.2-mac.zip",
-        "downloads": 74
+        "downloads": 81
       },
       {
         "release": "v0.13.2",
         "asset": "IeumOffice-0.13.2-x64.dmg",
-        "downloads": 65
+        "downloads": 75
       },
       {
         "release": "v0.13.2",
         "asset": "IeumOffice-0.13.2.AppImage",
-        "downloads": 93
+        "downloads": 105
       },
       {
         "release": "v0.13.2",
         "asset": "ieumoffice-0.13.2.x86_64.rpm",
-        "downloads": 19
+        "downloads": 21
       },
       {
         "release": "v0.13.2",
         "asset": "IeumOffice-Setup-0.13.2.exe",
-        "downloads": 3603
+        "downloads": 3876
       },
       {
         "release": "v0.13.2",
         "asset": "ieumoffice_0.13.2_amd64.deb",
-        "downloads": 30
+        "downloads": 36
       },
       {
         "release": "v0.13.2",
         "asset": "latest-linux.yml",
-        "downloads": 241
+        "downloads": 262
       },
       {
         "release": "v0.13.2",
         "asset": "latest-mac.yml",
-        "downloads": 6470
+        "downloads": 7852
       },
       {
         "release": "v0.13.2",
         "asset": "latest.yml",
-        "downloads": 5702
+        "downloads": 6690
       },
       {
         "release": "v0.13.1",
@@ -20949,7 +20949,7 @@
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-0.13.0-arm64-mac.zip",
-        "downloads": 1158
+        "downloads": 1159
       },
       {
         "release": "v0.13.0",
@@ -20969,7 +20969,7 @@
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-0.13.0.AppImage",
-        "downloads": 175
+        "downloads": 177
       },
       {
         "release": "v0.13.0",
@@ -20979,7 +20979,7 @@
       {
         "release": "v0.13.0",
         "asset": "IeumOffice-Setup-0.13.0.exe",
-        "downloads": 5787
+        "downloads": 5788
       },
       {
         "release": "v0.13.0",
@@ -21084,7 +21084,7 @@
       {
         "release": "v0.12.11",
         "asset": "ieumoffice-0.12.11.x86_64.rpm",
-        "downloads": 24
+        "downloads": 25
       },
       {
         "release": "v0.12.11",
