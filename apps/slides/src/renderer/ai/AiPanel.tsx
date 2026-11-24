@@ -581,8 +581,6 @@ export function AiPanel({
   const isRtl = lang === 'ar' || lang === 'he'
   const [input, setInput] = useState('')
   const inlineQuestions = useAiInlineQuestions()
-  /** the tool card a conversation reset left behind: kept off the new conversation's screen */
-  const [hiddenToolCardId, setHiddenToolCardId] = useState(0)
   const [attachedMemos, setAttachedMemos] = useState<ReviewMemoItem[]>([])
   const [qualityFindings, setQualityFindings] = useState<QualityFinding[]>([])
   // Shared AI panel pref (Settings → General): the bespoke slides composer
@@ -604,6 +602,8 @@ export function AiPanel({
       // nothing can run right now: the message stays queued, and in front of "not connected"
       // the queue is paused so it does not start by itself after a sign-in
       if (!sendGate.admitQueued(() => msgQueue.setPaused(true))) return false
+      // the queued message starts its own run: it gets its one card
+      inlineQuestions.supersedeOpen()
       runWith(text, text, { attachments: meta.attachments, scope: meta.scope }, meta.skillUse)
       return true
     },
@@ -2125,6 +2125,9 @@ export function AiPanel({
         : undefined
     msgQueue.enqueue(text, { attachments, scope, skillUse })
     setInput('')
+    // a message sent while a card waits closes it: the run goes on without the answer
+    // (and cannot ask again in this run)
+    inlineQuestions.closeOpenCard()
   }
 
   /** Image attachments read as base64, sent multimodally with this user message (≤5MB per image, max 20; isomorphic to docs) */
@@ -2594,9 +2597,8 @@ export function AiPanel({
   const resetConversation = () => {
     sendGate.reset()
     msgQueue.clear()
-    // a waiting question card answers skip, and the old conversation's card leaves the screen
-    inlineQuestions.supersedeOpen()
-    setHiddenToolCardId(inlineQuestions.activeToolCard?.id ?? 0)
+    // question cards belong to the chat: an open one answers skip, all states go
+    inlineQuestions.resetConversation()
     qcAbortRef.current?.abort()
     loopRef.current?.reset()
     // servers off in this chat and "always allow in this chat" go too (user MCP spec 7.6)
@@ -3016,18 +3018,17 @@ export function AiPanel({
             </div>
           )
         })}
-        {inlineQuestions.activeToolCard &&
-          inlineQuestions.activeToolCard.id !== hiddenToolCardId && (
-            <AiQuestionCard
-              key={inlineQuestions.activeToolCard.id}
-              lang={lang}
-              view={inlineQuestions.activeToolCard.view}
-              status={inlineQuestions.activeToolCard.status}
-              answer={inlineQuestions.activeToolCard.answer}
-              onSubmit={inlineQuestions.submitToolCard}
-              onSkip={inlineQuestions.skipToolCard}
-            />
-          )}
+        {inlineQuestions.activeToolCard && (
+          <AiQuestionCard
+            key={inlineQuestions.activeToolCard.id}
+            lang={lang}
+            view={inlineQuestions.activeToolCard.view}
+            status={inlineQuestions.activeToolCard.status}
+            answer={inlineQuestions.activeToolCard.answer}
+            onSubmit={inlineQuestions.submitToolCard}
+            onSkip={inlineQuestions.skipToolCard}
+          />
+        )}
         {skillTemplates.notes}
         {/* an MCP tool waiting for the person's yes (user MCP spec 7.4) */}
         <McpPermissionCard lang={lang} />

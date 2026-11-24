@@ -8,6 +8,7 @@
  * opened again draws its question cards read-only. No provider is reached:
  * the stream channel is the fake below.
  */
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -567,5 +568,27 @@ describe('the question card in the mindmap AI panel', () => {
     expect(container.textContent).not.toContain('a2ui-json')
     // the other tool is still a work step
     expect(container.querySelector('.ai-work-group')).not.toBeNull()
+  })
+})
+
+/** the source of one function of a panel, from its opening line to its closing brace */
+function panelSection(file: string, start: string, end = '\n  }\n'): string {
+  const src = readFileSync(new URL(file, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const at = src.indexOf(start)
+  if (at < 0) throw new Error(`${start} not found in ${file}`)
+  return src.slice(at, src.indexOf(end, at))
+}
+
+describe('mindmap AI panel: question cards follow the conversation (a2ui spec 4)', () => {
+  it('a message queued while a card waits closes it without a second card in that run', () => {
+    const queue = panelSection('../src/renderer/ai/AiPanel.tsx', 'const enqueueWith = ')
+    expect(queue).toContain('inlineQuestions.closeOpenCard()')
+    expect(queue).not.toContain('supersedeOpen')
+  })
+
+  it('new chat and an opened chat drop the cards and reset the one-card limit', () => {
+    expect(panelSection('../src/renderer/ai/AiPanel.tsx', 'const resetConversation = ')).toContain(
+      'inlineQuestions.resetConversation()',
+    )
   })
 })

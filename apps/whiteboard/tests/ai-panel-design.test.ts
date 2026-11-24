@@ -72,3 +72,25 @@ describe('Whiteboard AI panel shared design system alignment', () => {
     expect(panel).toContain('paused={inlineQuestions.waitingForPerson}')
   })
 })
+
+/** the source of one function of a panel, from its opening line to its closing brace */
+function panelSection(file: string, start: string, end = '\n  }\n'): string {
+  const src = readFileSync(new URL(file, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const at = src.indexOf(start)
+  if (at < 0) throw new Error(`${start} not found in ${file}`)
+  return src.slice(at, src.indexOf(end, at))
+}
+
+describe('whiteboard AI panel: question cards follow the conversation (a2ui spec 4)', () => {
+  it('a message queued while a card waits closes it without a second card in that run', () => {
+    const queue = panelSection('../src/renderer/ai/AiPanel.tsx', 'const enqueueDraft = ')
+    expect(queue).toContain('inlineQuestions.closeOpenCard()')
+    expect(queue).not.toContain('supersedeOpen')
+  })
+
+  it('new chat and an opened chat drop the cards and reset the one-card limit', () => {
+    expect(panelSection('../src/renderer/ai/AiPanel.tsx', 'const resetConversation = ')).toContain(
+      'inlineQuestions.resetConversation()',
+    )
+  })
+})

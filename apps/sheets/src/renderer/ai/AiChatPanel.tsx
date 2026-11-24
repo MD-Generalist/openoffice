@@ -727,6 +727,9 @@ export function AiChatPanel({
     for (const a of atts) onRemoveAttachment(a.path)
     msgQueue.enqueue(text, { atts, skillUse })
     onPromptChange('')
+    // a message sent while a card waits closes it: the run goes on without the answer
+    // (and cannot ask again in this run)
+    inlineQuestions.closeOpenCard()
   }
 
   const onDrop = (e: React.DragEvent): void => {

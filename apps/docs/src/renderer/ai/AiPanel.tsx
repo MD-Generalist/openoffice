@@ -655,6 +655,8 @@ export function AiPanel({
       // nothing can run right now: the message stays queued, and in front of "not connected"
       // the queue is paused so it does not start by itself after a sign-in
       if (!sendGateRef.current.admitQueued(() => msgQueueRef.current.setPaused(true))) return false
+      // the queued message starts its own run: it gets its one card
+      inlineQuestions.supersedeOpen()
       runWith(text, text, meta.attachments, meta.scope, meta.skillUse)
       return true
     },
@@ -1829,6 +1831,9 @@ export function AiPanel({
     }
     msgQueue.enqueue(text, { attachments, scope: selectionScopeQuote() ?? null, skillUse })
     setInput('')
+    // a message sent while a card waits closes it: the run goes on without the answer
+    // (and cannot ask again in this run)
+    inlineQuestions.closeOpenCard()
   }
 
   /** Today's "new chat": the screen, the loop and everything the conversation carried start over. */
@@ -1852,6 +1857,8 @@ export function AiPanel({
     skills.resetConversation()
     skillCards.reset()
     skillTemplates.reset()
+    // question cards belong to the chat: an open one answers skip, all states go
+    inlineQuestions.resetConversation()
     // Unsent composer attachments would otherwise ride into the next chat's
     // file context (availableAttachments merges sent + live). The typed
     // draft itself is kept — only staged files are dropped.

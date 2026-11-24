@@ -703,6 +703,8 @@ export function AiPanel({
       // a queued message waits instead of being refused and dropped; in front of "not
       // connected" the queue is paused so it does not start by itself after a sign-in
       if (!sendGateRef.current.admitQueued(() => msgQueueRef.current.setPaused(true))) return false
+      // the queued message starts its own run: it gets its one card
+      inlineQuestions.supersedeOpen()
       return send(text, text, false, meta.atts, undefined, meta.skillUse)
     },
   })
@@ -1841,6 +1843,9 @@ export function AiPanel({
     if (atts.length > 0) setAttachments([])
     msgQueue.enqueue(text, { atts, skillUse })
     setPrompt('')
+    // a message sent while a card waits closes it: the run goes on without the answer
+    // (and cannot ask again in this run)
+    inlineQuestions.closeOpenCard()
   }
 
   /** the composer's send: the typed text goes out with the chosen skills */
@@ -1919,6 +1924,8 @@ export function AiPanel({
     skills.resetConversation()
     skillCards.reset()
     skillTemplates.reset()
+    // question cards belong to the chat: an open one answers skip, all states go
+    inlineQuestions.resetConversation()
     setReceipts([])
     // the cards go with the chat, and the snapshots and marks with them
     setSnapshots([])

@@ -153,6 +153,67 @@ describe('useAiInlineQuestions', () => {
     await second
   })
 
+  it('closes the open card for a queued message without allowing a second card in the run', async () => {
+    mount()
+    const pending = ask()
+    await flush()
+    act(() => hook.markTextCard('m-1', 'open'))
+    act(() => hook.closeOpenCard())
+    const action = JSON.parse((await pending).output)
+    expect(action.action.name).toBe('skip')
+    expect(hook.activeToolCard?.status).toBe('superseded')
+    expect(hook.waitingForPerson).toBe(false)
+    // the text-block cards are left to the next run's supersedeOpen
+    expect(hook.textCardStates['m-1']?.status).toBe('open')
+    // same run: the one-card limit still holds, no second card opens
+    const again = await ask()
+    expect(again.isError).toBe(true)
+    expect(JSON.parse(again.output).ok).toBe(false)
+    expect(hook.activeToolCard?.status).toBe('superseded')
+  })
+
+  it('does nothing to a card that is no longer open', async () => {
+    mount()
+    const pending = ask()
+    await flush()
+    act(() => hook.skipToolCard())
+    await pending
+    act(() => hook.closeOpenCard())
+    expect(hook.activeToolCard?.status).toBe('skipped')
+  })
+
+  it('drops every card of the conversation on a new chat and resets the limit', async () => {
+    mount()
+    const pending = ask()
+    await flush()
+    const answer = { kind: 'submit', answers: { a: ['x'] }, decideForMe: [] } as const
+    act(() => hook.markTextCard('m-1', 'open'))
+    act(() => hook.markTextCard('m-2', 'submitted', answer))
+    act(() => hook.resetConversation())
+    const action = JSON.parse((await pending).output)
+    expect(action.action.name).toBe('skip')
+    expect(hook.activeToolCard).toBeNull()
+    expect(hook.waitingForPerson).toBe(false)
+    expect(hook.textCardStates).toEqual({})
+    // the next conversation may ask again
+    const next = ask()
+    await flush()
+    expect(hook.activeToolCard?.status).toBe('open')
+    act(() => hook.skipToolCard())
+    expect((await next).isError).toBe(false)
+  })
+
+  it('keeps a reset conversation empty when the old run stops afterwards', async () => {
+    mount()
+    const ctrl = new AbortController()
+    const pending = ask(ctrl.signal)
+    await flush()
+    act(() => hook.resetConversation())
+    act(() => ctrl.abort())
+    await pending
+    expect(hook.activeToolCard).toBeNull()
+  })
+
   it('keeps the text-block card states and supersedes open ones', () => {
     mount()
     act(() => hook.markTextCard('m-1', 'open'))
