@@ -379,6 +379,7 @@ register({
       ...(op.baseInk ? { baseInk: op.baseInk as string } : {}),
       ...(op.baseFont ? { baseFont: op.baseFont as LocalTextEdit['baseFont'] } : {}),
       ...(op.paper ? { paper: op.paper as string } : {}),
+      ...(op.scanLayer === true ? { scanLayer: true as const } : {}),
     }
     const i = s.textEdits.findIndex((e) => e.id === edit.id)
     return {
@@ -434,9 +435,14 @@ register({
   apply(op, s) {
     const patch = op.input as Partial<TextInsertInput>
     return {
-      textInserts: s.textInserts.map((e) =>
-        e.id === op.id ? { ...e, input: { ...e.input, ...patch } } : e,
-      ),
+      textInserts: s.textInserts.map((e) => {
+        if (e.id !== op.id) return e
+        const input = { ...e.input, ...patch }
+        // selection styles index the old text: a retyped insert can't keep them
+        if (patch.text !== undefined && patch.text !== e.input.text && !patch.styleRuns)
+          delete input.styleRuns
+        return { ...e, input }
+      }),
     }
   },
 })
@@ -478,6 +484,7 @@ register({
       ...(typeof op.origAbove === 'boolean' ? { origAbove: op.origAbove } : {}),
       ...(op.staticFill ? { staticFill: op.staticFill as StaticFormFillRecord } : {}),
       ...(typeof op.opacityBase === 'string' ? { opacityBase: op.opacityBase } : {}),
+      ...(op.scanPatch === true ? { scanPatch: true as const } : {}),
     }
     return { imageEdits: [...s.imageEdits, added] }
   },

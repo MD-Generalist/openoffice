@@ -134,6 +134,7 @@ export class GenerateSession {
   private inFlight = 0
   private mode: GenerateMode = 'ai'
   private convertKind: ConvertKind | null = null
+  private speakerNotesSeparate = false
 
   constructor(
     private readonly deps: GenerateSessionDeps,
@@ -155,6 +156,7 @@ export class GenerateSession {
     this.convertProblem = null
     this.mode = 'ai'
     this.convertKind = null
+    this.speakerNotesSeparate = false
     this.appendRefs(refs)
     await this.refresh()
   }
@@ -189,6 +191,7 @@ export class GenerateSession {
       saving: [...this.saving],
       failure: this.failure,
       convertProblem: this.failure === 'convert' ? this.convertProblem : null,
+      speakerNotesSeparate: this.speakerNotesSeparate,
       limits: {
         maxMaterials: MAX_MATERIALS,
         maxMaterialMb: Math.round(MAX_MATERIAL_BYTES / 1024 / 1024),
@@ -322,6 +325,12 @@ export class GenerateSession {
     this.push()
   }
 
+  setSpeakerNotesSeparate(enabled: unknown): void {
+    if (typeof enabled !== 'boolean' || this.making) return
+    this.speakerNotesSeparate = enabled
+    this.push()
+  }
+
   /** 8.6: choose a conversion on offer, or null for back to the AI kinds */
   setConvert(kind: unknown): void {
     if (this.making) return
@@ -427,6 +436,9 @@ export class GenerateSession {
         text: trimmed || defaultGeneratePrompt(this.deps.lang(), this.kind),
         defaultText: !trimmed,
         createdAt: this.deps.now(),
+        ...(this.kind === 'slides' && this.speakerNotesSeparate
+          ? { speakerNotesSeparate: true }
+          : {}),
       }
       this.deps.openTargetTab(handoff)
       this.closed = true

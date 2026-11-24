@@ -1,7 +1,12 @@
 import type { AgentToolCall } from './types'
 import { isMcpToolName } from './user-mcp/names'
 
-/** Tools that send model-chosen text to, or fetch from, somewhere off the PC */
+/**
+ * Tools that always send model-chosen text to, or fetch from, somewhere off the PC.
+ * Image placement tools (`insert_image`, `insert_web_image`, `add_image`, etc.) are
+ * gated by `fetchesAddress(call.input)` instead so local `attachment://` and
+ * app-cached `file://` images can still be embedded without reaching the network.
+ */
 export const OUTBOUND_TOOLS: ReadonlySet<string> = new Set([
   'web_search',
   'image_search',
@@ -9,7 +14,6 @@ export const OUTBOUND_TOOLS: ReadonlySet<string> = new Set([
   'transform_image',
   'remove_image_background',
   'analyze_media',
-  'insert_web_image',
   'read_url',
 ])
 

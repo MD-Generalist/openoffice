@@ -36,9 +36,11 @@ openoffice/
 │   │   ├── epub-editor.md         ← EPUB 편집기 계획(구현됨, 사람 확인 남음)
 │   │   ├── hwp-format-copy.md     ← 한글 모양 복사(서식 복사) 분석·설계(1단계 구현됨, 사람 확인 남음)
 │   │   ├── md-to-hwp.md           ← 마크다운을 한글 문서로 옮기기 계획(1~4단계 구현됨, 사람 확인 남음)
+│   │   ├── mobile.md              ← 모바일 앱(Android·iOS, Tauri 2) 계획(1차 구현됨, 실기기 확인 남음)
 │   │   ├── ods-open-export.md     ← ODS 불러오기·내보내기 계획(1·2단계 구현됨, 사람 확인 남음)
 │   │   ├── pdf-reading-assist.md  ← PDF 읽기 도우미 계획
 │   │   ├── pdf-tools.md           ← PDF 도구 모음 계획(초안)
+│   │   ├── print-upgrade.md       ← 인쇄 기능 고도화 계획(구현됨, 사람 확인 남음)
 │   │   ├── project-folder.md      ← 프로젝트 폴더(AI 맥락을 폴더 단위로) 계획(확정)
 │   │   ├── skills-v2.md           ← 스킬 고도화(만들기·고치기·나누기·스킬 모음) 계획(방향 확정)
 │   │   └── update-details.md      ← 업데이트 상세 내역 표시 계획(확정)
@@ -61,8 +63,10 @@ openoffice/
 │   ├── hwp/AGENTS.md              ← 한글(HWP·HWPX) 편집기, 편집 화면은 rhwp
 │   ├── epub/AGENTS.md             ← 전자책(EPUB) 편집기: 읽기, 책 화면에서 고치기, 책 번역
 │   ├── diagram/AGENTS.md          ← 다이어그램 편집기(draw.io 본체를 PC 안에서만 띄움)
-│   └── whiteboard/AGENTS.md       ← 화이트보드 편집기(`.whiteboard`, Excalidraw 가져오기, PDF 배경)
+│   ├── whiteboard/AGENTS.md       ← 화이트보드 편집기(`.whiteboard`, Excalidraw 가져오기, PDF 배경)
+│   └── mobile/AGENTS.md           ← 모바일 앱(Android·iOS, Tauri 2 Mobile, 한글·마크다운·AI 도우미)
 ├── packages/
+│   ├── mobile-bridge/AGENTS.md    ← 모바일 어댑터(Tauri 전송, 세션 상태, 보기/편집 게이트, HWP·마크다운·AI 브리지)
 │   ├── ai-provider/AGENTS.md      ← 제공자 목록·선택 규칙, 구독 프로그램 실행부
 │   ├── ai-search/AGENTS.md        ← 검색·이미지 생성·미디어 분석 도구, 자동 호출 제한
 │   ├── agent-core/AGENTS.md       ← AI 실행 반복, 화면↔뒷단 전송, 가리기

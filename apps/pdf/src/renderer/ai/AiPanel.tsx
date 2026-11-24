@@ -29,6 +29,8 @@ import {
   type AiSubscriptionUsage,
 } from '@genoffice/ai-provider/browser'
 import {
+  AiAttachMenu,
+  AiAssistantBody,
   AiBlockedNotice,
   AiChangesCard,
   AiComposer,
@@ -36,6 +38,7 @@ import {
   AiFirstConnectionNotice,
   AiInputTruncatedNotice,
   AiMark,
+  AiQuestionCard,
   AiToolsUnsupportedNotice,
   AiQueueStrip,
   AI_QUEUE_LABELS,
@@ -45,7 +48,10 @@ import {
   AiUsageChip,
   addTokenUsage,
   aiSubscriptionText,
+  buildMemoBatchPromptSection,
   changeStoredAiSettings,
+  openGenerateForCurrentDocument,
+  useAiInlineQuestions,
   useAiSendGate,
   useChatRunQueue,
   McpPermissionCard,
@@ -62,6 +68,7 @@ import {
   SkillUsedNotes,
   useSkillProposals,
   useSkillTemplates,
+  type ReviewMemoItem,
   type TemplateDocument,
   type AiChangesState,
   type AiScopeQuoteData,
@@ -74,8 +81,9 @@ import {
   type SkillUse,
 } from '@genoffice/ui'
 import { aiLangDirective, t as tGlobal, useI18n } from '../i18n/locale'
-import { createFileNav, Markdown } from '@genoffice/ui'
+import { createFileNav } from '@genoffice/ui'
 import { createPdfSkill } from './pdf-skill'
+import { pdfNotesToReviewMemos, type PdfNoteSource } from './memo-attach'
 import type { PdfAiRun, PdfRevertVerdict } from './ai-run-changes'
 import { createElectronTransport } from './transport'
 import {
@@ -247,6 +255,8 @@ export function AiPanel({
   const { lang, t } = useI18n()
   const [chat, setChat] = useState<ChatEntry[]>([])
   const [prompt, setPrompt] = useState('')
+  const inlineQuestions = useAiInlineQuestions()
+  const [attachedMemos, setAttachedMemos] = useState<ReviewMemoItem[]>([])
   const [busy, setBusy] = useState(false)
   /** messages queued while a reply runs; the pump re-runs them through send on settle */
   const msgQueueRef = useRef<ChatRunQueue<{ skillUse: SkillUse }> | null>(null)
@@ -778,6 +788,7 @@ export function AiPanel({
         settingsRef.current ? localModelCapabilities(settingsRef.current).tools !== false : true,
       skill: composeWithDrive('pdf', '', () => loopRef.current?.messages ?? [], [
         createPdfSkill(deps),
+        inlineQuestions.askQuestionsSkill,
         // the person's skills: use_skill, read_skill_file, propose_skill (app-run tools)
         ...panelUserSkills({
           editor: 'pdf',
@@ -1080,8 +1091,12 @@ export function AiPanel({
   /** the composer's typed text: the chosen skills ride along */
   const sendTyped = () => {
     const text = prompt.trim()
-    if (!text) return
-    skills.withSkills(text, (skillUse) => send(text, undefined, skillUse))
+    if (!text && attachedMemos.length === 0) return
+    inlineQuestions.supersedeOpen()
+    const memoBlock = buildMemoBatchPromptSection(attachedMemos)
+    const composed = memoBlock ? (text ? `${memoBlock}\n\n${text}` : memoBlock) : text
+    if (attachedMemos.length > 0) setAttachedMemos([])
+    skills.withSkills(composed, (skillUse) => send(composed, undefined, skillUse))
   }
 
   /** Enter while a reply runs: the draft joins the queue above the composer */
@@ -1349,7 +1364,22 @@ export function AiPanel({
               ) : (
                 entry.text && (
                   <div dir="auto">
-                    <Markdown text={entry.text} navs={[pdfNav, fileNav]} />
+                    <AiAssistantBody
+                      lang={lang}
+                      text={entry.text}
+                      navs={[pdfNav, fileNav]}
+                      streaming={entry.streaming}
+                      questionStatus={inlineQuestions.textCardStates[`m-${i}`]?.status}
+                      savedAnswers={inlineQuestions.textCardStates[`m-${i}`]?.answers}
+                      onQuestionSubmit={(spec, answers) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'submitted', answers)
+                        send(inlineQuestions.formatFollowUp(spec, answers, false))
+                      }}
+                      onQuestionSkip={(spec) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'skipped')
+                        send(inlineQuestions.formatFollowUp(spec, {}, true))
+                      }}
+                    />
                   </div>
                 )
               )}
@@ -1378,11 +1408,39 @@ export function AiPanel({
                   isLast={isLast}
                   copyText={showCopy ? entry.text : undefined}
                   usage={entry.usage}
+                  nextSteps={
+                    isLast
+                      ? {
+                          context: {
+                            aiVisible: true,
+                            streaming: Boolean(entry.streaming),
+                            completedNormally: !entry.isError && !entry.blocked,
+                            editorKind: 'pdf',
+                            editedDocument: Boolean(changes),
+                            qualityIssueCount: 0,
+                            usedSkillName: entry.skills?.[0]?.title,
+                            canGenerateOtherDoc: true,
+                            hasSavedPath: Boolean(filePath),
+                          },
+                          onGenerateOtherDoc: openGenerateForCurrentDocument,
+                        }
+                      : undefined
+                  }
                 />
               )}
             </div>
           )
         })}
+        {inlineQuestions.activeToolCard && (
+          <AiQuestionCard
+            lang={lang}
+            spec={inlineQuestions.activeToolCard.spec}
+            status={inlineQuestions.activeToolCard.status}
+            savedAnswers={inlineQuestions.activeToolCard.answers}
+            onSubmit={inlineQuestions.submitToolCard}
+            onSkip={inlineQuestions.skipToolCard}
+          />
+        )}
         {skillTemplates.notes}
         {/* an MCP tool waiting for the person's yes (user MCP spec 7.4) */}
         <McpPermissionCard lang={lang} />
@@ -1494,54 +1552,78 @@ export function AiPanel({
           value={prompt}
           busy={busy}
           header={
-            hasScopeSelection && (
-              <div className="ai-scope-row">
-                <span className="ai-scope-hint">
-                  <button
-                    className="ai-scope-label"
-                    onClick={() => setScopePreviewOpen((v) => !v)}
-                    aria-expanded={scopePreviewOpen}
-                    data-tip={t('aiScopeSelectionTip')}
-                  >
-                    {scopeLabel(scopeSel!, countWords(scopeSel!.text))}
-                  </button>
-                  <button
-                    className="ai-scope-clear"
-                    onClick={() => {
-                      setScopePreviewOpen(false)
-                      onClearSelection?.()
-                    }}
-                    data-tip={t('aiScopeClearTitle')}
-                    aria-label={t('aiScopeClearTitle')}
-                  >
-                    <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden>
-                      <path
-                        d="M4 4l8 8M12 4l-8 8"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </button>
-                </span>
-                {scopePreviewOpen && (
-                  <div className="ai-scope-preview">
-                    {scopeSel!.text.length > 400
-                      ? `${scopeSel!.text.slice(0, 400)}…`
-                      : scopeSel!.text}
-                    {scopeSel!.followUp && (
-                      <div className="ai-scope-followup" dir="auto">
-                        <strong>{scopeSel!.followUp.heading}</strong>
-                        <br />
-                        {scopeSel!.followUp.answer.length > 400
-                          ? `${scopeSel!.followUp.answer.slice(0, 400)}…`
-                          : scopeSel!.followUp.answer}
+            (hasScopeSelection || attachedMemos.length > 0) && (
+              <>
+                {attachedMemos.length > 0 && (
+                  <div className="ai-review-memo-chips">
+                    {attachedMemos.map((memo) => (
+                      <span key={memo.id} className="ai-review-memo-chip">
+                        <span>
+                          {memo.location} · {memo.excerpt.slice(0, 32)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAttachedMemos((prev) => prev.filter((m) => m.id !== memo.id))
+                          }
+                          aria-label="Remove memo"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {hasScopeSelection && (
+                  <div className="ai-scope-row">
+                    <span className="ai-scope-hint">
+                      <button
+                        className="ai-scope-label"
+                        onClick={() => setScopePreviewOpen((v) => !v)}
+                        aria-expanded={scopePreviewOpen}
+                        data-tip={t('aiScopeSelectionTip')}
+                      >
+                        {scopeLabel(scopeSel!, countWords(scopeSel!.text))}
+                      </button>
+                      <button
+                        className="ai-scope-clear"
+                        onClick={() => {
+                          setScopePreviewOpen(false)
+                          onClearSelection?.()
+                        }}
+                        data-tip={t('aiScopeClearTitle')}
+                        aria-label={t('aiScopeClearTitle')}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden>
+                          <path
+                            d="M4 4l8 8M12 4l-8 8"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </button>
+                    </span>
+                    {scopePreviewOpen && (
+                      <div className="ai-scope-preview">
+                        {scopeSel!.text.length > 400
+                          ? `${scopeSel!.text.slice(0, 400)}…`
+                          : scopeSel!.text}
+                        {scopeSel!.followUp && (
+                          <div className="ai-scope-followup" dir="auto">
+                            <strong>{scopeSel!.followUp.heading}</strong>
+                            <br />
+                            {scopeSel!.followUp.answer.length > 400
+                              ? `${scopeSel!.followUp.answer.slice(0, 400)}…`
+                              : scopeSel!.followUp.answer}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
-              </div>
+              </>
             )
           }
           placeholder={t('aiComposerPlaceholder')}
@@ -1552,7 +1634,39 @@ export function AiPanel({
           iconOnly
           lang={lang}
           showSkillButton
-          footerStart={<McpServerButton lang={lang} />}
+          footerStart={
+            <>
+              <AiAttachMenu
+                lang={lang}
+                memoAttach={{
+                  listMemos: async () => {
+                    const count = apiRef.current.pageCount()
+                    const sources: PdfNoteSource[] = []
+                    for (let p = 0; p < count; p++) {
+                      if (apiRef.current.isDeleted(p)) continue
+                      const ann = await apiRef.current.annotationsOn(p).catch(() => null)
+                      if (!ann) continue
+                      for (const th of ann.threads) {
+                        sources.push({
+                          id: th.key,
+                          page: p + 1,
+                          author: th.author || 'Reviewer',
+                          text: th.contents || '',
+                        })
+                      }
+                    }
+                    return pdfNotesToReviewMemos(sources)
+                  },
+                  onAttachMemos: (items) =>
+                    setAttachedMemos((prev) => {
+                      const seen = new Set(prev.map((m) => m.id))
+                      return [...prev, ...items.filter((m) => !seen.has(m.id))]
+                    }),
+                }}
+              />
+              <McpServerButton lang={lang} />
+            </>
+          }
           footerEnd={
             <AiModelPicker
               bridge={MODEL_BRIDGE}

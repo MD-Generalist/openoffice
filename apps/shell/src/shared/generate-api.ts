@@ -122,6 +122,8 @@ export interface GenerateWindowState {
   failure: 'make' | 'save' | 'convert' | null
   /** with `failure: 'convert'`: why nothing was converted */
   convertProblem: ConvertProblem | null
+  /** optional slides-only toggle (default false): keep slide text brief and place details in speaker notes */
+  speakerNotesSeparate: boolean
   limits: {
     maxMaterials: number
     maxMaterialMb: number
@@ -136,6 +138,7 @@ export const GENERATE_CHANNELS = {
   getState: 'generate:get-state',
   getTheme: 'generate:get-theme',
   setKind: 'generate:set-kind',
+  setSpeakerNotesSeparate: 'generate:set-speaker-notes-separate',
   /** a conversion without AI (8.6), or null for back to the AI kinds */
   setConvert: 'generate:set-convert',
   addMaterials: 'generate:add-materials',
@@ -157,6 +160,7 @@ export interface GenerateWindowApi {
   onThemeChanged(handler: (theme: 'light' | 'dark' | 'system') => void): () => void
   getTheme(): Promise<'light' | 'dark' | 'system'>
   setKind(kind: AiTargetKind): Promise<void>
+  setSpeakerNotesSeparate(enabled: boolean): Promise<void>
   /** choose a conversion without AI (8.6); null goes back to the AI kinds */
   setConvert(kind: ConvertKind | null): Promise<void>
   /** file picker in the main process; picked files join the list */

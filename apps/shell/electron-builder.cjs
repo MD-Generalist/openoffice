@@ -74,6 +74,7 @@ function assertExtraResourceSources() {
     '../../packages/print-layout/wasm/pkg/print_layout_wasm_bg.wasm',
     '../../packages/whiteboard-engine/pkg/whiteboard_engine_bg.wasm',
     'resources/builtin-skills/builtin-skills.json',
+    'resources/builtin-craft/index.json',
   ]) {
     if (!existsSync(join(__dirname, rel))) {
       throw new Error(
@@ -783,6 +784,10 @@ const config = {
     {
       from: 'resources/builtin-skills',
       to: 'builtin-skills',
+    },
+    {
+      from: 'resources/builtin-craft',
+      to: 'builtin-craft',
     },
   ],
   // `mimeType` is read only by the Linux target, where it becomes the

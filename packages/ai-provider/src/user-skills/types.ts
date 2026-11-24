@@ -1,4 +1,5 @@
 import type { SkillEditorId, SkillEditorsChoice } from '@genoffice/agent-core/skill-editors'
+import type { CraftSlug } from './constants'
 
 /**
  * Shapes of the person's skills: where one comes from, what was read from its
@@ -54,6 +55,10 @@ export interface UserSkill {
   agentOnly: boolean
   /** `metadata.ieum-editors`, known ids only; undefined: every editor */
   fileEditors: SkillEditorId[] | undefined
+  /** `metadata.ieum-craft`, validated craft slugs; undefined when absent */
+  craft?: CraftSlug[] | undefined
+  /** `metadata.ieum-example`, short 1-line example prompt; undefined when absent */
+  example?: string | undefined
   files: number
   bytes: number
   unreadable: UserSkillUnreadableReason | undefined

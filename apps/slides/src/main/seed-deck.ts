@@ -71,5 +71,6 @@ export async function openSlidesSeed(
     size,
     defaultFont: defaultFontOf(opened),
     ...(entry.options.importedFrom ? { importedFrom: entry.options.importedFrom } : {}),
+    ...(entry.options.password !== undefined ? { encrypted: true } : {}),
   }
 }

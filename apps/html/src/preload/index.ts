@@ -21,6 +21,9 @@ import { installDropOpenBridge } from '@genoffice/electron-utils/drop-open'
 import { splitPaneBridge } from '@genoffice/electron-utils/split-pane-bridge'
 import { createPrintLayoutBridge } from '@genoffice/electron-utils/print-layout-bridge'
 import { APP_CHOICE_BRIDGE_KEY, appChoiceBridge } from '@genoffice/electron-utils/app-choice-bridge'
+import { VERSION_TIMELINE_BRIDGE_KEY } from '@genoffice/electron-utils/version-timeline-channels'
+import { versionTimelineBridge } from '@genoffice/electron-utils/version-timeline-bridge'
+import { generateEditorBridge } from '@genoffice/electron-utils/generate-editor-bridge'
 import { AI_CHANNELS, HTML_CHANNELS } from '../shared/ipc'
 import { HTML_HANDOFF_CHANNELS } from '../shared/ipc'
 import type {
@@ -263,6 +266,8 @@ contextBridge.exposeInMainWorld(CONNECTOR_ATTACH_BRIDGE_KEY, connectorAttachBrid
 contextBridge.exposeInMainWorld('projectApi', projectApi)
 // project folders (decision 0088): main identifies this window, the bridge forwards ids only
 contextBridge.exposeInMainWorld(PROJECT_FOLDER_BRIDGE_KEY, projectFolderBridge(ipcRenderer))
+contextBridge.exposeInMainWorld(VERSION_TIMELINE_BRIDGE_KEY, versionTimelineBridge())
+contextBridge.exposeInMainWorld('aiOfficeGenerateEditor', generateEditorBridge())
 
 // open documents dragged from the OS onto this tab as a new shell tab
 installDropOpenBridge()

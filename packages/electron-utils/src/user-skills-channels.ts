@@ -113,6 +113,10 @@ export interface UserSkillView {
   agentOnly: boolean
   /** the editors the skill is used in (the person's choice, else its file); absent: every editor */
   editors?: string[] | undefined
+  /** validated shared craft quality fragment slugs (`metadata.ieum-craft`) */
+  craft?: readonly string[] | undefined
+  /** short 1-line example prompt (`metadata.ieum-example`) */
+  example?: string | undefined
   unreadable: UserSkillUnreadable | undefined
   files: number
   bytes: number
@@ -394,6 +398,8 @@ export interface UserSkillAiRead {
   hasScripts: boolean
   /** MCP servers the skill refers to (body and front matter `allowed-tools`, spec 8) */
   mcpServers: string[]
+  /** resolved craft quality fragments declared in `metadata.ieum-craft` */
+  craftTexts?: readonly { slug: string; body: string }[] | undefined
 }
 
 /** Open a template skill's copy in a new tab and hand the request over (spec 5.7) */

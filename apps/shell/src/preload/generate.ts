@@ -32,6 +32,9 @@ const api: GenerateWindowApi = {
   async setKind(kind: AiTargetKind) {
     await ipcRenderer.invoke(GENERATE_CHANNELS.setKind, kind)
   },
+  async setSpeakerNotesSeparate(enabled: boolean) {
+    await ipcRenderer.invoke(GENERATE_CHANNELS.setSpeakerNotesSeparate, enabled)
+  },
   async setConvert(kind) {
     await ipcRenderer.invoke(GENERATE_CHANNELS.setConvert, kind)
   },

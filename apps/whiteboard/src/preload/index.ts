@@ -10,6 +10,9 @@ import type { Lang } from '@genoffice/i18n'
 import type { ProjectApi } from '@genoffice/project-store'
 import type { AiPanelPrefs } from '@genoffice/ui'
 import { APP_CHOICE_BRIDGE_KEY, appChoiceBridge } from '@genoffice/electron-utils/app-choice-bridge'
+import { VERSION_TIMELINE_BRIDGE_KEY } from '@genoffice/electron-utils/version-timeline-channels'
+import { versionTimelineBridge } from '@genoffice/electron-utils/version-timeline-bridge'
+import { generateEditorBridge } from '@genoffice/electron-utils/generate-editor-bridge'
 import { connectorAttachBridge } from '@genoffice/electron-utils/connector-attach-bridge'
 import { CONNECTOR_ATTACH_BRIDGE_KEY } from '@genoffice/electron-utils/connector-attach-channels'
 import { docAttachBridge } from '@genoffice/electron-utils/doc-attach-bridge'
@@ -237,5 +240,7 @@ contextBridge.exposeInMainWorld(CONNECTOR_ATTACH_BRIDGE_KEY, connectorAttachBrid
 contextBridge.exposeInMainWorld('aiOfficeDriveAi', driveAiBridge())
 contextBridge.exposeInMainWorld('aiOfficeMcpTools', mcpToolsBridge())
 contextBridge.exposeInMainWorld('aiOfficeOutbound', outboundBridge())
+contextBridge.exposeInMainWorld(VERSION_TIMELINE_BRIDGE_KEY, versionTimelineBridge())
+contextBridge.exposeInMainWorld('aiOfficeGenerateEditor', generateEditorBridge())
 
 installDropOpenBridge()

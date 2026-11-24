@@ -692,3 +692,80 @@ export {
   type AppChoiceSource,
   type AppChoiceState,
 } from './use-app-choice'
+
+export { SLOW_RESPONSE_HINT_AFTER_S } from './AiTypingIndicator'
+export {
+  AI_DIAGNOSTICS_STRINGS,
+  aiDiagnosticsText,
+  type AiDiagnosticsStringKey,
+} from './strings-ai-diagnostics'
+export {
+  QUESTION_FORM_MAX_OPTIONS,
+  QUESTION_FORM_MAX_QUESTIONS,
+  QUESTION_FORM_MIN_QUESTIONS,
+  formatQuestionFormAnswers,
+  initialQuestionFormAnswers,
+  isQuestionFormComplete,
+  normalizeQuestionOption,
+  parseQuestionFormBlocks,
+  validateQuestionFormSpec,
+  type NormalizedQuestionOption,
+  type QuestionCardStatus,
+  type QuestionField,
+  type QuestionFieldType,
+  type QuestionFormAnswers,
+  type QuestionFormSegment,
+  type QuestionFormSpec,
+  type QuestionOption,
+} from './question-form'
+export { AiQuestionCard, AiQuestionCardPending, type AiQuestionCardProps } from './AiQuestionCard'
+export {
+  QUESTION_CARD_STRINGS,
+  questionCardText,
+  type QuestionCardStringKey,
+} from './strings-question-card'
+export {
+  MAX_NEXT_STEPS,
+  computeNextSteps,
+  openGenerateForCurrentDocument,
+  type NextStepContext,
+  type NextStepDescriptor,
+  type NextStepId,
+} from './next-steps-rules'
+export { AiNextSteps, type AiNextStepsProps } from './AiNextSteps'
+export { NEXT_STEPS_STRINGS, nextStepsText, type NextStepsStringKey } from './strings-next-steps'
+export {
+  ReviewMemoPicker,
+  buildMemoBatchPromptSection,
+  type MemoAttachSource,
+  type ReviewMemoItem,
+  type ReviewMemoPickerProps,
+} from './ReviewMemoPicker'
+export {
+  REVIEW_MEMO_STRINGS,
+  reviewMemoText,
+  type ReviewMemoStringKey,
+} from './strings-review-memo'
+export type { CraftFragmentText } from './skill-send'
+export { AiQualityBadge, type AiQualityBadgeProps } from './AiQualityBadge'
+export {
+  QUALITY_AUDIT_STRINGS,
+  qualityAuditText,
+  type QualityAuditStringKey,
+} from './strings-quality-audit'
+export {
+  VersionTimelineDrawer,
+  type DrawerVersionEntry,
+  type DrawerVersionSource,
+  type VersionTimelineDrawerProps,
+} from './VersionTimelineDrawer'
+export {
+  VERSION_TIMELINE_STRINGS,
+  versionTimelineText,
+  type VersionTimelineStringKey,
+} from './strings-version-timeline'
+export { TWEAKS_STRINGS, tweaksText, type TweaksStringKey } from './strings-tweaks'
+export { skillExampleText, type SkillExampleStringKey } from './strings-skill-example'
+export { memoReplyText, type MemoReplyStringKey } from './strings-memo-reply'
+export { useAiInlineQuestions, type ActiveQuestionCardState } from './useAiInlineQuestions'
+export { AiAssistantBody, type AiAssistantBodyProps } from './AiAssistantBody'

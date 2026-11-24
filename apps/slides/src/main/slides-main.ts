@@ -36,6 +36,7 @@ import { exportSlidesPdf } from './pdf-export'
 import { printSlidesHtml, slidesPrintHtml, slidesPrintJobPdf } from './print-window'
 import {
   ensurePrintLayoutIpc,
+  imageSaveDialogSpec,
   LABEL_SPEC_FILE_NAME,
   registerPrintLayoutIpc,
 } from '@genoffice/electron-utils/print-arranged'
@@ -1229,6 +1230,7 @@ async function openAndBuild(
       slides: buildAllRenderSlides(existing.opened, fitWidthPx),
       size: { cx: existing.opened.deck.size.cx, cy: existing.opened.deck.size.cy },
       defaultFont: deckDefaultFont(existing.opened),
+      ...(existing.password !== undefined ? { encrypted: true } : {}),
     }
   }
   const raw = unlocked?.bytes ?? (await readFile(path))
@@ -1286,6 +1288,7 @@ async function openAndBuild(
     slides,
     size: { cx: opened.deck.size.cx, cy: opened.deck.size.cy },
     defaultFont: deckDefaultFont(opened),
+    ...(unlocked !== undefined ? { encrypted: true } : {}),
   }
 }
 
@@ -1841,6 +1844,7 @@ export function registerSlidesIpc(): void {
         slides: buildAllRenderSlides(session.opened, fitWidthPx),
         size: { cx: session.opened.deck.size.cx, cy: session.opened.deck.size.cy },
         defaultFont: deckDefaultFont(session.opened),
+        ...(session.password !== undefined ? { encrypted: true } : {}),
       } satisfies OpenResult
     }
     return null
@@ -4859,6 +4863,35 @@ export function registerSlidesIpc(): void {
     return buildAllRenderSlides(session.opened, session.fitWidthPx)
   })
 
+  ipcMain.handle('slides:timeline-restore-bytes', async (e, raw: unknown) => {
+    const session = sessions.get(e.sender.id)
+    if (!session || session.masterEdit || session.historyBatch) return null
+    const bytes =
+      raw instanceof Uint8Array
+        ? raw
+        : ArrayBuffer.isView(raw)
+          ? new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength)
+          : null
+    if (!bytes || bytes.byteLength === 0) return null
+    try {
+      const opened = await openPptx(bytes)
+      settleStaleHistoryBatch(session)
+      session.undoStack.push(takeSnapshot(session))
+      session.redoStack.length = 0
+      restoreSnapshot(session, {
+        slides: opened.deck.slides,
+        entries: new Map(opened.archive.entries),
+        size: { ...opened.deck.size },
+        metaDirty: true,
+      })
+      scheduleHistoryNotify(session)
+      scheduleDeckBroadcast(session)
+      return buildAllRenderSlides(session.opened, session.fitWidthPx)
+    } catch {
+      return null
+    }
+  })
+
   // Which AI rollback points are still in the ring: the panel tells a point
   // pushed out by newer runs from one that only cannot be used right now
   ipcMain.handle('slides:ai-snapshot-alive', (e, ids: unknown) => {
@@ -5210,6 +5243,25 @@ export function registerSlidesIpc(): void {
           title: tm('dlgExportPdf'),
           defaultPath: `${name}.pdf`,
           filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        },
+        getDraftsDir(),
+      )
+      return r.canceled || !r.filePath ? null : r.filePath
+    },
+    pickImageSavePath: async (e, _editor, image) => {
+      const session = sessions.get(e.sender.id)
+      const name = session?.path
+        ? basename(session.path).replace(/\.pptx$/i, '')
+        : session
+          ? untitledRecoveryTitle(session)
+          : tm('untitledDeck')
+      const spec = imageSaveDialogSpec(name, image)
+      const r = await showSaveDialogWithMemory(
+        dialog,
+        dialogParent(),
+        {
+          defaultPath: spec.defaultFileName,
+          filters: spec.filters,
         },
         getDraftsDir(),
       )

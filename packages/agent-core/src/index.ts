@@ -13,6 +13,39 @@ export type {
   ToolDisplay,
   ToolExecution,
 } from './types'
+export { ASK_QUESTIONS_TOOL, createAskQuestionsSkill } from './ask-questions-skill'
+export type {
+  AskQuestionField,
+  AskQuestionOption,
+  AskQuestionsDeps,
+  AskQuestionsRequest,
+  AskQuestionsResponse,
+  AskQuestionsSkill,
+} from './ask-questions-skill'
+export {
+  DEFAULT_FOOTER_RAIL_RATIO,
+  DEFAULT_MAX_ACCENT_REPEATS,
+  DEFAULT_MAX_PALETTE_COLORS_PER_PAGE,
+  DEFAULT_MAX_QUALITY_FIX_ROUNDS,
+  DEFAULT_MAX_RAW_HEX_OUTSIDE_ROOT,
+  auditHtmlQuality,
+  auditSlideContentQuality,
+  auditWhiteboardQuality,
+  extractRequestedAesthetics,
+  formatQualityReminder,
+} from './quality-audit'
+export type {
+  QualityAuditContext,
+  QualityFinding,
+  QualityFindingCode,
+  QualitySeverity,
+  RequestedAesthetics,
+  SlideAuditElement,
+  SlideAuditInput,
+  SlideAuditRun,
+  WhiteboardAuditObject,
+  WhiteboardAuditPage,
+} from './quality-audit'
 export { composeSkills } from './skill'
 export { attachedImageNote } from './attached-images'
 export { undoDoubledEscapes, undoDoubledEscapesInList } from './doubled-escapes'

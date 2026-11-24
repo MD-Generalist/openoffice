@@ -29,6 +29,8 @@ export interface WhiteboardAiDockProps {
   setOpen(open: boolean): void
   handoff?: WhiteboardHandoff | null
   onHandoffConsumed?(): void
+  onOpenTweaks?(): void
+  onAiDoneRecord?(promptSummary: string): void
 }
 
 export function useWhiteboardAiOpen(): [boolean, (open: boolean) => void] {
@@ -44,6 +46,8 @@ export function WhiteboardAiDock({
   setOpen,
   handoff,
   onHandoffConsumed,
+  onOpenTweaks,
+  onAiDoneRecord,
 }: WhiteboardAiDockProps): ReactElement {
   const { lang, t } = useI18n()
   const { role, requestFocus } = useSplitPaneRole()
@@ -68,6 +72,8 @@ export function WhiteboardAiDock({
         handoff={handoff}
         onCollapse={() => setOpen(false)}
         onHandoffConsumed={onHandoffConsumed}
+        onOpenTweaks={onOpenTweaks}
+        onAiDoneRecord={onAiDoneRecord}
       />
     </div>
   )

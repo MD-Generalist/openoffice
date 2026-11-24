@@ -48,6 +48,8 @@ import {
   estimateTextBoxSize,
   findAttachTarget,
   FONT_SIZE_PRESETS,
+  HIGHLIGHTER_SWATCHES,
+  HIGHLIGHTER_WIDTH_PRESETS,
   LINE_WIDTH_PRESETS,
   livePaperColor,
   PAPER_COLORS,
@@ -74,6 +76,29 @@ import {
   type RichMark,
   type SnapAttachTarget,
 } from '../canvas/paper-style'
+import {
+  computeAlignUpdates,
+  computeDistributeUpdates,
+  computeGroupResize,
+  computeRotationDegrees,
+  computeSingleResize,
+  computeSnapGuides,
+  expandGroupSelection,
+  isObjectLocked,
+  normalizeRect,
+  objectBounds,
+  objectHitsPoint,
+  objectIntersectsRect,
+  searchBoardObjects,
+  selectionBounds,
+  type AlignDirection,
+  type DistributeAxis,
+  type Rect,
+  type ResizeHandle,
+  type SnapGuide,
+} from '../canvas/geometry'
+import { QuickPrintButton, type PrintPrinterInfo, type QuickPrintPrefStore } from '@genoffice/ui'
+import { buildBuiltinTemplate, type BuiltinTemplateId } from '../canvas/templates'
 import { SHAPE_KINDS, shapePath, shapeTextBox } from '../canvas/shape-paths'
 import { STICKER_IDS, StickerIcon } from '../canvas/stickers'
 import type { WhiteboardSession } from '../document/session'
@@ -85,18 +110,33 @@ import {
 } from '../export/pdf-import'
 import { renderPageToSvg, richTextPlain } from '../export/render-svg'
 import { t as tGlobal, useI18n } from '../i18n/locale'
+import { ContextMenu } from './ContextMenu'
+import { Minimap } from './Minimap'
+import { SearchBar } from './SearchBar'
+import { TemplateModal } from './TemplateModal'
 import {
   AlignCenterIcon,
   AlignLeftIcon,
+  AlignObjBottomIcon,
+  AlignObjCenterHIcon,
+  AlignObjLeftIcon,
+  AlignObjMiddleVIcon,
+  AlignObjRightIcon,
+  AlignObjTopIcon,
   AlignRightIcon,
   ArrowEndIcon,
   ArrowStartIcon,
   BackIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
   CircleEndIcon,
   CircleStartIcon,
   ConnectorIcon,
+  CopyIcon,
   CurvedRouteIcon,
   DashedLineIcon,
+  DistributeHIcon,
+  DistributeVIcon,
   DottedLineIcon,
   DuplicateIcon,
   ElbowRouteIcon,
@@ -104,17 +144,24 @@ import {
   ExportIcon,
   FitIcon,
   FrontIcon,
+  GridBlankIcon,
+  GridDotIcon,
+  GridLineIcon,
+  GroupIcon,
+  HandIcon,
   HighlighterIcon,
   ImageIcon,
   LineEndIcon,
   LinkIcon,
+  LockIcon,
+  MinimapIcon,
   MinusIcon,
   PdfIcon,
   PenIcon,
   PlusIcon,
   PresentIcon,
-  PrintIcon,
   RedoIcon,
+  SearchIcon,
   SelectIcon,
   ShapeIcon,
   ShapeKindGlyph,
@@ -125,16 +172,19 @@ import {
   StickyIcon,
   StraightRouteIcon,
   TableIcon,
+  TemplateIcon,
   TextBgIcon,
   TextIcon,
   TrashIcon,
   UndoIcon,
+  UngroupIcon,
+  UnlockIcon,
 } from './icons'
 
 type ToolKind =
-  'select' | 'sticky' | 'text' | 'shape' | 'connector' | 'pen' | 'highlighter' | 'eraser'
+  'select' | 'hand' | 'sticky' | 'text' | 'shape' | 'connector' | 'pen' | 'highlighter' | 'eraser'
 
-type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se'
+type GridMode = 'dot' | 'line' | 'blank'
 
 const LINK_PREVIEW_PREF = 'whiteboardapp.linkPreview'
 const IMAGE_DROP_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
@@ -147,32 +197,47 @@ function fileExt(name: string): string {
   return dot >= 0 ? name.slice(dot + 1).toLowerCase() : ''
 }
 
-function objectBounds(
-  obj: BoardObject,
-  byId: ReadonlyMap<string, BoardObject>,
-): { x: number; y: number; width: number; height: number } {
-  if (obj.kind === 'connector') {
-    const p = obj.props as unknown as ConnectorProps
-    const s = resolveConnectorEnd(p.start, byId)
-    const e = resolveConnectorEnd(p.end, byId)
-    const pts = [s, ...(p.waypoints ?? []), e]
-    const xs = pts.map((pt) => pt.x)
-    const ys = pts.map((pt) => pt.y)
-    const minX = Math.min(...xs)
-    const minY = Math.min(...ys)
-    return {
-      x: minX,
-      y: minY,
-      width: Math.max(24, Math.max(...xs) - minX),
-      height: Math.max(24, Math.max(...ys) - minY),
-    }
+function pageGridMode(page: Page | undefined): GridMode {
+  if (!page) return 'dot'
+  if (page.background.kind === 'grid') {
+    return page.background.pattern === 'line' ? 'line' : 'dot'
   }
-  return {
-    x: obj.x,
-    y: obj.y,
-    width: Math.max(obj.width, 24),
-    height: Math.max(obj.height, 24),
+  if (page.background.kind === 'solid') {
+    return page.gridHidden === true ? 'blank' : page.format === 'freeform' ? 'dot' : 'blank'
   }
+  return 'blank'
+}
+
+function nextGridMode(current: GridMode): GridMode {
+  if (current === 'dot') return 'line'
+  if (current === 'line') return 'blank'
+  return 'dot'
+}
+
+const HANDLE_CURSORS: Record<ResizeHandle, string> = {
+  nw: 'nwse-resize',
+  n: 'ns-resize',
+  ne: 'nesw-resize',
+  e: 'ew-resize',
+  se: 'nwse-resize',
+  s: 'ns-resize',
+  sw: 'nesw-resize',
+  w: 'ew-resize',
+}
+
+function boxResizeHandles(
+  b: Rect,
+): Array<{ handle: ResizeHandle; x: number; y: number; corner: boolean }> {
+  return [
+    { handle: 'nw', x: b.x, y: b.y, corner: true },
+    { handle: 'n', x: b.x + b.width / 2, y: b.y, corner: false },
+    { handle: 'ne', x: b.x + b.width, y: b.y, corner: true },
+    { handle: 'e', x: b.x + b.width, y: b.y + b.height / 2, corner: false },
+    { handle: 'se', x: b.x + b.width, y: b.y + b.height, corner: true },
+    { handle: 's', x: b.x + b.width / 2, y: b.y + b.height, corner: false },
+    { handle: 'sw', x: b.x, y: b.y + b.height, corner: true },
+    { handle: 'w', x: b.x, y: b.y + b.height / 2, corner: false },
+  ]
 }
 
 function thumbnailSwatch(obj: BoardObject): string {
@@ -274,7 +339,10 @@ export interface WhiteboardEditorProps {
   autoSave: boolean
   onToggleAutoSave(): void
   onExport(format: ExportFormat, scope: 'all' | 'current'): void
-  onPrint(): void
+  onPrint(initialDestination?: string): void
+  onQuickPrint(printerLabel: string): void | Promise<void>
+  listPrinters?: () => Promise<readonly PrintPrinterInfo[]>
+  quickPrintPrefStore?: QuickPrintPrefStore
   exportModalFormat: ExportFormat | null
   onCloseExportModal(): void
   onOpenExportModal(format: ExportFormat): void
@@ -291,6 +359,9 @@ export function WhiteboardEditor({
   onToggleAutoSave,
   onExport,
   onPrint,
+  onQuickPrint,
+  listPrinters,
+  quickPrintPrefStore,
   exportModalFormat,
   onCloseExportModal,
   onOpenExportModal,
@@ -299,24 +370,47 @@ export function WhiteboardEditor({
   onToast,
   menuCommand,
 }: WhiteboardEditorProps): ReactElement {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [, setTick] = useState(0)
   const [tool, setTool] = useState<ToolKind>('select')
+  const [spacePanning, setSpacePanning] = useState(false)
   const [shapeKind, setShapeKind] = useState<ShapeKind>('rounded_rectangle')
   const [shapePopoverOpen, setShapePopoverOpen] = useState(false)
   const [activeColor, setActiveColor] = useState<string>(PAPER_FILL_SWATCHES[0])
   const [penColor, setPenColor] = useState<string>(PAPER_COLORS.ink)
+  const [highlighterColor, setHighlighterColor] = useState<string>(PAPER_COLORS.highlighterYellow)
+  const [highlighterWidth, setHighlighterWidth] = useState<number>(22)
   const [connectorColor, setConnectorColor] = useState<string>(PAPER_COLORS.connectorDefault)
   const [connectorRouting, setConnectorRouting] = useState<ConnectorRouting>('curved')
   const [penWidth, setPenWidth] = useState<number>(4)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 96, y: 48 })
+  const [stageSize, setStageSize] = useState({ width: 960, height: 640 })
   const [stickerOpen, setStickerOpen] = useState(false)
+  const [alignMenuOpen, setAlignMenuOpen] = useState(false)
+  const [templateModalOpen, setTemplateModalOpen] = useState(false)
+  const [minimapOpen, setMinimapOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingText, setEditingText] = useState('')
+  const [editingTableCell, setEditingTableCell] = useState<{
+    id: string
+    row: number
+    col: number
+    text: string
+  } | null>(null)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [editingTitleText, setEditingTitleText] = useState('')
+  const [renamingPageId, setRenamingPageId] = useState<string | null>(null)
+  const [renamingPageText, setRenamingPageText] = useState('')
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [connectorHoverObjId, setConnectorHoverObjId] = useState<string | null>(null)
   const [exportScope, setExportScope] = useState<'all' | 'current'>('all')
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+
+  // Search state (Ctrl+F).
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchIndex, setSearchIndex] = useState(0)
 
   // Link card modal state (opt-in preview off by default, remembered per preference).
   const [linkModalOpen, setLinkModalOpen] = useState(false)
@@ -336,22 +430,45 @@ export function WhiteboardEditor({
   const [pdfRange, setPdfRange] = useState('')
   const [pdfBusy, setPdfBusy] = useState(false)
 
+  // Internal object clipboard (for Ctrl+C/X/V).
+  const clipboardRef = useRef<{ objects: BoardObject[]; pasteCount: number } | null>(null)
+  const pendingFitRef = useRef(false)
+  const formatBarRef = useRef<HTMLDivElement | null>(null)
+
   // Active pointer interaction refs.
   const stageRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{
-    kind: 'move' | 'pan' | 'draw' | 'resize' | 'connector-draw' | 'endpoint-drag'
+    kind:
+      | 'multi-move'
+      | 'pan'
+      | 'right-pan'
+      | 'marquee'
+      | 'erase-sweep'
+      | 'draw'
+      | 'resize'
+      | 'group-resize'
+      | 'rotate'
+      | 'connector-draw'
+      | 'endpoint-drag'
     startClientX: number
     startClientY: number
     startPanX: number
     startPanY: number
+    didMove?: boolean
     objectId?: string
-    origX?: number
-    origY?: number
-    origW?: number
-    origH?: number
-    corner?: ResizeCorner
+    origRect?: Rect
+    origMap?: Map<string, Rect>
+    origBounds?: Rect
+    otherRects?: Rect[]
+    cloneSourceIds?: string[]
+    isClone?: boolean
+    handle?: ResizeHandle
+    center?: Point
     points?: Array<[number, number, number]>
     startPoint?: Point
+    additive?: boolean
+    baseSelection?: string[]
+    eraseSet?: Set<string>
     startAttach?: SnapAttachTarget | null
     whichEnd?: 'start' | 'end'
   } | null>(null)
@@ -372,20 +489,43 @@ export function WhiteboardEditor({
     end: ConnectorEnd
     targetId: string | null
   } | null>(null)
-  const [dragDelta, setDragDelta] = useState<{
-    id: string
+  const [marqueeRect, setMarqueeRect] = useState<Rect | null>(null)
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
+  const [multiMoveDelta, setMultiMoveDelta] = useState<{
+    ids: ReadonlySet<string>
     dx: number
     dy: number
-    dw: number
-    dh: number
+    isClone: boolean
   } | null>(null)
+  const [resizePreview, setResizePreview] = useState<ReadonlyMap<string, Rect> | null>(null)
+  const [rotatePreview, setRotatePreview] = useState<{
+    id: string
+    angle: number
+    clientX: number
+    clientY: number
+  } | null>(null)
+  const [erasingIds, setErasingIds] = useState<ReadonlySet<string> | null>(null)
 
   useEffect(() => session.subscribe(() => setTick((n) => n + 1)), [session])
+
+  // Track stage container size for minimap, format bar clamping, and viewport-centered inserts.
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const update = () => {
+      setStageSize({ width: el.clientWidth || 960, height: el.clientHeight || 640 })
+    }
+    update()
+    const obs = new ResizeObserver(update)
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
 
   const doc = session.getDocument()
   const activePage = session.getActivePage()
   const activePageId = activePage?.id ?? ''
   const selectedIds = session.getSelection()
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const highlights = session.getHighlights()
   const highlightSet = useMemo(() => new Set(highlights), [highlights])
   const importSummary = session.getImportSummary()
@@ -398,18 +538,52 @@ export function WhiteboardEditor({
     [doc, activePageId],
   )
 
-  // Apply in-flight move/resize deltas so attached connectors follow objects live during drag.
+  // Apply in-flight move/resize/rotate deltas so attached connectors follow objects live during drag.
   const displayedObjects = useMemo(() => {
-    if (!dragDelta && !endpointPreview) return pageObjects
+    if (!multiMoveDelta && !resizePreview && !rotatePreview && !endpointPreview) return pageObjects
     return pageObjects.map((o) => {
-      if (dragDelta && dragDelta.id === o.id) {
+      if (multiMoveDelta && !multiMoveDelta.isClone && multiMoveDelta.ids.has(o.id)) {
+        if (o.kind === 'connector') {
+          const cp = o.props as unknown as ConnectorProps
+          const shiftEnd = (end: ConnectorEnd): ConnectorEnd =>
+            'objectId' in end ? end : { x: end.x + multiMoveDelta.dx, y: end.y + multiMoveDelta.dy }
+          return {
+            ...o,
+            props: {
+              ...o.props,
+              start: shiftEnd(cp.start),
+              end: shiftEnd(cp.end),
+              ...(cp.waypoints
+                ? {
+                    waypoints: cp.waypoints.map((pt) => ({
+                      x: pt.x + multiMoveDelta.dx,
+                      y: pt.y + multiMoveDelta.dy,
+                    })),
+                  }
+                : {}),
+            },
+          }
+        }
         return {
           ...o,
-          x: o.x + dragDelta.dx,
-          y: o.y + dragDelta.dy,
-          width: Math.max(32, o.width + dragDelta.dw),
-          height: Math.max(24, o.height + dragDelta.dh),
+          x: o.x + multiMoveDelta.dx,
+          y: o.y + multiMoveDelta.dy,
         }
+      }
+      if (resizePreview) {
+        const nextRect = resizePreview.get(o.id)
+        if (nextRect) {
+          return {
+            ...o,
+            x: nextRect.x,
+            y: nextRect.y,
+            width: Math.max(24, nextRect.width),
+            height: Math.max(20, nextRect.height),
+          }
+        }
+      }
+      if (rotatePreview && rotatePreview.id === o.id) {
+        return { ...o, rotation: rotatePreview.angle }
       }
       if (endpointPreview && endpointPreview.id === o.id && o.kind === 'connector') {
         return {
@@ -422,14 +596,39 @@ export function WhiteboardEditor({
       }
       return o
     })
-  }, [dragDelta, endpointPreview, pageObjects])
+  }, [endpointPreview, multiMoveDelta, pageObjects, resizePreview, rotatePreview])
 
   const objectsById = useMemo(
     () => new Map(displayedObjects.map((o) => [o.id, o])),
     [displayedObjects],
   )
 
-  const selectedObj = selectedIds.length === 1 ? (objectsById.get(selectedIds[0]!) ?? null) : null
+  const selectedObjs = useMemo(
+    () => displayedObjects.filter((o) => selectedIdSet.has(o.id)),
+    [displayedObjects, selectedIdSet],
+  )
+  const selectedObj = selectedObjs.length === 1 ? selectedObjs[0]! : null
+  const multiSelected = selectedObjs.length >= 2
+  const allSelectedLocked = selectedObjs.length > 0 && selectedObjs.every(isObjectLocked)
+  const hasUnlockedSelection = selectedObjs.some((o) => !isObjectLocked(o))
+  const canGroupSelection = selectedObjs.length >= 2
+  const canUngroupSelection = selectedObjs.some((o) => Boolean(o.groupId))
+
+  const multiSelectionBox = useMemo(() => {
+    if (!multiSelected) return null
+    return selectionBounds(selectedObjs, objectsById)
+  }, [multiSelected, objectsById, selectedObjs])
+
+  // Search hits across the document.
+  const searchHits = useMemo(
+    () => (searchOpen ? searchBoardObjects(doc, searchQuery, activePageId) : []),
+    [activePageId, doc, searchOpen, searchQuery],
+  )
+  const clampedSearchIndex =
+    searchHits.length > 0
+      ? ((searchIndex % searchHits.length) + searchHits.length) % searchHits.length
+      : 0
+  const searchHitIdSet = useMemo(() => new Set(searchHits.map((h) => h.objectId)), [searchHits])
 
   const clientToBoard = useCallback(
     (clientX: number, clientY: number) => {
@@ -441,6 +640,56 @@ export function WhiteboardEditor({
       }
     },
     [pan.x, pan.y, zoom],
+  )
+
+  const viewportBoardCenter = useCallback((): Point => {
+    return {
+      x: Math.round((stageSize.width / 2 - pan.x) / zoom),
+      y: Math.round((stageSize.height / 2 - pan.y) / zoom),
+    }
+  }, [pan.x, pan.y, stageSize.height, stageSize.width, zoom])
+
+  const zoomAroundScreenPoint = useCallback(
+    (nextZoomRaw: number, screenX: number, screenY: number) => {
+      const nextZ = Math.max(0.2, Math.min(4, Number(nextZoomRaw.toFixed(3))))
+      setZoom((prevZ) => {
+        const ratio = nextZ / prevZ
+        setPan((prevP) => ({
+          x: Math.round(screenX - (screenX - prevP.x) * ratio),
+          y: Math.round(screenY - (screenY - prevP.y) * ratio),
+        }))
+        return nextZ
+      })
+    },
+    [],
+  )
+
+  const zoomAroundCenter = useCallback(
+    (nextZoomRaw: number) => {
+      zoomAroundScreenPoint(nextZoomRaw, stageSize.width / 2, stageSize.height / 2)
+    },
+    [stageSize.height, stageSize.width, zoomAroundScreenPoint],
+  )
+
+  const panToObject = useCallback(
+    (objId: string, pageId?: string) => {
+      if (pageId && pageId !== session.getActivePageId()) {
+        session.setActivePageId(pageId)
+      }
+      const targetDoc = session.getDocument()
+      const targetPageId = pageId ?? session.getActivePageId()
+      const objs = targetDoc.objects.filter((o) => o.pageId === targetPageId)
+      const byId = new Map(objs.map((o) => [o.id, o]))
+      const obj = byId.get(objId)
+      if (!obj) return
+      const b = objectBounds(obj, byId)
+      setPan({
+        x: Math.round(stageSize.width / 2 - (b.x + b.width / 2) * zoom),
+        y: Math.round(stageSize.height / 2 - (b.y + b.height / 2) * zoom),
+      })
+      session.setSelection([obj.id])
+    },
+    [session, stageSize.height, stageSize.width, zoom],
   )
 
   const handleFitZoom = useCallback(() => {
@@ -491,21 +740,119 @@ export function WhiteboardEditor({
     (next: ToolKind) => {
       setTool(next)
       setStickerOpen(false)
+      setContextMenu(null)
       if (next !== 'shape') setShapePopoverOpen(false)
       if (next !== 'select') session.setSelection([])
     },
     [session],
   )
 
-  // Keyboard shortcuts (Undo, Redo, Delete, F5, Escape, Present arrows, single-key tools).
+  // Clipboard & selection action helpers.
+  const handleCopySelected = useCallback(() => {
+    const sel = session.getSelection()
+    if (sel.length === 0) return
+    const set = new Set(sel)
+    const objs = pageObjects.filter((o) => set.has(o.id)).map((o) => structuredClone(o))
+    if (objs.length === 0) return
+    clipboardRef.current = { objects: objs, pasteCount: 0 }
+  }, [pageObjects, session])
+
+  const handleCutSelected = useCallback(() => {
+    const sel = session.getSelection()
+    if (sel.length === 0) return
+    const set = new Set(sel)
+    const unlocked = pageObjects.filter((o) => set.has(o.id) && !isObjectLocked(o))
+    if (unlocked.length === 0) return
+    clipboardRef.current = { objects: unlocked.map((o) => structuredClone(o)), pasteCount: 0 }
+    session.deleteObjects(unlocked.map((o) => o.id))
+  }, [pageObjects, session])
+
+  const handlePasteInternal = useCallback((): boolean => {
+    const clip = clipboardRef.current
+    if (!clip || clip.objects.length === 0) return false
+    clip.pasteCount += 1
+    const shift = clip.pasteCount * 28
+    const created = session.pasteObjects(clip.objects, { x: shift, y: shift })
+    return created.length > 0
+  }, [session])
+
+  const handleDuplicateSelected = useCallback(() => {
+    const sel = session.getSelection()
+    if (sel.length === 0) return
+    session.duplicateObjects(sel, { x: 28, y: 28 })
+  }, [session])
+
+  const handleDeleteSelected = useCallback(() => {
+    const sel = session.getSelection()
+    if (sel.length === 0) return
+    const set = new Set(sel)
+    const unlockedIds = pageObjects
+      .filter((o) => set.has(o.id) && !isObjectLocked(o))
+      .map((o) => o.id)
+    if (unlockedIds.length > 0) {
+      session.deleteObjects(unlockedIds)
+    }
+  }, [pageObjects, session])
+
+  const handleSelectAll = useCallback(() => {
+    const allUnlocked = pageObjects.filter((o) => !isObjectLocked(o)).map((o) => o.id)
+    setTool('select')
+    session.setSelection(allUnlocked)
+  }, [pageObjects, session])
+
+  const handleGroupSelected = useCallback(() => {
+    session.groupObjects(session.getSelection())
+  }, [session])
+
+  const handleUngroupSelected = useCallback(() => {
+    session.ungroupObjects(session.getSelection())
+  }, [session])
+
+  const handleToggleLockSelected = useCallback(() => {
+    session.toggleLock(session.getSelection())
+  }, [session])
+
+  const handleLayerOrder = useCallback(
+    (direction: 'front' | 'forward' | 'backward' | 'back') => {
+      const sel = session.getSelection()
+      if (sel.length === 0) return
+      session.stepLayerOrder(sel, direction)
+    },
+    [session],
+  )
+
+  const handleAlignSelected = useCallback(
+    (dir: AlignDirection) => {
+      const updates = computeAlignUpdates(selectedObjs, dir)
+      if (updates.length === 0) return
+      session.updateObjectsBatch(updates.map((u) => ({ id: u.id, patch: { x: u.x, y: u.y } })))
+    },
+    [selectedObjs, session],
+  )
+
+  const handleDistributeSelected = useCallback(
+    (axis: DistributeAxis) => {
+      const updates = computeDistributeUpdates(selectedObjs, axis)
+      if (updates.length === 0) return
+      session.updateObjectsBatch(updates.map((u) => ({ id: u.id, patch: { x: u.x, y: u.y } })))
+    },
+    [selectedObjs, session],
+  )
+
+  // Space-to-pan temporary mode + comprehensive keyboard shortcuts.
   useEffect(() => {
+    const isTypingTarget = (el: HTMLElement | null): boolean =>
+      Boolean(
+        el &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.tagName === 'SELECT' ||
+          el.isContentEditable),
+      )
+
     const onKeyDown = (e: KeyboardEvent) => {
       const activeEl = document.activeElement as HTMLElement | null
-      const typing =
-        activeEl &&
-        (activeEl.tagName === 'INPUT' ||
-          activeEl.tagName === 'TEXTAREA' ||
-          activeEl.isContentEditable)
+      const typing = isTypingTarget(activeEl)
 
       if (presenting) {
         if (e.key === 'Escape' || e.key === 'F5') {
@@ -527,26 +874,95 @@ export function WhiteboardEditor({
         return
       }
 
+      const mod = e.ctrlKey || e.metaKey
+      const key = e.key.toLowerCase()
+
+      if (mod && key === 'f') {
+        e.preventDefault()
+        setSearchOpen(true)
+        return
+      }
+
       if (typing) return
+
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault()
+        setSpacePanning(true)
+        return
+      }
       if (e.key === 'F5') {
         e.preventDefault()
         onSetPresenting(true)
         return
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      if (mod && key === 'z') {
         e.preventDefault()
         if (e.shiftKey) session.redo()
         else session.undo()
         return
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+      if (mod && key === 'y') {
         e.preventDefault()
         session.redo()
+        return
+      }
+      if (mod && key === 'a') {
+        e.preventDefault()
+        handleSelectAll()
+        return
+      }
+      if (mod && key === 'c') {
+        e.preventDefault()
+        handleCopySelected()
+        return
+      }
+      if (mod && key === 'x') {
+        e.preventDefault()
+        handleCutSelected()
+        return
+      }
+      if (mod && key === 'd') {
+        e.preventDefault()
+        handleDuplicateSelected()
+        return
+      }
+      if (mod && key === 'g') {
+        e.preventDefault()
+        if (e.shiftKey) handleUngroupSelected()
+        else handleGroupSelected()
+        return
+      }
+      if (mod && e.shiftKey && key === 'l') {
+        e.preventDefault()
+        handleToggleLockSelected()
+        return
+      }
+      if (mod && key === '0') {
+        e.preventDefault()
+        zoomAroundCenter(1)
+        return
+      }
+      if (mod && key === '1') {
+        e.preventDefault()
+        handleFitZoom()
+        return
+      }
+      if (mod && (key === '=' || key === '+')) {
+        e.preventDefault()
+        zoomAroundCenter(zoom + 0.15)
+        return
+      }
+      if (mod && key === '-') {
+        e.preventDefault()
+        zoomAroundCenter(zoom - 0.15)
         return
       }
       if (e.key === 'Escape') {
         setStickerOpen(false)
         setShapePopoverOpen(false)
+        setContextMenu(null)
+        setTemplateModalOpen(false)
+        setSearchOpen(false)
         setTool('select')
         session.setSelection([])
         return
@@ -554,25 +970,165 @@ export function WhiteboardEditor({
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (session.getSelection().length > 0) {
           e.preventDefault()
-          session.deleteSelected()
+          handleDeleteSelected()
         }
         return
       }
-      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        const k = e.key.toLowerCase()
-        if (k === 'v') selectTool('select')
-        else if (k === 'n') selectTool('sticky')
-        else if (k === 't') selectTool('text')
-        else if (k === 'r') selectTool('shape')
-        else if (k === 'l') selectTool('connector')
-        else if (k === 'p') selectTool('pen')
-        else if (k === 'h') selectTool('highlighter')
-        else if (k === 'e') selectTool('eraser')
+      if (
+        (e.key === 'ArrowUp' ||
+          e.key === 'ArrowDown' ||
+          e.key === 'ArrowLeft' ||
+          e.key === 'ArrowRight') &&
+        session.getSelection().length > 0
+      ) {
+        e.preventDefault()
+        const step = e.shiftKey ? 10 : 1
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0
+        const selSet = new Set(session.getSelection())
+        const ops: Array<Record<string, unknown>> = []
+        for (const obj of pageObjects) {
+          if (!selSet.has(obj.id) || isObjectLocked(obj)) continue
+          if (obj.kind === 'connector') {
+            const cp = obj.props as unknown as ConnectorProps
+            const sFree = !('objectId' in cp.start)
+            const eFree = !('objectId' in cp.end)
+            if (sFree || eFree) {
+              ops.push({
+                op: 'update',
+                id: obj.id,
+                props: {
+                  ...('x' in cp.start ? { start: { x: cp.start.x + dx, y: cp.start.y + dy } } : {}),
+                  ...('x' in cp.end ? { end: { x: cp.end.x + dx, y: cp.end.y + dy } } : {}),
+                },
+              })
+            }
+          } else {
+            ops.push({ op: 'update', id: obj.id, x: obj.x + dx, y: obj.y + dy })
+          }
+        }
+        if (ops.length > 0) session.applyUserOps(ops)
+        return
+      }
+      if (!mod && !e.altKey) {
+        if (key === 'v') selectTool('select')
+        else if (key === 'n') selectTool('sticky')
+        else if (key === 't') selectTool('text')
+        else if (key === 'r') selectTool('shape')
+        else if (key === 'l') selectTool('connector')
+        else if (key === 'p') selectTool('pen')
+        else if (key === 'h') selectTool('highlighter')
+        else if (key === 'e') selectTool('eraser')
       }
     }
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') setSpacePanning(false)
+    }
+
+    const onBlur = () => setSpacePanning(false)
+
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [activePageId, doc.pages, onSetPresenting, presenting, selectTool, session])
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [
+    activePageId,
+    doc.pages,
+    handleCopySelected,
+    handleCutSelected,
+    handleDeleteSelected,
+    handleDuplicateSelected,
+    handleFitZoom,
+    handleGroupSelected,
+    handleSelectAll,
+    handleToggleLockSelected,
+    handleUngroupSelected,
+    onSetPresenting,
+    pageObjects,
+    presenting,
+    selectTool,
+    session,
+    zoom,
+    zoomAroundCenter,
+  ])
+
+  // Global paste listener: supports OS clipboard images, internal objects, URLs, and plain text.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (presenting) return
+      const activeEl = document.activeElement as HTMLElement | null
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.isContentEditable)
+      ) {
+        return
+      }
+
+      const items = Array.from(e.clipboardData?.items ?? [])
+      const imgItem = items.find((it) => it.type.startsWith('image/'))
+      if (imgItem) {
+        const file = imgItem.getAsFile()
+        if (file) {
+          e.preventDefault()
+          void file.arrayBuffer().then(async (ab) => {
+            const center = viewportBoardCenter()
+            const res = await session.insertUserImage({
+              bytes: new Uint8Array(ab),
+              alt: file.name || 'Pasted image',
+              x: Math.round(center.x - 180),
+              y: Math.round(center.y - 120),
+            })
+            if (!res.ok) onToast(res.error)
+          })
+          return
+        }
+      }
+
+      if (handlePasteInternal()) {
+        e.preventDefault()
+        return
+      }
+
+      const plain = e.clipboardData?.getData('text/plain')?.trim() ?? ''
+      if (!plain) return
+      e.preventDefault()
+      const center = viewportBoardCenter()
+      const safeUrl = openableLink(plain)
+      if (safeUrl && /^https?:\/\//i.test(safeUrl) && !plain.includes('\n')) {
+        session.addObject({
+          kind: 'link',
+          url: safeUrl,
+          title: safeUrl,
+          x: Math.round(center.x - 150),
+          y: Math.round(center.y - 46),
+          width: 300,
+          height: 92,
+        })
+      } else {
+        const sized = estimateTextBoxSize(plain, TEXT_DEFAULT_FONT_SIZE, 6, 4)
+        session.addObject({
+          kind: 'text',
+          x: Math.round(center.x - sized.width / 2),
+          y: Math.round(center.y - sized.height / 2),
+          width: sized.width,
+          height: sized.height,
+          fontSize: TEXT_DEFAULT_FONT_SIZE,
+          color: PAPER_COLORS.ink,
+          text: plainRichText(plain, { color: PAPER_COLORS.ink }),
+        })
+      }
+    }
+
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [handlePasteInternal, onToast, presenting, session, viewportBoardCenter])
 
   // Inline text commit (preserves existing marks and skips no-op commits to keep undo clean).
   const commitInlineEdit = useCallback(() => {
@@ -613,18 +1169,107 @@ export function WhiteboardEditor({
     }
   }, [editingId, editingText, objectsById, session])
 
-  const startInlineEdit = useCallback((obj: BoardObject) => {
-    if (obj.kind === 'connector') {
-      const cp = obj.props as unknown as ConnectorProps
+  // Table cell inline edit commit.
+  const commitTableCellEdit = useCallback(
+    (nextCell?: { row: number; col: number } | null) => {
+      if (!editingTableCell) return
+      const { id, row, col, text } = editingTableCell
+      const obj = objectsById.get(id)
+      if (obj && obj.kind === 'table') {
+        const tp = obj.props as unknown as TableProps
+        const rid = tp.rowIds[row]
+        const cid = tp.colIds[col]
+        const prevText = rid && cid ? richTextPlain(tp.cells?.[`${rid}:${cid}`]) : ''
+        if (text !== prevText) {
+          session.updateTable(id, { cells: [{ row, col, text }] })
+        }
+        if (
+          nextCell &&
+          nextCell.row >= 0 &&
+          nextCell.row < tp.rowIds.length &&
+          nextCell.col >= 0 &&
+          nextCell.col < tp.colIds.length
+        ) {
+          const nRid = tp.rowIds[nextCell.row]!
+          const nCid = tp.colIds[nextCell.col]!
+          const freshObj = session.getDocument().objects.find((o) => o.id === id)
+          const freshTp = (freshObj?.props ?? tp) as unknown as TableProps
+          setEditingTableCell({
+            id,
+            row: nextCell.row,
+            col: nextCell.col,
+            text: richTextPlain(freshTp.cells?.[`${nRid}:${nCid}`]),
+          })
+          return
+        }
+      }
+      setEditingTableCell(null)
+    },
+    [editingTableCell, objectsById, session],
+  )
+
+  const startInlineEdit = useCallback(
+    (obj: BoardObject, clickClient?: Point) => {
+      if (isObjectLocked(obj)) return
+      if (obj.kind === 'table') {
+        const tp = obj.props as unknown as TableProps
+        const rows = tp.rowIds?.length || 1
+        const cols = tp.colIds?.length || 1
+        let row = 0
+        let col = 0
+        if (clickClient) {
+          const pt = clientToBoard(clickClient.x, clickClient.y)
+          col = Math.max(0, Math.min(cols - 1, Math.floor(((pt.x - obj.x) / obj.width) * cols)))
+          row = Math.max(0, Math.min(rows - 1, Math.floor(((pt.y - obj.y) / obj.height) * rows)))
+        }
+        const rid = tp.rowIds[row]
+        const cid = tp.colIds[col]
+        setEditingTableCell({
+          id: obj.id,
+          row,
+          col,
+          text: rid && cid ? richTextPlain(tp.cells?.[`${rid}:${cid}`]) : '',
+        })
+        return
+      }
+      if (obj.kind === 'connector') {
+        const cp = obj.props as unknown as ConnectorProps
+        setEditingId(obj.id)
+        setEditingText(richTextPlain(cp.label))
+        return
+      }
+      if (obj.kind !== 'sticky' && obj.kind !== 'text' && obj.kind !== 'shape') return
+      const p = obj.props as unknown as StickyProps | TextProps | ShapeProps
       setEditingId(obj.id)
-      setEditingText(richTextPlain(cp.label))
-      return
-    }
-    if (obj.kind !== 'sticky' && obj.kind !== 'text' && obj.kind !== 'shape') return
-    const p = obj.props as unknown as StickyProps | TextProps | ShapeProps
-    setEditingId(obj.id)
-    setEditingText(richTextPlain(p.text))
-  }, [])
+      setEditingText(richTextPlain(p.text))
+    },
+    [clientToBoard],
+  )
+
+  // Quick-flow: Tab while editing a sticky commits it and creates a sibling sticky to its right.
+  const handleStickyTabNext = useCallback(
+    (current: BoardObject) => {
+      if (current.kind !== 'sticky') return
+      const sp = current.props as unknown as StickyProps
+      commitInlineEdit()
+      const created = session.addObject({
+        kind: 'sticky',
+        x: Math.round(current.x + current.width + 24),
+        y: Math.round(current.y),
+        width: current.width,
+        height: current.height,
+        color: sp.color || activeColor,
+        fontSize: sp.fontSize ?? STICKY_DEFAULT_FONT_SIZE,
+        align: sp.align ?? 'center',
+        text: plainRichText('', { color: PAPER_COLORS.ink, align: sp.align ?? 'center' }),
+      })
+      if (created) {
+        setEditingId(created.id)
+        setEditingText('')
+      }
+    },
+    [activeColor, commitInlineEdit, session],
+  )
 
   // Add helpers.
   const handleAddSticker = useCallback(
@@ -661,12 +1306,106 @@ export function WhiteboardEditor({
     setTool('select')
   }, [session])
 
+  const handleApplyTemplate = useCallback(
+    (templateId: BuiltinTemplateId, target: 'current_page' | 'new_pages') => {
+      const titleKeyMap: Record<BuiltinTemplateId, Parameters<typeof tGlobal>[0]> = {
+        kanban: 'tplKanbanTitle',
+        swot: 'tplSwotTitle',
+        kpt: 'tplKptTitle',
+        flowchart: 'tplFlowchartTitle',
+        matrix_2x2: 'tplMatrixTitle',
+        timeline: 'tplTimelineTitle',
+        mindmap: 'tplMindmapTitle',
+        user_journey: 'tplJourneyTitle',
+        meeting_notes: 'tplMeetingTitle',
+        bmc: 'tplBmcTitle',
+        fishbone: 'tplFishboneTitle',
+        okr: 'tplOkrTitle',
+      }
+      const template = buildBuiltinTemplate(templateId, target, {
+        title: tGlobal(titleKeyMap[templateId]),
+        kanbanTodo: tGlobal('tplKanbanTodo'),
+        kanbanDoing: tGlobal('tplKanbanDoing'),
+        kanbanDone: tGlobal('tplKanbanDone'),
+        swotS: tGlobal('tplSwotS'),
+        swotW: tGlobal('tplSwotW'),
+        swotO: tGlobal('tplSwotO'),
+        swotT: tGlobal('tplSwotT'),
+        kptKeep: tGlobal('tplKptKeep'),
+        kptProblem: tGlobal('tplKptProblem'),
+        kptTry: tGlobal('tplKptTry'),
+        flowStart: tGlobal('tplFlowStart'),
+        flowReview: tGlobal('tplFlowReview'),
+        flowDecision: tGlobal('tplFlowDecision'),
+        flowApprove: tGlobal('tplFlowApprove'),
+        flowRevise: tGlobal('tplFlowRevise'),
+        matrixQ1: tGlobal('tplMatrixQ1'),
+        matrixQ2: tGlobal('tplMatrixQ2'),
+        matrixQ3: tGlobal('tplMatrixQ3'),
+        matrixQ4: tGlobal('tplMatrixQ4'),
+        matrixHighImpact: tGlobal('tplMatrixHighImpact'),
+        matrixLowEffort: tGlobal('tplMatrixLowEffort'),
+        timelinePhase: tGlobal('tplTimelinePhase'),
+        sampleItem: tGlobal('tplSampleItem'),
+        mindmapTopic: tGlobal('tplMindmapTopic'),
+        mindmapBranch: tGlobal('tplMindmapBranch'),
+        mindmapIdea: tGlobal('tplMindmapIdea'),
+        journeyAwareness: tGlobal('tplJourneyAwareness'),
+        journeyConsider: tGlobal('tplJourneyConsider'),
+        journeyDecision: tGlobal('tplJourneyDecision'),
+        journeyUse: tGlobal('tplJourneyUse'),
+        journeyAdvocate: tGlobal('tplJourneyAdvocate'),
+        journeyActions: tGlobal('tplJourneyActions'),
+        journeyTouchpoint: tGlobal('tplJourneyTouchpoint'),
+        journeyOpportunity: tGlobal('tplJourneyOpportunity'),
+        meetingMeta: tGlobal('tplMeetingMeta'),
+        meetingAgenda: tGlobal('tplMeetingAgenda'),
+        meetingDecisions: tGlobal('tplMeetingDecisions'),
+        meetingActions: tGlobal('tplMeetingActions'),
+        meetingColTask: tGlobal('tplMeetingColTask'),
+        meetingColOwner: tGlobal('tplMeetingColOwner'),
+        meetingColDue: tGlobal('tplMeetingColDue'),
+        meetingColStatus: tGlobal('tplMeetingColStatus'),
+        bmcPartners: tGlobal('tplBmcPartners'),
+        bmcActivities: tGlobal('tplBmcActivities'),
+        bmcResources: tGlobal('tplBmcResources'),
+        bmcValue: tGlobal('tplBmcValue'),
+        bmcRelations: tGlobal('tplBmcRelations'),
+        bmcChannels: tGlobal('tplBmcChannels'),
+        bmcSegments: tGlobal('tplBmcSegments'),
+        bmcCost: tGlobal('tplBmcCost'),
+        bmcRevenue: tGlobal('tplBmcRevenue'),
+        fishboneProblem: tGlobal('tplFishboneProblem'),
+        fishbonePeople: tGlobal('tplFishbonePeople'),
+        fishboneProcess: tGlobal('tplFishboneProcess'),
+        fishboneTools: tGlobal('tplFishboneTools'),
+        fishboneEnv: tGlobal('tplFishboneEnv'),
+        fishboneCause: tGlobal('tplFishboneCause'),
+        okrObjective: tGlobal('tplOkrObjective'),
+        okrKr: tGlobal('tplOkrKr'),
+        okrInitiative: tGlobal('tplOkrInitiative'),
+        okrColMetric: tGlobal('tplOkrColMetric'),
+        okrColTarget: tGlobal('tplOkrColTarget'),
+        okrColCurrent: tGlobal('tplOkrColCurrent'),
+      })
+      const res = session.applyUserTemplate(template)
+      setTemplateModalOpen(false)
+      if (!res.ok) {
+        onToast(res.error.message)
+      } else {
+        setTool('select')
+        pendingFitRef.current = true
+      }
+    },
+    [onToast, session],
+  )
+
   const handlePickImage = useCallback(async () => {
     setStickerOpen(false)
     setShapePopoverOpen(false)
     const picked = await window.whiteboardApi.core.pickImageFile()
     if (!picked.ok || !picked.bytes) return
-    const res = await session.insertImage({ bytes: picked.bytes, alt: picked.name })
+    const res = await session.insertUserImage({ bytes: picked.bytes, alt: picked.name })
     if (!res.ok) onToast(res.error)
   }, [onToast, session])
 
@@ -709,13 +1448,13 @@ export function WhiteboardEditor({
     if (menuCommand.cmd === 'import-pdf') {
       void handlePickPdf()
     } else if (menuCommand.cmd === 'zoom-in') {
-      setZoom((z) => Math.min(3, Number((z + 0.15).toFixed(2))))
+      zoomAroundCenter(zoom + 0.15)
     } else if (menuCommand.cmd === 'zoom-out') {
-      setZoom((z) => Math.max(0.2, Number((z - 0.15).toFixed(2))))
+      zoomAroundCenter(zoom - 0.15)
     } else if (menuCommand.cmd === 'zoom-fit') {
       handleFitZoom()
     }
-  }, [handleFitZoom, handlePickPdf, menuCommand])
+  }, [handleFitZoom, handlePickPdf, menuCommand, zoom, zoomAroundCenter])
 
   const handleConfirmPdfImport = useCallback(async () => {
     if (!pdfPending || pdfBusy) return
@@ -823,7 +1562,12 @@ export function WhiteboardEditor({
         if (ext === 'pdf') {
           await openPdfBytesForImport(buf, file.name)
         } else if (IMAGE_DROP_EXTS.has(ext)) {
-          const res = await session.insertImage({ bytes: buf, alt: file.name, x: pt.x, y: pt.y })
+          const res = await session.insertUserImage({
+            bytes: buf,
+            alt: file.name,
+            x: pt.x,
+            y: pt.y,
+          })
           if (!res.ok) onToast(res.error)
         }
       }
@@ -836,10 +1580,25 @@ export function WhiteboardEditor({
     (e: ReactPointerEvent<SVGSVGElement>) => {
       setStickerOpen(false)
       setShapePopoverOpen(false)
+      setContextMenu(null)
       if (editingId) commitInlineEdit()
+      if (editingTableCell) commitTableCellEdit()
       const pt = clientToBoard(e.clientX, e.clientY)
 
-      if (e.button === 1 || (tool === 'select' && e.altKey)) {
+      // Right-click: pan if dragged, otherwise open context menu on pointer up.
+      if (e.button === 2) {
+        dragRef.current = {
+          kind: 'right-pan',
+          startClientX: e.clientX,
+          startClientY: e.clientY,
+          startPanX: pan.x,
+          startPanY: pan.y,
+          didMove: false,
+        }
+        return
+      }
+
+      if (e.button === 1 || spacePanning || tool === 'hand' || (tool === 'select' && e.altKey)) {
         dragRef.current = {
           kind: 'pan',
           startClientX: e.clientX,
@@ -850,7 +1609,27 @@ export function WhiteboardEditor({
         return
       }
 
+      if (tool === 'eraser') {
+        const hits = new Set<string>()
+        for (const obj of pageObjects) {
+          if (!isObjectLocked(obj) && objectHitsPoint(obj, pt, objectsById, 8 / zoom)) {
+            hits.add(obj.id)
+          }
+        }
+        dragRef.current = {
+          kind: 'erase-sweep',
+          startClientX: e.clientX,
+          startClientY: e.clientY,
+          startPanX: pan.x,
+          startPanY: pan.y,
+          eraseSet: hits,
+        }
+        if (hits.size > 0) setErasingIds(new Set(hits))
+        return
+      }
+
       if (tool === 'sticky') {
+        e.preventDefault()
         const created = session.addObject({
           kind: 'sticky',
           x: Math.round(pt.x - STICKY_DEFAULT_SIZE / 2),
@@ -870,6 +1649,7 @@ export function WhiteboardEditor({
         return
       }
       if (tool === 'text') {
+        e.preventDefault()
         const created = session.addObject({
           kind: 'text',
           x: Math.round(pt.x - 110),
@@ -943,20 +1723,35 @@ export function WhiteboardEditor({
         return
       }
 
-      // Click empty stage clears selection.
-      session.setSelection([])
+      // Select tool on empty stage: begin marquee drag-selection (click clears selection on up).
+      dragRef.current = {
+        kind: 'marquee',
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startPanX: pan.x,
+        startPanY: pan.y,
+        startPoint: pt,
+        additive: e.shiftKey,
+        baseSelection: [...selectedIds],
+        didMove: false,
+      }
     },
     [
       activeColor,
       clientToBoard,
       commitInlineEdit,
+      commitTableCellEdit,
       connectorRouting,
       editingId,
+      editingTableCell,
+      objectsById,
       pageObjects,
       pan.x,
       pan.y,
+      selectedIds,
       session,
       shapeKind,
+      spacePanning,
       tool,
       zoom,
     ],
@@ -964,44 +1759,119 @@ export function WhiteboardEditor({
 
   const handleObjectPointerDown = useCallback(
     (e: ReactPointerEvent, obj: BoardObject) => {
-      if (tool === 'connector' || tool === 'pen' || tool === 'highlighter') {
-        // Let pointer event bubble to the SVG stage so connectors can snap-start on objects
-        // and pen/highlighter can draw freely over objects.
+      if (
+        spacePanning ||
+        tool === 'hand' ||
+        tool === 'connector' ||
+        tool === 'pen' ||
+        tool === 'highlighter'
+      ) {
         return
       }
+
+      // Right-click on object: ensure it is selected, then let stage open context menu / pan.
+      if (e.button === 2) {
+        if (!selectedIds.includes(obj.id)) {
+          session.setSelection(expandGroupSelection([obj.id], pageObjects))
+        }
+        return
+      }
+
       e.stopPropagation()
       setStickerOpen(false)
       setShapePopoverOpen(false)
+      setContextMenu(null)
       if (editingId && editingId !== obj.id) commitInlineEdit()
+      if (editingTableCell && editingTableCell.id !== obj.id) commitTableCellEdit()
 
       if (tool === 'eraser') {
-        session.setSelection([obj.id])
-        session.deleteSelected()
+        const hits = new Set<string>()
+        if (!isObjectLocked(obj)) hits.add(obj.id)
+        dragRef.current = {
+          kind: 'erase-sweep',
+          startClientX: e.clientX,
+          startClientY: e.clientY,
+          startPanX: pan.x,
+          startPanY: pan.y,
+          eraseSet: hits,
+        }
+        if (hits.size > 0) setErasingIds(new Set(hits))
         return
       }
       if (tool !== 'select') return
 
-      session.setSelection([obj.id])
-      if (obj.kind === 'connector') return
+      const groupMembers = expandGroupSelection([obj.id], pageObjects)
+      if (e.shiftKey) {
+        const next = new Set(selectedIds)
+        const allIn = groupMembers.every((id) => next.has(id))
+        for (const id of groupMembers) {
+          if (allIn) next.delete(id)
+          else next.add(id)
+        }
+        session.setSelection([...next])
+        return
+      }
+
+      const nextSel = selectedIds.includes(obj.id) ? selectedIds : groupMembers
+      if (nextSel !== selectedIds) {
+        session.setSelection(nextSel)
+      }
+
+      const selSet = new Set(nextSel)
+      const movable = pageObjects.filter((o) => selSet.has(o.id) && !isObjectLocked(o))
+      if (movable.length === 0) return
+
+      const origMap = new Map<string, Rect>()
+      for (const m of movable) {
+        if (m.kind !== 'connector') {
+          origMap.set(m.id, { x: m.x, y: m.y, width: m.width, height: m.height })
+        }
+      }
+      // Also allow dragging a single selected free-point connector or multi-selection with connectors.
+      if (origMap.size === 0) return
+
+      const origBounds = selectionBounds(
+        movable.filter((m) => m.kind !== 'connector'),
+        objectsById,
+      )
+      const otherRects = pageObjects
+        .filter((o) => !selSet.has(o.id) && o.kind !== 'connector')
+        .map((o) => ({ x: o.x, y: o.y, width: o.width, height: o.height }))
+
       dragRef.current = {
-        kind: 'move',
+        kind: 'multi-move',
         startClientX: e.clientX,
         startClientY: e.clientY,
         startPanX: pan.x,
         startPanY: pan.y,
-        objectId: obj.id,
-        origX: obj.x,
-        origY: obj.y,
-        origW: obj.width,
-        origH: obj.height,
+        origMap,
+        origBounds: origBounds ?? undefined,
+        otherRects,
+        cloneSourceIds: [...selSet],
+        isClone: e.altKey,
+        didMove: false,
       }
     },
-    [commitInlineEdit, editingId, pan.x, pan.y, session, tool],
+    [
+      commitInlineEdit,
+      commitTableCellEdit,
+      editingId,
+      editingTableCell,
+      objectsById,
+      pageObjects,
+      pan.x,
+      pan.y,
+      selectedIds,
+      session,
+      spacePanning,
+      tool,
+    ],
   )
 
   const handleResizePointerDown = useCallback(
-    (e: ReactPointerEvent, obj: BoardObject, corner: ResizeCorner) => {
+    (e: ReactPointerEvent, obj: BoardObject, handle: ResizeHandle) => {
       e.stopPropagation()
+      if (isObjectLocked(obj)) return
       dragRef.current = {
         kind: 'resize',
         startClientX: e.clientX,
@@ -1009,11 +1879,49 @@ export function WhiteboardEditor({
         startPanX: pan.x,
         startPanY: pan.y,
         objectId: obj.id,
-        origX: obj.x,
-        origY: obj.y,
-        origW: obj.width,
-        origH: obj.height,
-        corner,
+        origRect: { x: obj.x, y: obj.y, width: obj.width, height: obj.height },
+        handle,
+      }
+    },
+    [pan.x, pan.y],
+  )
+
+  const handleGroupResizePointerDown = useCallback(
+    (e: ReactPointerEvent, bounds: Rect, handle: ResizeHandle) => {
+      e.stopPropagation()
+      const origMap = new Map<string, Rect>()
+      for (const o of selectedObjs) {
+        if (o.kind !== 'connector' && !isObjectLocked(o)) {
+          origMap.set(o.id, { x: o.x, y: o.y, width: o.width, height: o.height })
+        }
+      }
+      if (origMap.size === 0) return
+      dragRef.current = {
+        kind: 'group-resize',
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startPanX: pan.x,
+        startPanY: pan.y,
+        origBounds: bounds,
+        origMap,
+        handle,
+      }
+    },
+    [pan.x, pan.y, selectedObjs],
+  )
+
+  const handleRotatePointerDown = useCallback(
+    (e: ReactPointerEvent, obj: BoardObject) => {
+      e.stopPropagation()
+      if (isObjectLocked(obj)) return
+      dragRef.current = {
+        kind: 'rotate',
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startPanX: pan.x,
+        startPanY: pan.y,
+        objectId: obj.id,
+        center: { x: obj.x + obj.width / 2, y: obj.y + obj.height / 2 },
       }
     },
     [pan.x, pan.y],
@@ -1022,6 +1930,7 @@ export function WhiteboardEditor({
   const handleEndpointPointerDown = useCallback(
     (e: ReactPointerEvent, obj: BoardObject, which: 'start' | 'end') => {
       e.stopPropagation()
+      if (isObjectLocked(obj)) return
       dragRef.current = {
         kind: 'endpoint-drag',
         startClientX: e.clientX,
@@ -1084,11 +1993,56 @@ export function WhiteboardEditor({
         }
         return
       }
+      if (drag.kind === 'right-pan') {
+        const dist = Math.hypot(e.clientX - drag.startClientX, e.clientY - drag.startClientY)
+        if (dist >= 4) drag.didMove = true
+        if (drag.didMove) {
+          setPan({
+            x: drag.startPanX + (e.clientX - drag.startClientX),
+            y: drag.startPanY + (e.clientY - drag.startClientY),
+          })
+        }
+        return
+      }
       if (drag.kind === 'pan') {
         setPan({
           x: drag.startPanX + (e.clientX - drag.startClientX),
           y: drag.startPanY + (e.clientY - drag.startClientY),
         })
+        return
+      }
+      if (drag.kind === 'marquee' && drag.startPoint) {
+        const dist = Math.hypot(e.clientX - drag.startClientX, e.clientY - drag.startClientY)
+        if (!drag.didMove && dist < 4) return
+        drag.didMove = true
+        const pt = clientToBoard(e.clientX, e.clientY)
+        const rect = normalizeRect(drag.startPoint, pt)
+        setMarqueeRect(rect)
+        const hitIds = pageObjects
+          .filter((o) => !isObjectLocked(o) && objectIntersectsRect(o, rect, objectsById))
+          .map((o) => o.id)
+        const expanded = expandGroupSelection(hitIds, pageObjects)
+        if (drag.additive && drag.baseSelection) {
+          session.setSelection([...new Set([...drag.baseSelection, ...expanded])])
+        } else {
+          session.setSelection(expanded)
+        }
+        return
+      }
+      if (drag.kind === 'erase-sweep' && drag.eraseSet) {
+        const pt = clientToBoard(e.clientX, e.clientY)
+        let added = false
+        for (const obj of pageObjects) {
+          if (
+            !isObjectLocked(obj) &&
+            !drag.eraseSet.has(obj.id) &&
+            objectHitsPoint(obj, pt, objectsById, 8 / zoom)
+          ) {
+            drag.eraseSet.add(obj.id)
+            added = true
+          }
+        }
+        if (added) setErasingIds(new Set(drag.eraseSet))
         return
       }
       if (drag.kind === 'draw' && drag.points) {
@@ -1145,47 +2099,74 @@ export function WhiteboardEditor({
         })
         return
       }
-      if (drag.kind === 'move' && drag.objectId) {
-        setDragDelta({
-          id: drag.objectId,
-          dx: (e.clientX - drag.startClientX) / zoom,
-          dy: (e.clientY - drag.startClientY) / zoom,
-          dw: 0,
-          dh: 0,
-        })
-        return
-      }
-      if (drag.kind === 'resize' && drag.objectId) {
+      if (drag.kind === 'multi-move' && drag.origMap && drag.origBounds) {
         const rawDx = (e.clientX - drag.startClientX) / zoom
         const rawDy = (e.clientY - drag.startClientY) / zoom
-        const corner = drag.corner ?? 'se'
-        const origW = drag.origW ?? 100
-        const origH = drag.origH ?? 60
-        let dx = 0
-        let dy = 0
-        let dw = 0
-        let dh = 0
-        if (corner === 'se') {
-          dw = rawDx
-          dh = rawDy
-        } else if (corner === 'ne') {
-          dw = rawDx
-          dy = Math.min(rawDy, origH - 24)
-          dh = -dy
-        } else if (corner === 'sw') {
-          dx = Math.min(rawDx, origW - 32)
-          dw = -dx
-          dh = rawDy
-        } else if (corner === 'nw') {
-          dx = Math.min(rawDx, origW - 32)
-          dw = -dx
-          dy = Math.min(rawDy, origH - 24)
-          dh = -dy
+        if (
+          !drag.didMove &&
+          Math.hypot(e.clientX - drag.startClientX, e.clientY - drag.startClientY) < 2
+        ) {
+          return
         }
-        setDragDelta({ id: drag.objectId, dx, dy, dw, dh })
+        drag.didMove = true
+        let dx = rawDx
+        let dy = rawDy
+        if (!(e.ctrlKey || e.metaKey) && drag.otherRects && drag.otherRects.length > 0) {
+          const movingRect: Rect = {
+            x: drag.origBounds.x + rawDx,
+            y: drag.origBounds.y + rawDy,
+            width: drag.origBounds.width,
+            height: drag.origBounds.height,
+          }
+          const snap = computeSnapGuides(movingRect, drag.otherRects, 6 / zoom)
+          dx += snap.snapDx
+          dy += snap.snapDy
+          setSnapGuides(snap.guides)
+        } else {
+          setSnapGuides([])
+        }
+        const ids = new Set(drag.cloneSourceIds ?? [...drag.origMap.keys()])
+        setMultiMoveDelta({ ids, dx, dy, isClone: Boolean(drag.isClone) })
+        return
+      }
+      if (drag.kind === 'resize' && drag.objectId && drag.origRect && drag.handle) {
+        const rawDx = (e.clientX - drag.startClientX) / zoom
+        const rawDy = (e.clientY - drag.startClientY) / zoom
+        const next = computeSingleResize(drag.origRect, drag.handle, rawDx, rawDy, e.shiftKey)
+        setResizePreview(new Map([[drag.objectId, next]]))
+        return
+      }
+      if (drag.kind === 'group-resize' && drag.origBounds && drag.origMap && drag.handle) {
+        const rawDx = (e.clientX - drag.startClientX) / zoom
+        const rawDy = (e.clientY - drag.startClientY) / zoom
+        const items = [...drag.origMap.entries()].map(([id, rect]) => ({ id, rect }))
+        const nextMap = computeGroupResize(
+          drag.origBounds,
+          drag.handle,
+          rawDx,
+          rawDy,
+          items,
+          e.shiftKey,
+        )
+        setResizePreview(nextMap)
+        return
+      }
+      if (drag.kind === 'rotate' && drag.objectId && drag.center) {
+        const pt = clientToBoard(e.clientX, e.clientY)
+        const angle = computeRotationDegrees(drag.center, pt, e.shiftKey)
+        setRotatePreview({ id: drag.objectId, angle, clientX: e.clientX, clientY: e.clientY })
       }
     },
-    [clientToBoard, connectorHoverObjId, connectorRouting, pageObjects, tool, zoom],
+    [
+      clientToBoard,
+      connectorHoverObjId,
+      connectorRouting,
+      objectsById,
+      pageObjects,
+      session,
+      tool,
+      zoom,
+    ],
   )
 
   const handleStagePointerUp = useCallback(
@@ -1193,6 +2174,34 @@ export function WhiteboardEditor({
       const drag = dragRef.current
       dragRef.current = null
       if (!drag) return
+
+      if (drag.kind === 'right-pan') {
+        if (!drag.didMove) {
+          const menuW = 224
+          const menuH = 380
+          const x = Math.min(e.clientX, window.innerWidth - menuW - 8)
+          const y = Math.min(e.clientY, window.innerHeight - menuH - 8)
+          setContextMenu({ x: Math.max(8, x), y: Math.max(8, y) })
+        }
+        return
+      }
+
+      if (drag.kind === 'marquee') {
+        setMarqueeRect(null)
+        if (!drag.didMove && !drag.additive) {
+          session.setSelection([])
+        }
+        return
+      }
+
+      if (drag.kind === 'erase-sweep') {
+        const ids = drag.eraseSet ? [...drag.eraseSet] : []
+        setErasingIds(null)
+        if (ids.length > 0) {
+          session.deleteObjects(ids)
+        }
+        return
+      }
 
       if (drag.kind === 'connector-draw' && drag.startPoint) {
         const pt = clientToBoard(e.clientX, e.clientY)
@@ -1294,8 +2303,8 @@ export function WhiteboardEditor({
           width: Math.max(8, maxX - minX),
           height: Math.max(8, maxY - minY),
           tool: isHi ? 'highlighter' : 'pen',
-          color: isHi ? PAPER_COLORS.highlighterYellow : penColor,
-          strokeWidth: isHi ? 22 : penWidth,
+          color: isHi ? highlighterColor : penColor,
+          strokeWidth: isHi ? highlighterWidth : penWidth,
           opacity: isHi ? 0.35 : 1,
           points: relPoints,
         })
@@ -1303,35 +2312,95 @@ export function WhiteboardEditor({
         return
       }
 
-      if (dragDelta && drag.objectId) {
-        const patch: Record<string, unknown> = {}
-        if (drag.kind === 'move' && (dragDelta.dx !== 0 || dragDelta.dy !== 0)) {
-          patch.x = Math.round((drag.origX ?? 0) + dragDelta.dx)
-          patch.y = Math.round((drag.origY ?? 0) + dragDelta.dy)
-        } else if (
-          drag.kind === 'resize' &&
-          (dragDelta.dx !== 0 || dragDelta.dy !== 0 || dragDelta.dw !== 0 || dragDelta.dh !== 0)
-        ) {
-          patch.x = Math.round((drag.origX ?? 0) + dragDelta.dx)
-          patch.y = Math.round((drag.origY ?? 0) + dragDelta.dy)
-          patch.width = Math.max(32, Math.round((drag.origW ?? 100) + dragDelta.dw))
-          patch.height = Math.max(24, Math.round((drag.origH ?? 60) + dragDelta.dh))
+      if (drag.kind === 'multi-move' && multiMoveDelta) {
+        const { dx, dy, isClone, ids } = multiMoveDelta
+        setMultiMoveDelta(null)
+        setSnapGuides([])
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+          const rDx = Math.round(dx)
+          const rDy = Math.round(dy)
+          if (isClone && drag.cloneSourceIds) {
+            session.duplicateObjects(drag.cloneSourceIds, { x: rDx, y: rDy })
+          } else if (drag.origMap) {
+            const ops: Array<Record<string, unknown>> = []
+            for (const [id, orig] of drag.origMap.entries()) {
+              ops.push({
+                op: 'update',
+                id,
+                x: Math.round(orig.x + rDx),
+                y: Math.round(orig.y + rDy),
+              })
+            }
+            for (const obj of pageObjects) {
+              if (obj.kind !== 'connector' || !ids.has(obj.id) || isObjectLocked(obj)) continue
+              const cp = obj.props as unknown as ConnectorProps
+              const sFree = !('objectId' in cp.start)
+              const eFree = !('objectId' in cp.end)
+              if (sFree || eFree || cp.waypoints?.length) {
+                ops.push({
+                  op: 'update',
+                  id: obj.id,
+                  props: {
+                    ...('x' in cp.start
+                      ? { start: { x: cp.start.x + rDx, y: cp.start.y + rDy } }
+                      : {}),
+                    ...('x' in cp.end ? { end: { x: cp.end.x + rDx, y: cp.end.y + rDy } } : {}),
+                    ...(cp.waypoints
+                      ? {
+                          waypoints: cp.waypoints.map((pt) => ({
+                            x: pt.x + rDx,
+                            y: pt.y + rDy,
+                          })),
+                        }
+                      : {}),
+                  },
+                })
+              }
+            }
+            if (ops.length > 0) session.applyUserOps(ops)
+          }
         }
-        setDragDelta(null)
-        if (Object.keys(patch).length > 0) {
-          session.updateObject(drag.objectId, patch)
+        return
+      }
+
+      if ((drag.kind === 'resize' || drag.kind === 'group-resize') && resizePreview) {
+        const preview = resizePreview
+        setResizePreview(null)
+        const updates: Array<{ id: string; patch: Record<string, unknown> }> = []
+        for (const [id, rect] of preview.entries()) {
+          updates.push({
+            id,
+            patch: {
+              x: Math.round(rect.x),
+              y: Math.round(rect.y),
+              width: Math.max(24, Math.round(rect.width)),
+              height: Math.max(20, Math.round(rect.height)),
+            },
+          })
         }
+        if (updates.length > 0) session.updateObjectsBatch(updates)
+        return
+      }
+
+      if (drag.kind === 'rotate' && rotatePreview) {
+        const { id, angle } = rotatePreview
+        setRotatePreview(null)
+        session.updateObject(id, { rotation: angle })
       }
     },
     [
       clientToBoard,
       connectorColor,
       connectorRouting,
-      dragDelta,
       endpointPreview,
+      highlighterColor,
+      highlighterWidth,
+      multiMoveDelta,
       pageObjects,
       penColor,
       penWidth,
+      resizePreview,
+      rotatePreview,
       session,
       tool,
       zoom,
@@ -1347,93 +2416,65 @@ export function WhiteboardEditor({
     [onToast],
   )
 
-  const handleDuplicateSelected = useCallback(() => {
-    if (!selectedObj) return
-    session.addObject({
-      kind: selectedObj.kind,
-      x: selectedObj.x + 28,
-      y: selectedObj.y + 28,
-      width: selectedObj.width,
-      height: selectedObj.height,
-      props: structuredClone(selectedObj.props),
-    })
-  }, [selectedObj, session])
-
-  const handleLayerOrder = useCallback(
-    (direction: 'front' | 'back') => {
-      if (!selectedObj) return
-      void session.applyOps([
-        {
-          op: 'move',
-          id: selectedObj.id,
-          ...(direction === 'front' ? { toFront: true } : { toBack: true }),
-        },
-      ])
-    },
-    [selectedObj, session],
+  // Multi-object & single-object rich text helpers.
+  const textEditableSelectedObjs = useMemo(
+    () =>
+      selectedObjs.filter(
+        (o) =>
+          !isObjectLocked(o) && (o.kind === 'sticky' || o.kind === 'text' || o.kind === 'shape'),
+      ),
+    [selectedObjs],
   )
 
   const handleToggleMark = useCallback(
     (mark: RichMark) => {
-      if (
-        !selectedObj ||
-        (selectedObj.kind !== 'sticky' &&
-          selectedObj.kind !== 'text' &&
-          selectedObj.kind !== 'shape')
-      ) {
-        return
-      }
-      const p = selectedObj.props as unknown as StickyProps | TextProps | ShapeProps
-      session.updateObject(selectedObj.id, { text: toggleRichTextMark(p.text, mark) })
+      if (textEditableSelectedObjs.length === 0) return
+      const updates = textEditableSelectedObjs.map((obj) => {
+        const p = obj.props as unknown as StickyProps | TextProps | ShapeProps
+        return { id: obj.id, patch: { text: toggleRichTextMark(p.text, mark) } }
+      })
+      session.updateObjectsBatch(updates)
     },
-    [selectedObj, session],
+    [session, textEditableSelectedObjs],
   )
 
   const applyFontSize = useCallback(
     (nextSize: number) => {
-      if (
-        !selectedObj ||
-        (selectedObj.kind !== 'sticky' &&
-          selectedObj.kind !== 'text' &&
-          selectedObj.kind !== 'shape')
-      ) {
-        return
-      }
-      const p = selectedObj.props as unknown as StickyProps | TextProps | ShapeProps
+      if (textEditableSelectedObjs.length === 0) return
       const clamped = Math.max(12, Math.min(72, Math.round(nextSize)))
-      const patch: Record<string, unknown> = { fontSize: clamped }
-      if (selectedObj.kind === 'text') {
-        const tp = selectedObj.props as unknown as TextProps
-        const hasBox = Boolean((tp.background && tp.background !== 'transparent') || tp.borderColor)
-        const sized = estimateTextBoxSize(
-          richTextPlain(p.text),
-          clamped,
-          hasBox ? 14 : 6,
-          hasBox ? 10 : 4,
-        )
-        if (sized.width > selectedObj.width) patch.width = sized.width
-        if (sized.height > selectedObj.height) patch.height = sized.height
-      }
-      session.updateObject(selectedObj.id, patch)
+      const updates = textEditableSelectedObjs.map((obj) => {
+        const p = obj.props as unknown as StickyProps | TextProps | ShapeProps
+        const patch: Record<string, unknown> = { fontSize: clamped }
+        if (obj.kind === 'text') {
+          const tp = obj.props as unknown as TextProps
+          const hasBox = Boolean(
+            (tp.background && tp.background !== 'transparent') || tp.borderColor,
+          )
+          const sized = estimateTextBoxSize(
+            richTextPlain(p.text),
+            clamped,
+            hasBox ? 14 : 6,
+            hasBox ? 10 : 4,
+          )
+          if (sized.width > obj.width) patch.width = sized.width
+          if (sized.height > obj.height) patch.height = sized.height
+        }
+        return { id: obj.id, patch }
+      })
+      session.updateObjectsBatch(updates)
     },
-    [selectedObj, session],
+    [session, textEditableSelectedObjs],
   )
 
   const handleStepFontSize = useCallback(
     (delta: -1 | 1) => {
-      if (
-        !selectedObj ||
-        (selectedObj.kind !== 'sticky' &&
-          selectedObj.kind !== 'text' &&
-          selectedObj.kind !== 'shape')
-      ) {
-        return
-      }
-      const p = selectedObj.props as unknown as StickyProps | TextProps | ShapeProps
+      const lead = textEditableSelectedObjs[0]
+      if (!lead) return
+      const p = lead.props as unknown as StickyProps | TextProps | ShapeProps
       const fallback =
-        selectedObj.kind === 'text'
+        lead.kind === 'text'
           ? TEXT_DEFAULT_FONT_SIZE
-          : selectedObj.kind === 'shape'
+          : lead.kind === 'shape'
             ? SHAPE_DEFAULT_FONT_SIZE
             : STICKY_DEFAULT_FONT_SIZE
       const current = p.fontSize ?? fallback
@@ -1446,21 +2487,17 @@ export function WhiteboardEditor({
         applyFontSize(prev)
       }
     },
-    [applyFontSize, selectedObj],
+    [applyFontSize, textEditableSelectedObjs],
   )
 
   const handleCycleFontSize = useCallback(() => {
-    if (
-      !selectedObj ||
-      (selectedObj.kind !== 'sticky' && selectedObj.kind !== 'text' && selectedObj.kind !== 'shape')
-    ) {
-      return
-    }
-    const p = selectedObj.props as unknown as StickyProps | TextProps | ShapeProps
+    const lead = textEditableSelectedObjs[0]
+    if (!lead) return
+    const p = lead.props as unknown as StickyProps | TextProps | ShapeProps
     const fallback =
-      selectedObj.kind === 'text'
+      lead.kind === 'text'
         ? TEXT_DEFAULT_FONT_SIZE
-        : selectedObj.kind === 'shape'
+        : lead.kind === 'shape'
           ? SHAPE_DEFAULT_FONT_SIZE
           : STICKY_DEFAULT_FONT_SIZE
     const current = p.fontSize ?? fallback
@@ -1468,10 +2505,10 @@ export function WhiteboardEditor({
       FONT_SIZE_PRESETS.find((s) => s >= current) ??
       FONT_SIZE_PRESETS[FONT_SIZE_PRESETS.length - 1]!
     applyFontSize(nextCycleValue(FONT_SIZE_PRESETS, nearest))
-  }, [applyFontSize, selectedObj])
+  }, [applyFontSize, textEditableSelectedObjs])
 
   const handleCycleTextBackground = useCallback(() => {
-    if (!selectedObj || selectedObj.kind !== 'text') return
+    if (!selectedObj || selectedObj.kind !== 'text' || isObjectLocked(selectedObj)) return
     const tp = selectedObj.props as unknown as TextProps
     const curBg = (tp.background || 'transparent').toUpperCase()
     const idx = TEXT_BG_PRESETS.findIndex((p) => p.bg.toUpperCase() === curBg)
@@ -1490,17 +2527,15 @@ export function WhiteboardEditor({
   }, [selectedObj, session])
 
   const handleCycleAlign = useCallback(() => {
-    if (
-      !selectedObj ||
-      (selectedObj.kind !== 'sticky' && selectedObj.kind !== 'text' && selectedObj.kind !== 'shape')
-    ) {
-      return
-    }
-    const p = selectedObj.props as unknown as StickyProps | TextProps | ShapeProps
-    const current: TextAlign = p.align ?? (selectedObj.kind === 'text' ? 'left' : 'center')
+    const lead = textEditableSelectedObjs[0]
+    if (!lead) return
+    const p = lead.props as unknown as StickyProps | TextProps | ShapeProps
+    const current: TextAlign = p.align ?? (lead.kind === 'text' ? 'left' : 'center')
     const nextAlign = nextCycleValue(['left', 'center', 'right'] as const, current)
-    session.updateObject(selectedObj.id, { align: nextAlign })
-  }, [selectedObj, session])
+    session.updateObjectsBatch(
+      textEditableSelectedObjs.map((o) => ({ id: o.id, patch: { align: nextAlign } })),
+    )
+  }, [session, textEditableSelectedObjs])
 
   const presentSvg = useMemo(() => {
     if (!presenting || !activePage) return null
@@ -1517,47 +2552,95 @@ export function WhiteboardEditor({
           : t('statusSaved')
 
   const editingObj = editingId ? (objectsById.get(editingId) ?? null) : null
-  const isTextEditableSelected =
-    selectedObj !== null &&
-    (selectedObj.kind === 'sticky' || selectedObj.kind === 'text' || selectedObj.kind === 'shape')
-  const selectedTextFormat = isTextEditableSelected
+  const editingTableObj = editingTableCell ? (objectsById.get(editingTableCell.id) ?? null) : null
+
+  const allSelectedAreStickies =
+    selectedObjs.length > 0 && selectedObjs.every((o) => o.kind === 'sticky' && !isObjectLocked(o))
+  const allSelectedAreShapes =
+    selectedObjs.length > 0 && selectedObjs.every((o) => o.kind === 'shape' && !isObjectLocked(o))
+  const allSelectedAreInk =
+    selectedObjs.length > 0 &&
+    selectedObjs.every(
+      (o) =>
+        !isObjectLocked(o) && (o.kind === 'connector' || o.kind === 'stroke' || o.kind === 'text'),
+    )
+  const allSelectedAreTextEditable =
+    selectedObjs.length > 0 && textEditableSelectedObjs.length === selectedObjs.length
+
+  const leadTextObj = textEditableSelectedObjs[0] ?? null
+  const selectedTextFormat = leadTextObj
     ? richTextFormatState(
-        (selectedObj.props as unknown as StickyProps | TextProps | ShapeProps).text,
+        (leadTextObj.props as unknown as StickyProps | TextProps | ShapeProps).text,
       )
     : null
-  const selectedTextAlign: TextAlign = isTextEditableSelected
-    ? ((selectedObj.props as unknown as StickyProps | TextProps | ShapeProps).align ??
-      (selectedObj.kind === 'text' ? 'left' : 'center'))
+  const selectedTextAlign: TextAlign = leadTextObj
+    ? ((leadTextObj.props as unknown as StickyProps | TextProps | ShapeProps).align ??
+      (leadTextObj.kind === 'text' ? 'left' : 'center'))
     : 'left'
-  const selectedFontSize: number = isTextEditableSelected
-    ? ((selectedObj.props as unknown as StickyProps | TextProps | ShapeProps).fontSize ??
-      (selectedObj.kind === 'text'
+  const selectedFontSize: number = leadTextObj
+    ? ((leadTextObj.props as unknown as StickyProps | TextProps | ShapeProps).fontSize ??
+      (leadTextObj.kind === 'text'
         ? TEXT_DEFAULT_FONT_SIZE
-        : selectedObj.kind === 'shape'
+        : leadTextObj.kind === 'shape'
           ? SHAPE_DEFAULT_FONT_SIZE
           : STICKY_DEFAULT_FONT_SIZE))
     : STICKY_DEFAULT_FONT_SIZE
 
-  // Compute floating dark format bar anchor above selected object (never shifts stage layout).
+  // Compute floating dark format bar anchor above single or multi selection (never shifts layout).
   const showFormatBar = Boolean(
-    (tool === 'select' && selectedObj) ||
+    (tool === 'select' && selectedObjs.length > 0) ||
     tool === 'sticky' ||
     tool === 'pen' ||
+    tool === 'highlighter' ||
     tool === 'connector',
   )
   const formatBarPos = useMemo(() => {
     if (!showFormatBar) return null
-    const stageW = stageRef.current?.clientWidth ?? 960
-    if (tool === 'select' && selectedObj) {
-      const box = objectBounds(selectedObj, objectsById)
-      const cx = pan.x + (box.x + box.width / 2) * zoom
-      const topY = pan.y + box.y * zoom - 62
-      const fallbackY = pan.y + (box.y + box.height) * zoom + 18
-      const clampedLeft = Math.max(TOOLBAR_LEFT_CLEARANCE, Math.min(cx - 250, stageW - 520))
-      return { left: Math.round(clampedLeft), top: Math.round(topY < 10 ? fallbackY : topY) }
+    const stageW = stageSize.width
+    const barW = Math.min(
+      stageW - TOOLBAR_LEFT_CLEARANCE - 16,
+      formatBarRef.current?.offsetWidth || (multiSelected ? 660 : 520),
+    )
+    if (tool === 'select' && selectedObjs.length > 0) {
+      const box = selectionBounds(selectedObjs, objectsById)
+      if (box) {
+        const cx = pan.x + (box.x + box.width / 2) * zoom
+        const topOffset = !multiSelected && selectedObj?.kind !== 'connector' ? 82 : 62
+        const topY = pan.y + box.y * zoom - topOffset
+        const fallbackY = pan.y + (box.y + box.height) * zoom + 22
+        const clampedLeft = Math.max(
+          TOOLBAR_LEFT_CLEARANCE,
+          Math.min(cx - barW / 2, stageW - barW - 16),
+        )
+        return { left: Math.round(clampedLeft), top: Math.round(topY < 10 ? fallbackY : topY) }
+      }
     }
-    return { left: Math.max(TOOLBAR_LEFT_CLEARANCE, Math.round(stageW / 2 - 180)), top: 14 }
-  }, [objectsById, pan.x, pan.y, selectedObj, showFormatBar, tool, zoom])
+    return {
+      left: Math.max(TOOLBAR_LEFT_CLEARANCE, Math.round(stageW / 2 - barW / 2)),
+      top: 14,
+    }
+  }, [
+    multiSelected,
+    objectsById,
+    pan.x,
+    pan.y,
+    selectedObj?.kind,
+    selectedObjs,
+    showFormatBar,
+    stageSize.width,
+    tool,
+    zoom,
+  ])
+
+  useEffect(() => {
+    if (!pendingFitRef.current) return
+    pendingFitRef.current = false
+    handleFitZoom()
+  }, [activePageId, displayedObjects, handleFitZoom])
+
+  useEffect(() => {
+    if (!multiSelected) setAlignMenuOpen(false)
+  }, [multiSelected])
 
   const snapHighlightIds = useMemo(() => {
     const ids = new Set<string>()
@@ -1573,13 +2656,46 @@ export function WhiteboardEditor({
       ? activePage.background.color
       : undefined,
   )
+  const currentGridMode = pageGridMode(activePage)
 
   return (
     <div className="wb-main" onDragOver={handleDragOver} onDrop={(e) => void handleDrop(e)}>
       {/* Clean Warm-Paper Header */}
       <header className="wb-header">
         <div className="wb-header-start">
-          <h1 className="wb-title">{doc.title || t('untitled')}</h1>
+          {editingTitle ? (
+            <input
+              type="text"
+              className="wb-title-input"
+              value={editingTitleText}
+              autoFocus
+              onChange={(e) => setEditingTitleText(e.target.value)}
+              onBlur={() => {
+                session.setTitle(editingTitleText)
+                setEditingTitle(false)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  session.setTitle(editingTitleText)
+                  setEditingTitle(false)
+                } else if (e.key === 'Escape') {
+                  setEditingTitle(false)
+                }
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="wb-title-btn"
+              title={t('pageRename')}
+              onClick={() => {
+                setEditingTitleText(doc.title || '')
+                setEditingTitle(true)
+              }}
+            >
+              {doc.title || t('untitled')}
+            </button>
+          )}
           <div className="wb-status-group">
             <span className="wb-status-chip">{statusText}</span>
             <label className="wb-checkbox">
@@ -1592,6 +2708,15 @@ export function WhiteboardEditor({
           <button
             type="button"
             className="wb-header-btn"
+            aria-label={t('toolSearch')}
+            data-tip={`${t('toolSearch')} (Ctrl+F)`}
+            onClick={() => setSearchOpen((v) => !v)}
+          >
+            <SearchIcon size={16} />
+          </button>
+          <button
+            type="button"
+            className="wb-header-btn"
             aria-label={t('toolExport')}
             data-tip={t('toolExport')}
             onClick={() => onOpenExportModal('png')}
@@ -1599,16 +2724,17 @@ export function WhiteboardEditor({
             <ExportIcon size={16} />
             <span>{t('toolExport')}</span>
           </button>
-          <button
-            type="button"
-            className="wb-header-btn"
-            aria-label={t('toolPrint')}
-            data-tip={t('toolPrint')}
-            onClick={onPrint}
-          >
-            <PrintIcon size={16} />
-            <span>{t('toolPrint')}</span>
-          </button>
+          <QuickPrintButton
+            lang={lang}
+            variant="labeled"
+            align="right"
+            listPrinters={listPrinters}
+            prefStore={quickPrintPrefStore}
+            getPageCount={() => doc.pages.length}
+            onOpenDialog={onPrint}
+            onQuickPrint={onQuickPrint}
+            onNoPrinter={onToast}
+          />
           <button
             type="button"
             className="wb-header-btn wb-present-btn"
@@ -1633,6 +2759,7 @@ export function WhiteboardEditor({
           {doc.pages.map((p, idx) => {
             const isCurrent = p.id === activePageId
             const pObjects = doc.objects.filter((o) => o.pageId === p.id)
+            const isRenaming = renamingPageId === p.id
             return (
               <li key={p.id} className="wb-rail-item">
                 <button
@@ -1644,20 +2771,86 @@ export function WhiteboardEditor({
                   <PageThumbnail page={p} objects={pObjects} />
                 </button>
                 <div className="wb-rail-label">
-                  <span className="wb-rail-label-text">
-                    <span className={`wb-rail-num${isCurrent ? ' active' : ''}`}>{idx + 1}</span>
-                    {p.title || t('pageDefaultName', { n: idx + 1 })}
-                  </span>
-                  {doc.pages.length > 1 && (
-                    <button
-                      type="button"
-                      className="wb-rail-del"
-                      aria-label={t('pageDelete')}
-                      data-tip={t('pageDelete')}
-                      onClick={() => session.deletePage(p.id)}
+                  {isRenaming ? (
+                    <input
+                      type="text"
+                      className="wb-rail-rename-input"
+                      value={renamingPageText}
+                      autoFocus
+                      onChange={(e) => setRenamingPageText(e.target.value)}
+                      onBlur={() => {
+                        session.renamePage(p.id, renamingPageText.trim())
+                        setRenamingPageId(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          session.renamePage(p.id, renamingPageText.trim())
+                          setRenamingPageId(null)
+                        } else if (e.key === 'Escape') {
+                          setRenamingPageId(null)
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span
+                      className="wb-rail-label-text"
+                      title={t('pageRename')}
+                      onDoubleClick={() => {
+                        setRenamingPageId(p.id)
+                        setRenamingPageText(p.title || t('pageDefaultName', { n: idx + 1 }))
+                      }}
                     >
-                      <TrashIcon size={14} />
-                    </button>
+                      <span className={`wb-rail-num${isCurrent ? ' active' : ''}`}>{idx + 1}</span>
+                      {p.title || t('pageDefaultName', { n: idx + 1 })}
+                    </span>
+                  )}
+                  {!isRenaming && (
+                    <div className="wb-rail-actions">
+                      {doc.pages.length > 1 && (
+                        <>
+                          <button
+                            type="button"
+                            className="wb-rail-act"
+                            aria-label={t('pageMoveUp')}
+                            title={t('pageMoveUp')}
+                            disabled={idx === 0}
+                            onClick={() => session.reorderPage(p.id, idx - 1)}
+                          >
+                            <ChevronUpIcon size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            className="wb-rail-act"
+                            aria-label={t('pageMoveDown')}
+                            title={t('pageMoveDown')}
+                            disabled={idx === doc.pages.length - 1}
+                            onClick={() => session.reorderPage(p.id, idx + 1)}
+                          >
+                            <ChevronDownIcon size={12} />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        className="wb-rail-act"
+                        aria-label={t('pageDuplicate')}
+                        title={t('pageDuplicate')}
+                        onClick={() => session.duplicatePage(p.id)}
+                      >
+                        <CopyIcon size={12} />
+                      </button>
+                      {doc.pages.length > 1 && (
+                        <button
+                          type="button"
+                          className="wb-rail-act danger"
+                          aria-label={t('pageDelete')}
+                          title={t('pageDelete')}
+                          onClick={() => session.deletePage(p.id)}
+                        >
+                          <TrashIcon size={12} />
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </li>
@@ -1714,20 +2907,63 @@ export function WhiteboardEditor({
 
         {/* Interactive SVG Canvas Stage + Floating Workspace Controls */}
         <div className="wb-stage-wrap" ref={stageRef}>
+          {/* Floating Search Bar (Ctrl+F) */}
+          {searchOpen && (
+            <SearchBar
+              query={searchQuery}
+              matchCount={searchHits.length}
+              activeIndex={clampedSearchIndex}
+              onQueryChange={(q) => {
+                setSearchQuery(q)
+                setSearchIndex(0)
+                const hits = searchBoardObjects(doc, q, activePageId)
+                if (hits[0]) panToObject(hits[0].objectId, hits[0].pageId)
+              }}
+              onPrev={() => {
+                if (searchHits.length === 0) return
+                const next = (clampedSearchIndex - 1 + searchHits.length) % searchHits.length
+                setSearchIndex(next)
+                const hit = searchHits[next]!
+                panToObject(hit.objectId, hit.pageId)
+              }}
+              onNext={() => {
+                if (searchHits.length === 0) return
+                const next = (clampedSearchIndex + 1) % searchHits.length
+                setSearchIndex(next)
+                const hit = searchHits[next]!
+                panToObject(hit.objectId, hit.pageId)
+              }}
+              onClose={() => {
+                setSearchOpen(false)
+                setSearchQuery('')
+              }}
+            />
+          )}
+
           {/* Left-Floating Vertical Icon Tool Rail */}
           <div className="wb-toolbar" role="toolbar" aria-orientation="vertical">
             <button
               type="button"
-              className={`wb-tool-btn${tool === 'select' ? ' active' : ''}`}
+              className={`wb-tool-btn${tool === 'select' && !spacePanning ? ' active' : ''}`}
               aria-label={t('toolSelect')}
               data-tip={`${t('toolSelect')} (V)`}
-              aria-pressed={tool === 'select'}
+              aria-pressed={tool === 'select' && !spacePanning}
               onClick={() => selectTool('select')}
             >
               <SelectIcon size={20} />
               <span className="wb-tool-key" aria-hidden="true">
                 V
               </span>
+            </button>
+            <button
+              type="button"
+              className={`wb-tool-btn${tool === 'hand' || spacePanning ? ' active' : ''}`}
+              aria-label={t('toolHand')}
+              data-tip={`${t('toolHand')} (Space)`}
+              aria-pressed={tool === 'hand' || spacePanning}
+              onClick={() => selectTool('hand')}
+            >
+              <HandIcon size={20} />
             </button>
             <button
               type="button"
@@ -1874,6 +3110,19 @@ export function WhiteboardEditor({
             >
               <LinkIcon size={20} />
             </button>
+            <button
+              type="button"
+              className={`wb-tool-btn${templateModalOpen ? ' active' : ''}`}
+              aria-label={t('toolTemplates')}
+              data-tip={t('toolTemplates')}
+              onClick={() => {
+                setStickerOpen(false)
+                setShapePopoverOpen(false)
+                setTemplateModalOpen(true)
+              }}
+            >
+              <TemplateIcon size={20} />
+            </button>
           </div>
 
           {/* Shape Options Popover beside Vertical Tool Rail */}
@@ -1917,16 +3166,27 @@ export function WhiteboardEditor({
           {/* Floating Dark Contextual Format Bar (zero layout shift) */}
           {showFormatBar && formatBarPos && (
             <div
+              ref={formatBarRef}
               className="wb-format-bar"
               style={{ left: formatBarPos.left, top: formatBarPos.top }}
               onPointerDown={(e) => e.stopPropagation()}
             >
-              {/* Curated Miro/Allo pastel fills for sticky notes */}
-              {(tool === 'sticky' || (tool === 'select' && selectedObj?.kind === 'sticky')) &&
+              {/* Multi-selection badge */}
+              {tool === 'select' && multiSelected && (
+                <>
+                  <span className="wb-sel-count-chip">
+                    {t('selectedCount', { count: selectedObjs.length })}
+                  </span>
+                  <span className="wb-format-sep" />
+                </>
+              )}
+
+              {/* Curated Miro/Allo pastel fills for sticky notes (single or multi) */}
+              {(tool === 'sticky' || (tool === 'select' && allSelectedAreStickies)) &&
                 PAPER_FILL_SWATCHES.map((c) => {
                   const currentFill =
-                    tool === 'select' && selectedObj?.kind === 'sticky'
-                      ? (selectedObj.props as unknown as StickyProps).color
+                    tool === 'select' && selectedObjs[0]?.kind === 'sticky'
+                      ? (selectedObjs[0].props as unknown as StickyProps).color
                       : activeColor
                   return (
                     <button
@@ -1936,19 +3196,21 @@ export function WhiteboardEditor({
                       style={{ backgroundColor: c }}
                       onClick={() => {
                         setActiveColor(c)
-                        if (tool === 'select' && selectedObj?.kind === 'sticky') {
-                          session.updateObject(selectedObj.id, { color: c })
+                        if (tool === 'select' && allSelectedAreStickies) {
+                          session.updateObjectsBatch(
+                            selectedObjs.map((o) => ({ id: o.id, patch: { color: c } })),
+                          )
                         }
                       }}
                     />
                   )
                 })}
 
-              {/* Harmonized fill + border presets for shapes */}
+              {/* Harmonized fill + border presets for shapes (single or multi) */}
               {tool === 'select' &&
-                selectedObj?.kind === 'shape' &&
+                allSelectedAreShapes &&
                 SHAPE_STYLE_PRESETS.map((preset) => {
-                  const curFill = (selectedObj.props as unknown as ShapeProps).fill
+                  const curFill = (selectedObjs[0]!.props as unknown as ShapeProps).fill
                   const isNone = preset.fill === 'transparent'
                   const isActive =
                     curFill?.toLowerCase() === preset.fill.toLowerCase() ||
@@ -1960,31 +3222,60 @@ export function WhiteboardEditor({
                       className={`wb-swatch${isNone ? ' wb-swatch-none' : ''}${isActive ? ' active' : ''}`}
                       style={isNone ? undefined : { backgroundColor: preset.fill }}
                       onClick={() => {
-                        session.updateObject(selectedObj.id, {
-                          fill: preset.fill,
-                          stroke: preset.stroke,
-                        })
+                        session.updateObjectsBatch(
+                          selectedObjs.map((o) => ({
+                            id: o.id,
+                            patch: { fill: preset.fill, stroke: preset.stroke },
+                          })),
+                        )
                       }}
                     />
                   )
                 })}
 
-              {/* Crisp ink colors for pen, connector, stroke, and text */}
+              {/* Highlighter color swatches & width presets */}
+              {tool === 'highlighter' && (
+                <>
+                  {HIGHLIGHTER_SWATCHES.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={`wb-swatch${highlighterColor.toUpperCase() === c ? ' active' : ''}`}
+                      style={{ backgroundColor: c }}
+                      onClick={() => setHighlighterColor(c)}
+                    />
+                  ))}
+                  <span className="wb-format-sep" />
+                  {HIGHLIGHTER_WIDTH_PRESETS.map((w) => {
+                    const dotPx = w === 16 ? 7 : w === 22 ? 10 : 14
+                    return (
+                      <button
+                        key={w}
+                        type="button"
+                        className={`wb-format-btn${highlighterWidth === w ? ' active' : ''}`}
+                        onClick={() => setHighlighterWidth(w)}
+                      >
+                        <span className="wb-width-dot" style={{ width: dotPx, height: dotPx }} />
+                      </button>
+                    )
+                  })}
+                </>
+              )}
+
+              {/* Crisp ink colors for pen, connector, stroke, and text (single or multi) */}
               {(tool === 'pen' ||
                 tool === 'connector' ||
-                (tool === 'select' &&
-                  (selectedObj?.kind === 'connector' ||
-                    selectedObj?.kind === 'stroke' ||
-                    selectedObj?.kind === 'text'))) &&
+                (tool === 'select' && allSelectedAreInk)) &&
                 PAPER_INK_SWATCHES.map((c) => {
+                  const lead = selectedObjs[0]
                   const currentInk =
-                    tool === 'select' && selectedObj?.kind === 'connector'
-                      ? (selectedObj.props as unknown as ConnectorProps).color
-                      : tool === 'select' && selectedObj?.kind === 'stroke'
-                        ? (selectedObj.props as unknown as StrokeProps).color
-                        : tool === 'select' && selectedObj?.kind === 'text'
+                    tool === 'select' && lead?.kind === 'connector'
+                      ? (lead.props as unknown as ConnectorProps).color
+                      : tool === 'select' && lead?.kind === 'stroke'
+                        ? (lead.props as unknown as StrokeProps).color
+                        : tool === 'select' && lead?.kind === 'text'
                           ? (selectedTextFormat?.color ??
-                            (selectedObj.props as unknown as TextProps).color ??
+                            (lead.props as unknown as TextProps).color ??
                             PAPER_COLORS.ink)
                           : tool === 'connector'
                             ? connectorColor
@@ -1996,22 +3287,24 @@ export function WhiteboardEditor({
                       className={`wb-swatch${currentInk?.toUpperCase() === c ? ' active' : ''}`}
                       style={{ backgroundColor: c }}
                       onClick={() => {
-                        if (tool === 'connector' || selectedObj?.kind === 'connector') {
+                        if (tool === 'connector' || lead?.kind === 'connector') {
                           setConnectorColor(c)
                         } else {
                           setPenColor(c)
                         }
-                        if (
-                          tool === 'select' &&
-                          (selectedObj?.kind === 'connector' || selectedObj?.kind === 'stroke')
-                        ) {
-                          session.updateObject(selectedObj.id, { color: c })
-                        } else if (tool === 'select' && selectedObj?.kind === 'text') {
-                          const tp = selectedObj.props as unknown as TextProps
-                          session.updateObject(selectedObj.id, {
-                            color: c,
-                            text: setRichTextColor(tp.text, c),
-                          })
+                        if (tool === 'select' && allSelectedAreInk) {
+                          session.updateObjectsBatch(
+                            selectedObjs.map((o) => {
+                              if (o.kind === 'text') {
+                                const tp = o.props as unknown as TextProps
+                                return {
+                                  id: o.id,
+                                  patch: { color: c, text: setRichTextColor(tp.text, c) },
+                                }
+                              }
+                              return { id: o.id, patch: { color: c } }
+                            }),
+                          )
                         }
                       }}
                     />
@@ -2019,26 +3312,28 @@ export function WhiteboardEditor({
                 })}
 
               {/* Optional text box background pill/card toggle */}
-              {tool === 'select' && selectedObj?.kind === 'text' && (
-                <>
-                  <span className="wb-format-sep" />
-                  <button
-                    type="button"
-                    className={`wb-format-btn${
-                      (selectedObj.props as unknown as TextProps).background &&
-                      (selectedObj.props as unknown as TextProps).background !== 'transparent'
-                        ? ' active'
-                        : ''
-                    }`}
-                    onClick={handleCycleTextBackground}
-                  >
-                    <TextBgIcon size={16} />
-                  </button>
-                </>
-              )}
+              {tool === 'select' &&
+                selectedObj?.kind === 'text' &&
+                !isObjectLocked(selectedObj) && (
+                  <>
+                    <span className="wb-format-sep" />
+                    <button
+                      type="button"
+                      className={`wb-format-btn${
+                        (selectedObj.props as unknown as TextProps).background &&
+                        (selectedObj.props as unknown as TextProps).background !== 'transparent'
+                          ? ' active'
+                          : ''
+                      }`}
+                      onClick={handleCycleTextBackground}
+                    >
+                      <TextBgIcon size={16} />
+                    </button>
+                  </>
+                )}
 
-              {/* Rich text controls (size stepper, B/I/U/S, align) for sticky, text, shape */}
-              {tool === 'select' && isTextEditableSelected && selectedTextFormat && (
+              {/* Rich text controls (size stepper, B/I/U/S, align) for single or multi text-editable */}
+              {tool === 'select' && allSelectedAreTextEditable && selectedTextFormat && (
                 <>
                   <span className="wb-format-sep" />
                   <div className="wb-size-stepper">
@@ -2104,39 +3399,115 @@ export function WhiteboardEditor({
                 </>
               )}
 
-              {/* Shape border width & solid/dashed/dotted cycle */}
-              {tool === 'select' && selectedObj?.kind === 'shape' && (
-                <>
-                  <span className="wb-format-sep" />
-                  <button
-                    type="button"
-                    className={`wb-format-btn${
-                      ((selectedObj.props as unknown as ShapeProps).lineStyle ?? 'solid') !==
-                      'solid'
-                        ? ' active'
-                        : ''
-                    }`}
-                    onClick={() => {
-                      const cur = (selectedObj.props as unknown as ShapeProps).lineStyle ?? 'solid'
-                      session.updateObject(selectedObj.id, {
-                        lineStyle: nextCycleValue(LINE_STYLE_CYCLE, cur),
-                      })
-                    }}
-                  >
-                    {(selectedObj.props as unknown as ShapeProps).lineStyle === 'dashed' ? (
-                      <DashedLineIcon size={17} />
-                    ) : (selectedObj.props as unknown as ShapeProps).lineStyle === 'dotted' ? (
-                      <DottedLineIcon size={17} />
-                    ) : (
-                      <SolidLineIcon size={17} />
-                    )}
-                  </button>
-                </>
-              )}
+              {/* Shape kind cycle & border style for single unlocked shape */}
+              {tool === 'select' &&
+                selectedObj?.kind === 'shape' &&
+                !isObjectLocked(selectedObj) && (
+                  <>
+                    <span className="wb-format-sep" />
+                    <button
+                      type="button"
+                      className="wb-format-btn"
+                      title={t('toolShape')}
+                      onClick={() => {
+                        const cur = (selectedObj.props as unknown as ShapeProps).shape
+                        session.updateObject(selectedObj.id, {
+                          shape: nextCycleValue(SHAPE_KINDS, cur),
+                        })
+                      }}
+                    >
+                      <ShapeKindGlyph
+                        kind={(selectedObj.props as unknown as ShapeProps).shape}
+                        size={16}
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      className={`wb-format-btn${
+                        ((selectedObj.props as unknown as ShapeProps).lineStyle ?? 'solid') !==
+                        'solid'
+                          ? ' active'
+                          : ''
+                      }`}
+                      onClick={() => {
+                        const cur =
+                          (selectedObj.props as unknown as ShapeProps).lineStyle ?? 'solid'
+                        session.updateObject(selectedObj.id, {
+                          lineStyle: nextCycleValue(LINE_STYLE_CYCLE, cur),
+                        })
+                      }}
+                    >
+                      {(selectedObj.props as unknown as ShapeProps).lineStyle === 'dashed' ? (
+                        <DashedLineIcon size={17} />
+                      ) : (selectedObj.props as unknown as ShapeProps).lineStyle === 'dotted' ? (
+                        <DottedLineIcon size={17} />
+                      ) : (
+                        <SolidLineIcon size={17} />
+                      )}
+                    </button>
+                  </>
+                )}
+
+              {/* Table row/col/header/font controls */}
+              {tool === 'select' &&
+                selectedObj?.kind === 'table' &&
+                !isObjectLocked(selectedObj) &&
+                (() => {
+                  const tp = selectedObj.props as unknown as TableProps
+                  const rows = tp.rowIds?.length || 1
+                  const cols = tp.colIds?.length || 1
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        className="wb-format-text-btn"
+                        onClick={() => session.updateTable(selectedObj.id, { rows: rows + 1 })}
+                      >
+                        {t('tableAddRow')}
+                      </button>
+                      <button
+                        type="button"
+                        className="wb-format-text-btn"
+                        disabled={rows <= 1}
+                        onClick={() => session.updateTable(selectedObj.id, { rows: rows - 1 })}
+                      >
+                        {t('tableDelRow')}
+                      </button>
+                      <span className="wb-format-sep" />
+                      <button
+                        type="button"
+                        className="wb-format-text-btn"
+                        onClick={() => session.updateTable(selectedObj.id, { cols: cols + 1 })}
+                      >
+                        {t('tableAddCol')}
+                      </button>
+                      <button
+                        type="button"
+                        className="wb-format-text-btn"
+                        disabled={cols <= 1}
+                        onClick={() => session.updateTable(selectedObj.id, { cols: cols - 1 })}
+                      >
+                        {t('tableDelCol')}
+                      </button>
+                      <span className="wb-format-sep" />
+                      <button
+                        type="button"
+                        className={`wb-format-text-btn${tp.headerRow ? ' active' : ''}`}
+                        onClick={() =>
+                          session.updateTable(selectedObj.id, { headerRow: !tp.headerRow })
+                        }
+                      >
+                        {t('tableHeaderRow')}
+                      </button>
+                    </>
+                  )
+                })()}
 
               {/* Connector routing (Straight / Curved / Elbow) when tool active or connector selected */}
               {(tool === 'connector' ||
-                (tool === 'select' && selectedObj?.kind === 'connector')) && (
+                (tool === 'select' &&
+                  selectedObj?.kind === 'connector' &&
+                  !isObjectLocked(selectedObj))) && (
                 <>
                   <span className="wb-format-sep" />
                   <div className="wb-format-seg" role="group">
@@ -2172,100 +3543,105 @@ export function WhiteboardEditor({
               )}
 
               {/* Connector width, 4-way arrowhead caps, and solid/dashed/dotted toggle */}
-              {tool === 'select' && selectedObj?.kind === 'connector' && (
-                <>
-                  <span className="wb-format-sep" />
-                  {CONNECTOR_WIDTH_PRESETS.map((w) => {
-                    const curW = (selectedObj.props as unknown as ConnectorProps).strokeWidth ?? 2
-                    const nearestW = CONNECTOR_WIDTH_PRESETS.reduce((best, cand) =>
-                      Math.abs(cand - curW) < Math.abs(best - curW) ? cand : best,
-                    )
-                    const dotPx = w === 1.5 ? 4 : w === 2.5 ? 7 : 10
-                    return (
-                      <button
-                        key={w}
-                        type="button"
-                        className={`wb-format-btn${nearestW === w ? ' active' : ''}`}
-                        onClick={() => session.updateObject(selectedObj.id, { strokeWidth: w })}
-                      >
-                        <span className="wb-width-dot" style={{ width: dotPx, height: dotPx }} />
-                      </button>
-                    )
-                  })}
-                  <button
-                    type="button"
-                    className={`wb-format-btn${
-                      ((selectedObj.props as unknown as ConnectorProps).startHead ?? 'none') !==
-                      'none'
-                        ? ' active'
-                        : ''
-                    }`}
-                    onClick={() => {
-                      const cur =
-                        (selectedObj.props as unknown as ConnectorProps).startHead ?? 'none'
-                      session.updateObject(selectedObj.id, {
-                        props: { startHead: nextCycleValue(CONNECTOR_HEAD_CYCLE, cur) },
-                      })
-                    }}
-                  >
-                    {(() => {
-                      const h = (selectedObj.props as unknown as ConnectorProps).startHead ?? 'none'
-                      if (h === 'arrow') return <ArrowStartIcon size={17} />
-                      if (h === 'triangle') return <StealthStartIcon size={17} />
-                      if (h === 'circle') return <CircleStartIcon size={17} />
-                      return <LineEndIcon size={17} />
-                    })()}
-                  </button>
-                  <button
-                    type="button"
-                    className={`wb-format-btn${
-                      ((selectedObj.props as unknown as ConnectorProps).endHead ?? 'arrow') !==
-                      'none'
-                        ? ' active'
-                        : ''
-                    }`}
-                    onClick={() => {
-                      const cur =
-                        (selectedObj.props as unknown as ConnectorProps).endHead ?? 'arrow'
-                      session.updateObject(selectedObj.id, {
-                        props: { endHead: nextCycleValue(CONNECTOR_HEAD_CYCLE, cur) },
-                      })
-                    }}
-                  >
-                    {(() => {
-                      const h = (selectedObj.props as unknown as ConnectorProps).endHead ?? 'arrow'
-                      if (h === 'arrow') return <ArrowEndIcon size={17} />
-                      if (h === 'triangle') return <StealthEndIcon size={17} />
-                      if (h === 'circle') return <CircleEndIcon size={17} />
-                      return <LineEndIcon size={17} />
-                    })()}
-                  </button>
-                  <button
-                    type="button"
-                    className={`wb-format-btn${
-                      ((selectedObj.props as unknown as ConnectorProps).lineStyle ?? 'solid') !==
-                      'solid'
-                        ? ' active'
-                        : ''
-                    }`}
-                    onClick={() => {
-                      const cur =
-                        (selectedObj.props as unknown as ConnectorProps).lineStyle ?? 'solid'
-                      session.updateObject(selectedObj.id, {
-                        lineStyle: nextCycleValue(LINE_STYLE_CYCLE, cur),
-                      })
-                    }}
-                  >
-                    {(selectedObj.props as unknown as ConnectorProps).lineStyle === 'dashed' ? (
-                      <DashedLineIcon size={17} />
-                    ) : (selectedObj.props as unknown as ConnectorProps).lineStyle === 'dotted' ? (
-                      <DottedLineIcon size={17} />
-                    ) : (
-                      <SolidLineIcon size={17} />
-                    )}
-                  </button>
-                </>
-              )}
+              {tool === 'select' &&
+                selectedObj?.kind === 'connector' &&
+                !isObjectLocked(selectedObj) && (
+                  <>
+                    <span className="wb-format-sep" />
+                    {CONNECTOR_WIDTH_PRESETS.map((w) => {
+                      const curW = (selectedObj.props as unknown as ConnectorProps).strokeWidth ?? 2
+                      const nearestW = CONNECTOR_WIDTH_PRESETS.reduce((best, cand) =>
+                        Math.abs(cand - curW) < Math.abs(best - curW) ? cand : best,
+                      )
+                      const dotPx = w === 1.5 ? 4 : w === 2.5 ? 7 : 10
+                      return (
+                        <button
+                          key={w}
+                          type="button"
+                          className={`wb-format-btn${nearestW === w ? ' active' : ''}`}
+                          onClick={() => session.updateObject(selectedObj.id, { strokeWidth: w })}
+                        >
+                          <span className="wb-width-dot" style={{ width: dotPx, height: dotPx }} />
+                        </button>
+                      )
+                    })}
+                    <button
+                      type="button"
+                      className={`wb-format-btn${
+                        ((selectedObj.props as unknown as ConnectorProps).startHead ?? 'none') !==
+                        'none'
+                          ? ' active'
+                          : ''
+                      }`}
+                      onClick={() => {
+                        const cur =
+                          (selectedObj.props as unknown as ConnectorProps).startHead ?? 'none'
+                        session.updateObject(selectedObj.id, {
+                          props: { startHead: nextCycleValue(CONNECTOR_HEAD_CYCLE, cur) },
+                        })
+                      }}
+                    >
+                      {(() => {
+                        const h =
+                          (selectedObj.props as unknown as ConnectorProps).startHead ?? 'none'
+                        if (h === 'arrow') return <ArrowStartIcon size={17} />
+                        if (h === 'triangle') return <StealthStartIcon size={17} />
+                        if (h === 'circle') return <CircleStartIcon size={17} />
+                        return <LineEndIcon size={17} />
+                      })()}
+                    </button>
+                    <button
+                      type="button"
+                      className={`wb-format-btn${
+                        ((selectedObj.props as unknown as ConnectorProps).endHead ?? 'arrow') !==
+                        'none'
+                          ? ' active'
+                          : ''
+                      }`}
+                      onClick={() => {
+                        const cur =
+                          (selectedObj.props as unknown as ConnectorProps).endHead ?? 'arrow'
+                        session.updateObject(selectedObj.id, {
+                          props: { endHead: nextCycleValue(CONNECTOR_HEAD_CYCLE, cur) },
+                        })
+                      }}
+                    >
+                      {(() => {
+                        const h =
+                          (selectedObj.props as unknown as ConnectorProps).endHead ?? 'arrow'
+                        if (h === 'arrow') return <ArrowEndIcon size={17} />
+                        if (h === 'triangle') return <StealthEndIcon size={17} />
+                        if (h === 'circle') return <CircleEndIcon size={17} />
+                        return <LineEndIcon size={17} />
+                      })()}
+                    </button>
+                    <button
+                      type="button"
+                      className={`wb-format-btn${
+                        ((selectedObj.props as unknown as ConnectorProps).lineStyle ?? 'solid') !==
+                        'solid'
+                          ? ' active'
+                          : ''
+                      }`}
+                      onClick={() => {
+                        const cur =
+                          (selectedObj.props as unknown as ConnectorProps).lineStyle ?? 'solid'
+                        session.updateObject(selectedObj.id, {
+                          lineStyle: nextCycleValue(LINE_STYLE_CYCLE, cur),
+                        })
+                      }}
+                    >
+                      {(selectedObj.props as unknown as ConnectorProps).lineStyle === 'dashed' ? (
+                        <DashedLineIcon size={17} />
+                      ) : (selectedObj.props as unknown as ConnectorProps).lineStyle ===
+                        'dotted' ? (
+                        <DottedLineIcon size={17} />
+                      ) : (
+                        <SolidLineIcon size={17} />
+                      )}
+                    </button>
+                  </>
+                )}
 
               {/* Pen stroke width picker */}
               {tool === 'pen' && (
@@ -2287,15 +3663,169 @@ export function WhiteboardEditor({
                 </>
               )}
 
-              {/* Object actions: layer order, duplicate, delete */}
-              {tool === 'select' && selectedObj && (
+              {/* Multi-selection Align & Distribute compact popover trigger */}
+              {tool === 'select' && multiSelected && hasUnlockedSelection && (
                 <>
                   <span className="wb-format-sep" />
+                  <div className="wb-format-anchor">
+                    <button
+                      type="button"
+                      className={`wb-format-btn${alignMenuOpen ? ' active' : ''}`}
+                      aria-label={t('ctxAlign')}
+                      title={t('ctxAlign')}
+                      aria-expanded={alignMenuOpen}
+                      onClick={() => setAlignMenuOpen((v) => !v)}
+                    >
+                      <AlignObjLeftIcon size={16} />
+                    </button>
+                    {alignMenuOpen && (
+                      <div className="wb-align-popover" role="menu">
+                        <button
+                          type="button"
+                          className="wb-format-btn"
+                          aria-label={t('alignLeft')}
+                          title={t('alignLeft')}
+                          onClick={() => {
+                            handleAlignSelected('left')
+                            setAlignMenuOpen(false)
+                          }}
+                        >
+                          <AlignObjLeftIcon size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="wb-format-btn"
+                          aria-label={t('alignCenterH')}
+                          title={t('alignCenterH')}
+                          onClick={() => {
+                            handleAlignSelected('center')
+                            setAlignMenuOpen(false)
+                          }}
+                        >
+                          <AlignObjCenterHIcon size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="wb-format-btn"
+                          aria-label={t('alignRight')}
+                          title={t('alignRight')}
+                          onClick={() => {
+                            handleAlignSelected('right')
+                            setAlignMenuOpen(false)
+                          }}
+                        >
+                          <AlignObjRightIcon size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="wb-format-btn"
+                          aria-label={t('alignTop')}
+                          title={t('alignTop')}
+                          onClick={() => {
+                            handleAlignSelected('top')
+                            setAlignMenuOpen(false)
+                          }}
+                        >
+                          <AlignObjTopIcon size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="wb-format-btn"
+                          aria-label={t('alignMiddleV')}
+                          title={t('alignMiddleV')}
+                          onClick={() => {
+                            handleAlignSelected('middle')
+                            setAlignMenuOpen(false)
+                          }}
+                        >
+                          <AlignObjMiddleVIcon size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="wb-format-btn"
+                          aria-label={t('alignBottom')}
+                          title={t('alignBottom')}
+                          onClick={() => {
+                            handleAlignSelected('bottom')
+                            setAlignMenuOpen(false)
+                          }}
+                        >
+                          <AlignObjBottomIcon size={16} />
+                        </button>
+                        {selectedObjs.length >= 3 && (
+                          <>
+                            <button
+                              type="button"
+                              className="wb-format-btn"
+                              aria-label={t('distributeH')}
+                              title={t('distributeH')}
+                              onClick={() => {
+                                handleDistributeSelected('horizontal')
+                                setAlignMenuOpen(false)
+                              }}
+                            >
+                              <DistributeHIcon size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              className="wb-format-btn"
+                              aria-label={t('distributeV')}
+                              title={t('distributeV')}
+                              onClick={() => {
+                                handleDistributeSelected('vertical')
+                                setAlignMenuOpen(false)
+                              }}
+                            >
+                              <DistributeVIcon size={16} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Object actions: group/ungroup, lock/unlock, layer order, duplicate, delete */}
+              {tool === 'select' && selectedObjs.length > 0 && (
+                <>
+                  <span className="wb-format-sep" />
+                  {canGroupSelection && !canUngroupSelection && (
+                    <button
+                      type="button"
+                      className="wb-format-btn"
+                      aria-label={t('ctxGroup')}
+                      title={`${t('ctxGroup')} (Ctrl+G)`}
+                      onClick={handleGroupSelected}
+                    >
+                      <GroupIcon size={15} />
+                    </button>
+                  )}
+                  {canUngroupSelection && (
+                    <button
+                      type="button"
+                      className="wb-format-btn active"
+                      aria-label={t('ctxUngroup')}
+                      title={`${t('ctxUngroup')} (Ctrl+Shift+G)`}
+                      onClick={handleUngroupSelected}
+                    >
+                      <UngroupIcon size={15} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={`wb-format-btn${allSelectedLocked ? ' active' : ''}`}
+                    aria-label={allSelectedLocked ? t('ctxUnlock') : t('ctxLock')}
+                    title={`${allSelectedLocked ? t('ctxUnlock') : t('ctxLock')} (Ctrl+Shift+L)`}
+                    onClick={handleToggleLockSelected}
+                  >
+                    {allSelectedLocked ? <LockIcon size={15} /> : <UnlockIcon size={15} />}
+                  </button>
                   <button
                     type="button"
                     className="wb-format-btn"
                     aria-label={t('toolBringFront')}
-                    data-tip={t('toolBringFront')}
+                    title={t('toolBringFront')}
                     onClick={() => handleLayerOrder('front')}
                   >
                     <FrontIcon size={16} />
@@ -2304,7 +3834,7 @@ export function WhiteboardEditor({
                     type="button"
                     className="wb-format-btn"
                     aria-label={t('toolSendBack')}
-                    data-tip={t('toolSendBack')}
+                    title={t('toolSendBack')}
                     onClick={() => handleLayerOrder('back')}
                   >
                     <BackIcon size={16} />
@@ -2313,7 +3843,7 @@ export function WhiteboardEditor({
                     type="button"
                     className="wb-format-btn"
                     aria-label={t('toolDuplicate')}
-                    data-tip={t('toolDuplicate')}
+                    title={`${t('toolDuplicate')} (Ctrl+D)`}
                     onClick={handleDuplicateSelected}
                   >
                     <DuplicateIcon size={16} />
@@ -2322,8 +3852,9 @@ export function WhiteboardEditor({
                     type="button"
                     className="wb-format-btn danger"
                     aria-label={t('toolDelete')}
-                    data-tip={t('toolDelete')}
-                    onClick={() => session.deleteSelected()}
+                    title={t('toolDelete')}
+                    disabled={!hasUnlockedSelection}
+                    onClick={handleDeleteSelected}
                   >
                     <TrashIcon size={16} />
                   </button>
@@ -2332,7 +3863,7 @@ export function WhiteboardEditor({
             </div>
           )}
 
-          {/* Bottom-Left Floating Undo/Redo + Zoom/Fit Pill Groups */}
+          {/* Bottom-Left Floating Undo/Redo + Zoom/Fit + Grid Pill Groups */}
           <div className="wb-bottom-left">
             <div className="wb-control-group" role="group">
               <button
@@ -2362,7 +3893,7 @@ export function WhiteboardEditor({
                 type="button"
                 className="wb-ctrl-btn"
                 aria-label="-"
-                onClick={() => setZoom((z) => Math.max(0.2, Number((z - 0.15).toFixed(2))))}
+                onClick={() => zoomAroundCenter(zoom - 0.15)}
               >
                 <MinusIcon size={16} />
               </button>
@@ -2378,7 +3909,7 @@ export function WhiteboardEditor({
                 type="button"
                 className="wb-ctrl-btn"
                 aria-label="+"
-                onClick={() => setZoom((z) => Math.min(4, Number((z + 0.15).toFixed(2))))}
+                onClick={() => zoomAroundCenter(zoom + 0.15)}
               >
                 <PlusIcon size={16} />
               </button>
@@ -2392,29 +3923,100 @@ export function WhiteboardEditor({
                 <FitIcon size={16} />
               </button>
             </div>
+
+            {activePage && activePage.background.kind !== 'image' && (
+              <div className="wb-control-group" role="group">
+                <button
+                  type="button"
+                  className="wb-ctrl-btn"
+                  aria-label={
+                    currentGridMode === 'dot'
+                      ? t('gridDot')
+                      : currentGridMode === 'line'
+                        ? t('gridLine')
+                        : t('gridBlank')
+                  }
+                  title={
+                    currentGridMode === 'dot'
+                      ? t('gridDot')
+                      : currentGridMode === 'line'
+                        ? t('gridLine')
+                        : t('gridBlank')
+                  }
+                  onClick={() =>
+                    session.setPageGridMode(activePage.id, nextGridMode(currentGridMode))
+                  }
+                >
+                  {currentGridMode === 'dot' ? (
+                    <GridDotIcon size={16} />
+                  ) : currentGridMode === 'line' ? (
+                    <GridLineIcon size={16} />
+                  ) : (
+                    <GridBlankIcon size={16} />
+                  )}
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Bottom-Right Interactive Minimap & Toggle */}
+          {activePage && (
+            <div className="wb-bottom-right">
+              {minimapOpen && (
+                <Minimap
+                  page={activePage}
+                  objects={displayedObjects}
+                  pan={pan}
+                  zoom={zoom}
+                  stageWidth={stageSize.width}
+                  stageHeight={stageSize.height}
+                  onPanTo={setPan}
+                />
+              )}
+              <div className="wb-control-group" role="group">
+                <button
+                  type="button"
+                  className={`wb-ctrl-btn${minimapOpen ? ' active' : ''}`}
+                  aria-label={t('minimapToggle')}
+                  title={t('minimapToggle')}
+                  aria-pressed={minimapOpen}
+                  onClick={() => setMinimapOpen((v) => !v)}
+                >
+                  <MinimapIcon size={16} />
+                </button>
+              </div>
+            </div>
+          )}
 
           <svg
             className="wb-stage-svg"
             style={{
               cursor:
-                tool === 'connector' || tool === 'shape' || tool === 'sticky' || tool === 'pen'
-                  ? 'crosshair'
-                  : tool === 'text'
-                    ? 'text'
-                    : tool === 'eraser'
-                      ? 'cell'
-                      : 'default',
+                spacePanning || tool === 'hand'
+                  ? 'grab'
+                  : tool === 'connector' ||
+                      tool === 'shape' ||
+                      tool === 'sticky' ||
+                      tool === 'pen' ||
+                      tool === 'highlighter'
+                    ? 'crosshair'
+                    : tool === 'text'
+                      ? 'text'
+                      : tool === 'eraser'
+                        ? 'cell'
+                        : 'default',
             }}
+            onContextMenu={(e) => e.preventDefault()}
             onPointerDown={handleStagePointerDown}
             onPointerMove={handleStagePointerMove}
             onPointerUp={handleStagePointerUp}
             onWheel={(e) => {
               if (e.ctrlKey || e.metaKey) {
                 e.preventDefault()
-                setZoom((z) =>
-                  Math.max(0.2, Math.min(4, Number((z * (e.deltaY < 0 ? 1.1 : 0.9)).toFixed(2)))),
-                )
+                const rect = stageRef.current?.getBoundingClientRect()
+                if (!rect) return
+                const factor = e.deltaY < 0 ? 1.1 : 0.9
+                zoomAroundScreenPoint(zoom * factor, e.clientX - rect.left, e.clientY - rect.top)
               } else {
                 setPan((p) => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }))
               }
@@ -2423,6 +4025,9 @@ export function WhiteboardEditor({
             <defs>
               <pattern id="wb-dot-grid" width="24" height="24" patternUnits="userSpaceOnUse">
                 <circle cx="12" cy="12" r="1.05" fill="#1F1D1A" fillOpacity="0.14" />
+              </pattern>
+              <pattern id="wb-line-grid" width="24" height="24" patternUnits="userSpaceOnUse">
+                <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#E4DFD5" strokeWidth="1" />
               </pattern>
               <filter id="wb-sticky-shadow" x="-16%" y="-14%" width="132%" height="138%">
                 <feDropShadow
@@ -2477,6 +4082,17 @@ export function WhiteboardEditor({
                     fill={paperFill}
                     rx={6}
                   />
+                  {activePage.background?.kind !== 'image' && currentGridMode !== 'blank' && (
+                    <rect
+                      x={0}
+                      y={0}
+                      width={activePage.width}
+                      height={activePage.height}
+                      fill={currentGridMode === 'line' ? 'url(#wb-line-grid)' : 'url(#wb-dot-grid)'}
+                      rx={6}
+                      style={{ pointerEvents: 'none' }}
+                    />
+                  )}
                   {activePage.background?.kind === 'image' &&
                     (() => {
                       const href = session.getResourceDataUrl(activePage.background.resourceId)
@@ -2496,22 +4112,28 @@ export function WhiteboardEditor({
               ) : (
                 <>
                   <rect x={-4000} y={-4000} width={8000} height={8000} fill={paperFill} />
-                  <rect
-                    x={-4000}
-                    y={-4000}
-                    width={8000}
-                    height={8000}
-                    fill="url(#wb-dot-grid)"
-                    style={{ pointerEvents: 'none' }}
-                  />
+                  {currentGridMode !== 'blank' && (
+                    <rect
+                      x={-4000}
+                      y={-4000}
+                      width={8000}
+                      height={8000}
+                      fill={currentGridMode === 'line' ? 'url(#wb-line-grid)' : 'url(#wb-dot-grid)'}
+                      style={{ pointerEvents: 'none' }}
+                    />
+                  )}
                 </>
               )}
 
               {/* Board objects */}
               {displayedObjects.map((obj) => {
-                const isSelected = selectedIds.includes(obj.id)
-                const isHovered = tool === 'select' && hoveredId === obj.id && !isSelected
+                const isSelected = selectedIdSet.has(obj.id)
+                const isLocked = isObjectLocked(obj)
+                const isHovered =
+                  tool === 'select' && !spacePanning && hoveredId === obj.id && !isSelected
                 const isHighlighted = highlightSet.has(obj.id)
+                const isSearchMatch = searchHitIdSet.has(obj.id)
+                const isErasing = Boolean(erasingIds?.has(obj.id))
                 const isSnapTarget = snapHighlightIds.has(obj.id)
                 const invZ = 1 / zoom
                 const handleR = 4.6 * invZ
@@ -2529,16 +4151,21 @@ export function WhiteboardEditor({
                     onPointerEnter={() => setHoveredId(obj.id)}
                     onPointerLeave={() => setHoveredId((prev) => (prev === obj.id ? null : prev))}
                     onPointerDown={(e) => handleObjectPointerDown(e, obj)}
-                    onDoubleClick={() => startInlineEdit(obj)}
+                    onDoubleClick={(e) => startInlineEdit(obj, { x: e.clientX, y: e.clientY })}
                     style={{
+                      opacity: isErasing ? 0.35 : 1,
                       cursor:
-                        tool === 'eraser'
-                          ? 'crosshair'
-                          : tool === 'select'
-                            ? obj.kind === 'connector'
-                              ? 'pointer'
-                              : 'move'
-                            : 'inherit',
+                        spacePanning || tool === 'hand'
+                          ? 'grab'
+                          : tool === 'eraser'
+                            ? 'crosshair'
+                            : tool === 'select'
+                              ? isLocked
+                                ? 'not-allowed'
+                                : obj.kind === 'connector'
+                                  ? 'pointer'
+                                  : 'move'
+                              : 'inherit',
                     }}
                   >
                     {renderObjectElement(
@@ -2564,6 +4191,41 @@ export function WhiteboardEditor({
                         strokeWidth={1.5 * invZ}
                       />
                     )}
+
+                    {/* Search match ring */}
+                    {isSearchMatch &&
+                      (() => {
+                        const sb = objectBounds(obj, objectsById)
+                        return (
+                          <rect
+                            className="wb-search-highlight"
+                            x={sb.x - 4 * invZ}
+                            y={sb.y - 4 * invZ}
+                            width={sb.width + 8 * invZ}
+                            height={sb.height + 8 * invZ}
+                            rx={6 * invZ}
+                            strokeWidth={2.4 * invZ}
+                          />
+                        )
+                      })()}
+
+                    {/* Drag-eraser preview overlay */}
+                    {isErasing &&
+                      (() => {
+                        const eb = objectBounds(obj, objectsById)
+                        return (
+                          <rect
+                            className="wb-erase-preview"
+                            x={eb.x - 2 * invZ}
+                            y={eb.y - 2 * invZ}
+                            width={eb.width + 4 * invZ}
+                            height={eb.height + 4 * invZ}
+                            rx={5 * invZ}
+                            strokeWidth={1.8 * invZ}
+                            strokeDasharray={`${4 * invZ} ${3 * invZ}`}
+                          />
+                        )
+                      })()}
 
                     {/* Teal snap outline + 4 edge anchor dots when hovering/snapping a connector */}
                     {isSnapTarget && obj.kind !== 'connector' && obj.kind !== 'stroke' && (
@@ -2609,44 +4271,109 @@ export function WhiteboardEditor({
                         )
                       })()}
 
-                    {/* Selection frame: crisp outline + circular handles + Miro quick-connect side dots */}
+                    {/* Selection frame: crisp outline + 8 resize handles + rotation handle + quick-connect dots */}
                     {isSelected && obj.kind !== 'connector' && (
                       <>
                         <rect
-                          className="wb-selection-rect"
+                          className={`wb-selection-rect${multiSelected ? ' wb-selection-member' : ''}`}
                           x={obj.x}
                           y={obj.y}
                           width={obj.width}
                           height={obj.height}
                           rx={2 * invZ}
-                          strokeWidth={1.6 * invZ}
+                          strokeWidth={(multiSelected ? 1.2 : 1.6) * invZ}
+                          strokeDasharray={isLocked ? `${4 * invZ} ${3 * invZ}` : undefined}
                         />
-                        {(
-                          [
-                            ['nw', obj.x, obj.y, 'nwse-resize'],
-                            ['ne', obj.x + obj.width, obj.y, 'nesw-resize'],
-                            ['sw', obj.x, obj.y + obj.height, 'nesw-resize'],
-                            ['se', obj.x + obj.width, obj.y + obj.height, 'nwse-resize'],
-                          ] as const
-                        ).map(([corner, hx, hy, cursor]) => (
-                          <circle
-                            key={corner}
-                            className="wb-resize-handle"
-                            cx={hx}
-                            cy={hy}
-                            r={handleR}
-                            fill={PAPER_COLORS.cardBg}
-                            stroke={PAPER_COLORS.accent}
-                            strokeWidth={1.6 * invZ}
-                            style={{ cursor }}
-                            onPointerDown={(e) => handleResizePointerDown(e, obj, corner)}
-                          />
-                        ))}
+                        {isLocked && (
+                          <g
+                            transform={`translate(${obj.x + obj.width - 14 * invZ}, ${obj.y - 10 * invZ})`}
+                            style={{ pointerEvents: 'none' }}
+                          >
+                            <circle r={9 * invZ} fill={PAPER_COLORS.ink} />
+                            <rect
+                              x={-4 * invZ}
+                              y={-1 * invZ}
+                              width={8 * invZ}
+                              height={6 * invZ}
+                              rx={1.5 * invZ}
+                              fill={PAPER_COLORS.paper}
+                            />
+                            <path
+                              d={`M ${-2.4 * invZ} ${-1 * invZ} V ${-3.2 * invZ} a ${2.4 * invZ} ${2.4 * invZ} 0 0 1 ${4.8 * invZ} 0 V ${-1 * invZ}`}
+                              fill="none"
+                              stroke={PAPER_COLORS.paper}
+                              strokeWidth={1.4 * invZ}
+                            />
+                          </g>
+                        )}
+                        {!multiSelected && !isLocked && (
+                          <>
+                            {boxResizeHandles({
+                              x: obj.x,
+                              y: obj.y,
+                              width: obj.width,
+                              height: obj.height,
+                            }).map((h) =>
+                              h.corner ? (
+                                <circle
+                                  key={h.handle}
+                                  className="wb-resize-handle"
+                                  cx={h.x}
+                                  cy={h.y}
+                                  r={handleR}
+                                  fill={PAPER_COLORS.cardBg}
+                                  stroke={PAPER_COLORS.accent}
+                                  strokeWidth={1.6 * invZ}
+                                  style={{ cursor: HANDLE_CURSORS[h.handle] }}
+                                  onPointerDown={(e) => handleResizePointerDown(e, obj, h.handle)}
+                                />
+                              ) : (
+                                <rect
+                                  key={h.handle}
+                                  className="wb-resize-handle"
+                                  x={h.x - (h.handle === 'n' || h.handle === 's' ? 7 : 3.2) * invZ}
+                                  y={h.y - (h.handle === 'n' || h.handle === 's' ? 3.2 : 7) * invZ}
+                                  width={(h.handle === 'n' || h.handle === 's' ? 14 : 6.4) * invZ}
+                                  height={(h.handle === 'n' || h.handle === 's' ? 6.4 : 14) * invZ}
+                                  rx={3 * invZ}
+                                  fill={PAPER_COLORS.cardBg}
+                                  stroke={PAPER_COLORS.accent}
+                                  strokeWidth={1.4 * invZ}
+                                  style={{ cursor: HANDLE_CURSORS[h.handle] }}
+                                  onPointerDown={(e) => handleResizePointerDown(e, obj, h.handle)}
+                                />
+                              ),
+                            )}
+                            {/* Rotation lollipop handle above top center */}
+                            {editingId !== obj.id && (
+                              <>
+                                <line
+                                  className="wb-rotate-stem"
+                                  x1={obj.x + obj.width / 2}
+                                  y1={obj.y}
+                                  x2={obj.x + obj.width / 2}
+                                  y2={obj.y - 24 * invZ}
+                                  strokeWidth={1.4 * invZ}
+                                />
+                                <circle
+                                  className="wb-rotate-handle"
+                                  cx={obj.x + obj.width / 2}
+                                  cy={obj.y - 24 * invZ}
+                                  r={5.2 * invZ}
+                                  fill={PAPER_COLORS.cardBg}
+                                  stroke={PAPER_COLORS.accent}
+                                  strokeWidth={1.6 * invZ}
+                                  onPointerDown={(e) => handleRotatePointerDown(e, obj)}
+                                />
+                              </>
+                            )}
+                          </>
+                        )}
                         {obj.kind !== 'stroke' &&
-                          selectedIds.length === 1 &&
+                          !multiSelected &&
                           editingId !== obj.id &&
                           SIDE_ANCHORS.map((side, si) => {
-                            const portOffset = 15 * invZ
+                            const portOffset = 18 * invZ
                             return (
                               <circle
                                 key={`qp-${si}`}
@@ -2665,6 +4392,8 @@ export function WhiteboardEditor({
                     )}
 
                     {isSelected &&
+                      !multiSelected &&
+                      !isLocked &&
                       obj.kind === 'connector' &&
                       (() => {
                         const cp = obj.props as unknown as ConnectorProps
@@ -2702,6 +4431,123 @@ export function WhiteboardEditor({
                 )
               })}
 
+              {/* Alt+Drag clone ghost preview */}
+              {multiMoveDelta?.isClone && (
+                <g
+                  transform={`translate(${multiMoveDelta.dx}, ${multiMoveDelta.dy})`}
+                  opacity={0.55}
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {displayedObjects
+                    .filter((o) => multiMoveDelta.ids.has(o.id) && o.kind !== 'connector')
+                    .map((o) => (
+                      <rect
+                        key={`ghost-${o.id}`}
+                        x={o.x}
+                        y={o.y}
+                        width={o.width}
+                        height={o.height}
+                        rx={4}
+                        fill="none"
+                        stroke={PAPER_COLORS.accent}
+                        strokeWidth={1.8 / zoom}
+                        strokeDasharray={`${5 / zoom} ${4 / zoom}`}
+                      />
+                    ))}
+                </g>
+              )}
+
+              {/* Unified multi-selection bounding box with 8 proportional resize handles */}
+              {multiSelectionBox && (
+                <g>
+                  <rect
+                    className="wb-group-selection-rect"
+                    x={multiSelectionBox.x}
+                    y={multiSelectionBox.y}
+                    width={multiSelectionBox.width}
+                    height={multiSelectionBox.height}
+                    rx={3 / zoom}
+                    strokeWidth={1.6 / zoom}
+                  />
+                  {hasUnlockedSelection &&
+                    boxResizeHandles(multiSelectionBox).map((h) =>
+                      h.corner ? (
+                        <circle
+                          key={`grp-${h.handle}`}
+                          className="wb-resize-handle"
+                          cx={h.x}
+                          cy={h.y}
+                          r={4.8 / zoom}
+                          fill={PAPER_COLORS.cardBg}
+                          stroke={PAPER_COLORS.accent}
+                          strokeWidth={1.6 / zoom}
+                          style={{ cursor: HANDLE_CURSORS[h.handle] }}
+                          onPointerDown={(e) =>
+                            handleGroupResizePointerDown(e, multiSelectionBox, h.handle)
+                          }
+                        />
+                      ) : (
+                        <rect
+                          key={`grp-${h.handle}`}
+                          className="wb-resize-handle"
+                          x={h.x - (h.handle === 'n' || h.handle === 's' ? 7 : 3.2) / zoom}
+                          y={h.y - (h.handle === 'n' || h.handle === 's' ? 3.2 : 7) / zoom}
+                          width={(h.handle === 'n' || h.handle === 's' ? 14 : 6.4) / zoom}
+                          height={(h.handle === 'n' || h.handle === 's' ? 6.4 : 14) / zoom}
+                          rx={3 / zoom}
+                          fill={PAPER_COLORS.cardBg}
+                          stroke={PAPER_COLORS.accent}
+                          strokeWidth={1.4 / zoom}
+                          style={{ cursor: HANDLE_CURSORS[h.handle] }}
+                          onPointerDown={(e) =>
+                            handleGroupResizePointerDown(e, multiSelectionBox, h.handle)
+                          }
+                        />
+                      ),
+                    )}
+                </g>
+              )}
+
+              {/* Smart magnetic alignment guides */}
+              {snapGuides.map((g, gi) =>
+                g.axis === 'x' ? (
+                  <line
+                    key={`sg-${gi}`}
+                    className="wb-smart-guide"
+                    x1={g.value}
+                    y1={g.from}
+                    x2={g.value}
+                    y2={g.to}
+                    strokeWidth={1.25 / zoom}
+                    strokeDasharray={`${4 / zoom} ${3 / zoom}`}
+                  />
+                ) : (
+                  <line
+                    key={`sg-${gi}`}
+                    className="wb-smart-guide"
+                    x1={g.from}
+                    y1={g.value}
+                    x2={g.to}
+                    y2={g.value}
+                    strokeWidth={1.25 / zoom}
+                    strokeDasharray={`${4 / zoom} ${3 / zoom}`}
+                  />
+                ),
+              )}
+
+              {/* Drag rubber-band marquee selection rectangle */}
+              {marqueeRect && (
+                <rect
+                  className="wb-marquee-rect"
+                  x={marqueeRect.x}
+                  y={marqueeRect.y}
+                  width={marqueeRect.width}
+                  height={marqueeRect.height}
+                  rx={2 / zoom}
+                  strokeWidth={1.4 / zoom}
+                />
+              )}
+
               {/* Live in-progress connector drag preview */}
               {liveConnector &&
                 (() => {
@@ -2736,16 +4582,93 @@ export function WhiteboardEditor({
                 <path
                   d={computeStrokeOutline(
                     liveStroke,
-                    tool === 'highlighter' ? 22 : penWidth,
+                    tool === 'highlighter' ? highlighterWidth : penWidth,
                     tool === 'highlighter' ? 'highlighter' : 'pen',
                   )}
-                  fill={tool === 'highlighter' ? PAPER_COLORS.highlighterYellow : penColor}
+                  fill={tool === 'highlighter' ? highlighterColor : penColor}
                   fillOpacity={tool === 'highlighter' ? 0.35 : 1}
                   style={tool === 'highlighter' ? { mixBlendMode: 'multiply' } : undefined}
                 />
               )}
             </g>
           </svg>
+
+          {/* Live rotation degree badge */}
+          {rotatePreview && (
+            <div
+              className="wb-rotate-badge"
+              style={{
+                left: rotatePreview.clientX - (stageRef.current?.getBoundingClientRect().left ?? 0),
+                top: rotatePreview.clientY - (stageRef.current?.getBoundingClientRect().top ?? 0),
+              }}
+            >
+              {rotatePreview.angle}°
+            </div>
+          )}
+
+          {/* Inline table cell editor overlay */}
+          {editingTableCell &&
+            editingTableObj &&
+            editingTableObj.kind === 'table' &&
+            (() => {
+              const tp = editingTableObj.props as unknown as TableProps
+              const rows = tp.rowIds?.length || 1
+              const cols = tp.colIds?.length || 1
+              const cw = editingTableObj.width / cols
+              const ch = editingTableObj.height / rows
+              const cellX = editingTableObj.x + editingTableCell.col * cw
+              const cellY = editingTableObj.y + editingTableCell.row * ch
+              return (
+                <input
+                  type="text"
+                  className="wb-table-cell-editor"
+                  autoFocus
+                  value={editingTableCell.text}
+                  onChange={(e) =>
+                    setEditingTableCell((prev) => (prev ? { ...prev, text: e.target.value } : null))
+                  }
+                  onBlur={() => commitTableCellEdit()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      commitTableCellEdit()
+                    } else if (e.key === 'Tab') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const delta = e.shiftKey ? -1 : 1
+                      const linear = editingTableCell.row * cols + editingTableCell.col + delta
+                      if (linear >= 0 && linear < rows * cols) {
+                        commitTableCellEdit({
+                          row: Math.floor(linear / cols),
+                          col: linear % cols,
+                        })
+                      } else {
+                        commitTableCellEdit()
+                      }
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      if (editingTableCell.row + 1 < rows) {
+                        commitTableCellEdit({
+                          row: editingTableCell.row + 1,
+                          col: editingTableCell.col,
+                        })
+                      } else {
+                        commitTableCellEdit()
+                      }
+                    }
+                  }}
+                  style={{
+                    left: pan.x + cellX * zoom,
+                    top: pan.y + cellY * zoom,
+                    width: Math.max(64, cw * zoom),
+                    height: Math.max(28, ch * zoom),
+                    fontSize: (tp.fontSize ?? 14) * zoom,
+                  }}
+                />
+              )
+            })()}
 
           {/* Inline plain-text editor overlay styled seamlessly to match the board object */}
           {editingObj &&
@@ -2811,6 +4734,10 @@ export function WhiteboardEditor({
                       e.stopPropagation()
                       e.nativeEvent.stopImmediatePropagation()
                       commitInlineEdit()
+                    } else if (e.key === 'Tab' && !e.shiftKey && editingObj.kind === 'sticky') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleStickyTabNext(editingObj)
                     }
                   }}
                   style={{
@@ -2879,6 +4806,38 @@ export function WhiteboardEditor({
             })()}
         </div>
       </div>
+
+      {/* Right-click Context Menu */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          selectedCount={selectedObjs.length}
+          hasClipboard={Boolean(clipboardRef.current?.objects.length)}
+          canGroup={canGroupSelection}
+          canUngroup={canUngroupSelection}
+          allLocked={allSelectedLocked}
+          hasUnlocked={hasUnlockedSelection}
+          onCopy={handleCopySelected}
+          onCut={handleCutSelected}
+          onPaste={() => void handlePasteInternal()}
+          onDuplicate={handleDuplicateSelected}
+          onGroup={handleGroupSelected}
+          onUngroup={handleUngroupSelected}
+          onToggleLock={handleToggleLockSelected}
+          onLayer={handleLayerOrder}
+          onAlign={handleAlignSelected}
+          onDistribute={handleDistributeSelected}
+          onSelectAll={handleSelectAll}
+          onDelete={handleDeleteSelected}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {/* Template Gallery Modal */}
+      {templateModalOpen && (
+        <TemplateModal onSelect={handleApplyTemplate} onClose={() => setTemplateModalOpen(false)} />
+      )}
 
       {/* Link Card Modal */}
       {linkModalOpen && (

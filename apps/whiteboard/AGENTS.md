@@ -17,7 +17,8 @@
   - `App.tsx`·`PrintDialog.tsx`·`components/WhiteboardEditor.tsx`: React + SVG 인터랙티브 캔버스(자유형 + 고정형 페이지 혼합, 9종 오브젝트, 도형 8종, 스티커 19종, 필압 펜/형광펜, PDF 쪽 배경 가져오기, 링크 카드 클릭 시 기본 브라우저 열기, Excalidraw 생략 배너, 발표 모드 `F5`), 공용 `SimplePrintDialog` 기반 인쇄 창(프린터·매수·한 벌씩·양면·쪽 배치).
   - `document/session.ts`: Rust WASM 아카이브 세션, 실행 취소/다시 하기 스택(AI 턴 되돌리기·사용자 편집 보호 포함), 무변경 저장 감지.
   - `export/render-svg.ts`·`export/pdf-import.ts`: 테마 불변 밝은 SVG/PNG 렌더러 및 지연 로드 `pdfjs-dist` PDF 페이지 래스터라이저.
-  - `ai/`: `@genoffice/ui` 공용 AI 패널(`useAiSendGate`, `AiChangesCard`, `AiModelPicker`, `aiVisible`), `<whiteboard_page>` 텍스트 표 + 비전 지원 모델일 때 밝은 PNG 자동 첨부(미지원 모델은 조용히 텍스트 전용 폴백), 6개 도구(`read_board`, `edit_board`, `apply_template`, `search_images`, `insert_image`, `generate_image`), 도구 1회 호출 = 실행 취소 1단계(all-or-nothing) + 비파괴 강조 표시.
+  - `ai/`: `@genoffice/ui` 공용 AI 패널(`useAiSendGate`, `AiChangesCard`, `AiModelPicker`, `aiVisible`, `AiQuestionCard`, `AiNextSteps`, `AiQualityBadge`), AI 턴 직후 정적 품질 점검(`whiteboard-qc.ts`), `<whiteboard_page>` 텍스트 표 + 비전 지원 모델일 때 밝은 PNG 자동 첨부(미지원 모델은 조용히 텍스트 전용 폴백), 6개 도구(`read_board`, `edit_board`, `apply_template`, `search_images`, `insert_image`, `generate_image`) + `ask_questions`, 도구 1회 호출 = 실행 취소 1단계(all-or-nothing) + 비파괴 강조 표시.
+  - `timeline/whiteboard-timeline-adapter.ts`·`tweaks/`: 영구 버전 타임라인(`commitDocument` 단일 실행 취소 복원·SVG 미리보기)과 AI 없이 동작하는 스타일 미세 조정 패널(`WhiteboardTweaksPanel`, AI 끄기 상태에서도 사용 가능).
   - `i18n/`: 22개 언어(`app/`·`ai/` 각 22개 파일).
 
 ## 맡지 않는 것 (경계)

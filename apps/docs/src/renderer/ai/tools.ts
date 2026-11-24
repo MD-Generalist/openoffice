@@ -1053,7 +1053,8 @@ async function executeAsyncTool(
         })
       }
       const url = String(call.input.url ?? '')
-      if (!/^https?:\/\//.test(url)) {
+      // file:// = a locally cached/generated image in the app's validated store (the main process only resolves its own UUID files)
+      if (!/^(https?|file):\/\//.test(url)) {
         return fail(
           t('aiSumInsertImage'),
           'give either url (a direct image link) or attachment (the exact name of an image attached to this chat)',
@@ -1198,8 +1199,8 @@ async function insertPicture(
 ): Promise<ToolExecution> {
   const summary = t('aiSumInsertPicture')
   const url = String(call.input.url ?? '')
-  if (!/^https?:\/\/|^data:image\//.test(url))
-    return fail(summary, 'url must be an http(s) or data: image URL')
+  if (!/^(https?|file):\/\/|^data:image\//.test(url))
+    return fail(summary, 'url must be an http(s), local cached file:, or data: image URL')
   let float: FloatSpec | undefined
   if (call.input.float !== undefined) {
     const r = resolveFloat(call.input.float)

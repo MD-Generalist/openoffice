@@ -1,6 +1,7 @@
 import {
   aiPanelWidthAtPointer,
   AiAttachMenu,
+  AiAssistantBody,
   AiBlockedNotice,
   AiConnectPrompt,
   AiFirstConnectionNotice,
@@ -8,6 +9,7 @@ import {
   AiMark,
   AiPanelHeader,
   AiPanelSideButton,
+  AiQuestionCard,
   AiReplyFooter,
   AiScrollToBottom,
   AiModelPicker,
@@ -23,7 +25,11 @@ import {
   addTokenUsage,
   type AiTokenUsageView,
   aiSubscriptionText,
+  buildMemoBatchPromptSection,
+  openGenerateForCurrentDocument,
+  useAiInlineQuestions,
   useAiSendGate,
+  type ReviewMemoItem,
   useChatRunQueue,
   type DriveAttachPicked,
   McpPermissionCard,
@@ -50,7 +56,7 @@ import {
   type ProjectMemoryLine,
   useSubscriptionUsageUpdates,
 } from '@genoffice/ui'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import type { Block } from '@genoffice/docx-engine'
 import {
@@ -74,7 +80,7 @@ import type {
   AttachmentAddResult,
   AttachmentMeta,
 } from '../../shared/ipc'
-import { redactTextBetween, type RedactableNode } from './redact-view'
+import { redactDocRange } from './redact-view'
 import { ATTACHMENT_IMAGE_EXTS } from '../../shared/ipc'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { Transaction } from '@tiptap/pm/state'
@@ -91,6 +97,7 @@ import {
 import type { AiPageSetupAccess } from './page-setup'
 import type { AiNotesAccess } from './note-ops'
 import { createDocsSkill } from './docs-skill'
+import { docsCommentsToReviewMemos } from './memo-attach'
 import { MindMapCard } from './MindMapCard'
 import { insertPictureAtSelection } from '../editor/insert-picture'
 import {
@@ -538,7 +545,7 @@ const MODEL_BRIDGE: AiModelPickerBridge = {
   openModelSettings: () => window.desktop.openAiModelSettings().catch(() => {}),
 }
 
-export function AiPanel({
+function AiPanelInner({
   editor,
   blocks,
   settings,
@@ -572,6 +579,8 @@ export function AiPanel({
   // Panel chrome follows the UI language; message text follows its own content (dir=auto below)
   const isRtl = lang === 'ar' || lang === 'he'
   const [input, setInput] = useState('')
+  const inlineQuestions = useAiInlineQuestions()
+  const [attachedMemos, setAttachedMemos] = useState<ReviewMemoItem[]>([])
   const [busy, setBusy] = useState(false)
   /** messages queued while a reply runs; the pump re-runs them through runWith on settle */
   const msgQueue = useChatRunQueue<{
@@ -1290,6 +1299,7 @@ export function AiPanel({
           }),
         ),
         createFilesSkill(availableAttachments),
+        inlineQuestions.askQuestionsSkill,
         // the person's skills: use_skill, read_skill_file, propose_skill (app-run tools)
         ...panelUserSkills({
           editor: 'docs',
@@ -1469,18 +1479,19 @@ export function AiPanel({
     }
   }, [editor])
 
-  // scope chip data, recomputed per render (the scope tick above keeps it fresh)
+  // scope chip data, memoised on doc + selection endpoints so unrelated
+  // re-renders never re-serialise the selection or walk the document
   const liveSelection = editor.state.selection
-  const selectionText = liveSelection.empty
-    ? ''
-    : redactTextBetween(
-        editor.getJSON() as RedactableNode,
-        liveSelection.from,
-        liveSelection.to,
-        '\n',
-      )
-        .replace(/\s+/g, ' ')
-        .trim()
+  const liveDoc = editor.state.doc
+  const selectionText = useMemo(
+    () =>
+      liveSelection.empty
+        ? ''
+        : redactDocRange(liveDoc, liveSelection.from, liveSelection.to, '\n')
+            .replace(/\s+/g, ' ')
+            .trim(),
+    [liveDoc, liveSelection.empty, liveSelection.from, liveSelection.to],
+  )
   const hasScopeSelection = selectionText.length > 0
 
   /** the × on the scope chip: collapse the selection so the run targets the whole document */
@@ -1491,9 +1502,7 @@ export function AiPanel({
   const selectionScopeQuote = (): AiScopeQuoteData | undefined => {
     const { from, to, empty } = editor.state.selection
     if (empty) return undefined
-    const text = redactTextBetween(editor.getJSON() as RedactableNode, from, to, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
+    const text = redactDocRange(editor.state.doc, from, to, ' ').replace(/\s+/g, ' ').trim()
     if (!text) return undefined
     return {
       label: t('aiScopeSelection', { words: countWords(text) }),
@@ -1547,8 +1556,14 @@ export function AiPanel({
 
   const run = () => {
     const text = input.trim()
-    if (!text) return
-    skills.withSkills(text, (skillUse) => runWith(text, text, undefined, undefined, skillUse))
+    if (!text && attachedMemos.length === 0) return
+    inlineQuestions.supersedeOpen()
+    const memoBlock = buildMemoBatchPromptSection(attachedMemos)
+    const composed = memoBlock ? (text ? `${memoBlock}\n\n${text}` : memoBlock) : text
+    if (attachedMemos.length > 0) setAttachedMemos([])
+    skills.withSkills(composed, (skillUse) =>
+      runWith(composed, text || composed, undefined, undefined, skillUse),
+    )
   }
 
   /** Image attachments are read as base64 and go multimodal with this user message (≤5MB per image, max 20) */
@@ -2120,7 +2135,24 @@ export function AiPanel({
               {entry.role === 'assistant' ? (
                 entry.text && (
                   <div dir="auto">
-                    <Markdown text={entry.text} navs={chatNavs} />
+                    <AiAssistantBody
+                      lang={lang}
+                      text={entry.text}
+                      navs={chatNavs}
+                      streaming={entry.streaming}
+                      questionStatus={inlineQuestions.textCardStates[`m-${i}`]?.status}
+                      savedAnswers={inlineQuestions.textCardStates[`m-${i}`]?.answers}
+                      onQuestionSubmit={(spec, answers) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'submitted', answers)
+                        const follow = inlineQuestions.formatFollowUp(spec, answers, false)
+                        runWith(follow, follow)
+                      }}
+                      onQuestionSkip={(spec) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'skipped')
+                        const follow = inlineQuestions.formatFollowUp(spec, {}, true)
+                        runWith(follow, follow)
+                      }}
+                    />
                   </div>
                 )
               ) : (
@@ -2189,6 +2221,24 @@ export function AiPanel({
                     showToolbar && isLast && !busy && lastInstructionRef.current ? retry : undefined
                   }
                   usage={entry.usage}
+                  nextSteps={
+                    isLast
+                      ? {
+                          context: {
+                            aiVisible: true,
+                            streaming: Boolean(entry.streaming),
+                            completedNormally: !entry.error && !blockedCause,
+                            editorKind: 'docs',
+                            editedDocument: Boolean(entry.changes),
+                            qualityIssueCount: 0,
+                            usedSkillName: entry.skills?.[0]?.title,
+                            canGenerateOtherDoc: true,
+                            hasSavedPath: Boolean(filePath),
+                          },
+                          onGenerateOtherDoc: openGenerateForCurrentDocument,
+                        }
+                      : undefined
+                  }
                 />
               )}
               {entry.turnLimit && isLast && !busy && (
@@ -2199,6 +2249,16 @@ export function AiPanel({
             </div>
           )
         })}
+        {inlineQuestions.activeToolCard && (
+          <AiQuestionCard
+            lang={lang}
+            spec={inlineQuestions.activeToolCard.spec}
+            status={inlineQuestions.activeToolCard.status}
+            savedAnswers={inlineQuestions.activeToolCard.answers}
+            onSubmit={inlineQuestions.submitToolCard}
+            onSkip={inlineQuestions.skipToolCard}
+          />
+        )}
         {skillTemplates.notes}
         {/* an MCP tool waiting for the person's yes (user MCP spec 7.4) */}
         <McpPermissionCard lang={lang} />
@@ -2299,8 +2359,28 @@ export function AiPanel({
           onQueue={enqueueDraft}
           queuePlaceholder={AI_QUEUE_LABELS[lang].queuePlaceholder}
           header={
-            (hasScopeSelection || attachments.length > 0) && (
+            (hasScopeSelection || attachments.length > 0 || attachedMemos.length > 0) && (
               <>
+                {attachedMemos.length > 0 && (
+                  <div className="ai-review-memo-chips">
+                    {attachedMemos.map((memo) => (
+                      <span key={memo.id} className="ai-review-memo-chip">
+                        <span>
+                          {memo.location} · {memo.excerpt.slice(0, 32)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAttachedMemos((prev) => prev.filter((m) => m.id !== memo.id))
+                          }
+                          aria-label="Remove memo"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {hasScopeSelection && (
                   <div className="ai-scope-row">
                     <span className="ai-scope-hint">
@@ -2428,6 +2508,22 @@ export function AiPanel({
                 onPickPc={() => void pickAttachments()}
                 onPickedDocs={attachFromDrive}
                 onPickedDrive={attachFromDrive}
+                memoAttach={{
+                  listMemos: () =>
+                    docsCommentsToReviewMemos(
+                      (commentsAccessRef.current?.list() ?? []).map((c) => ({
+                        id: c.id,
+                        author: c.author || 'Reviewer',
+                        text: c.text || '',
+                        resolved: Boolean((c as { resolved?: boolean }).resolved),
+                      })),
+                    ),
+                  onAttachMemos: (items) =>
+                    setAttachedMemos((prev) => {
+                      const seen = new Set(prev.map((m) => m.id))
+                      return [...prev, ...items.filter((m) => !seen.has(m.id))]
+                    }),
+                }}
               />
               <McpServerButton lang={lang} />
               <button
@@ -2455,3 +2551,5 @@ export function AiPanel({
     </aside>
   )
 }
+
+export const AiPanel = memo(AiPanelInner)

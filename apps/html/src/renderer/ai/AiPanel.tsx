@@ -1,8 +1,11 @@
 import {
   aiPanelWidthAtPointer,
   AiAttachMenu,
+  AiAssistantBody,
   AiPanelHeader,
   AiPanelSideButton,
+  AiQualityBadge,
+  AiQuestionCard,
   AiModelPicker,
   type AiModelPickerBridge,
   AiBlockedNotice,
@@ -22,6 +25,8 @@ import {
   IconStop,
   AiEmptyHints,
   aiSubscriptionText,
+  openGenerateForCurrentDocument,
+  useAiInlineQuestions,
   useAiSendGate,
   useScrollToBottom,
   type DriveAttachPicked,
@@ -106,7 +111,6 @@ import {
   AiUsageChip,
   addTokenUsage,
   createFileNav,
-  Markdown,
   useChatRunQueue,
   type AiScopeQuoteData,
   type AiTokenUsageView,
@@ -128,6 +132,8 @@ import filePdfIcon from '../assets/file-pdf.png'
 import filePptIcon from '../assets/file-ppt.png'
 import fileWordIcon from '../assets/file-word.png'
 import { createDocumentSkill } from './html-skill'
+import { runHtmlStaticQualityAudit } from './html-qc'
+import type { QualityFinding } from '@genoffice/agent-core'
 import { createFilesSkill } from './files-skill'
 import { createIntentSkill, type PageIntent } from './intent'
 import {
@@ -541,6 +547,8 @@ export function AiPanel({
   templateDocument,
   onSkillHandoff,
   marksShown = false,
+  onOpenTweaks,
+  onAiDoneRecord,
 }: {
   deps: HtmlAiDeps
   filePath: string | null
@@ -561,10 +569,14 @@ export function AiPanel({
   onSkillHandoff?: () => void
   /** the marks of the last run's changes are on the page */
   marksShown?: boolean
+  onOpenTweaks?: () => void
+  onAiDoneRecord?: (promptSummary: string) => void
 }): ReactElement {
   const { lang, t } = useI18n()
   const [chat, setChat] = useState<ChatEntry[]>([])
   const [prompt, setPrompt] = useState('')
+  const inlineQuestions = useAiInlineQuestions()
+  const [qualityFindings, setQualityFindings] = useState<QualityFinding[]>([])
   const [busy, setBusy] = useState(false)
   /** Claude / Codex connection: live statuses and the connect-card actions */
   const subscription = useSubscriptionConnection()
@@ -1239,6 +1251,7 @@ export function AiPanel({
       toolsAllowed: () =>
         settingsRef.current ? localModelCapabilities(settingsRef.current).tools !== false : true,
       skill: composeWithDrive('html+search', '', () => loopRef.current?.messages ?? [], [
+        inlineQuestions.askQuestionsSkill,
         createDocumentSkill(
           {
             getText: () => depsRef.current.access.getText(),
@@ -1384,6 +1397,14 @@ export function AiPanel({
           const final = truncated
             ? [base, tGlobal('aiTruncatedNote')].filter(Boolean).join('\n\n')
             : base
+          if (!cancelled && runMutatedRef.current) {
+            setQualityFindings(
+              runHtmlStaticQualityAudit(depsRef.current.access.getText(), {
+                userPrompt: runInstructionRef.current,
+              }).findings,
+            )
+            onAiDoneRecord?.(runInstructionRef.current)
+          }
           patchLast((last) => ({
             streaming: false,
             text: final || (last.tools?.length ? last.text : tGlobal('aiNoReply')),
@@ -1780,6 +1801,7 @@ export function AiPanel({
   const sendDraft = () => {
     const text = prompt.trim()
     if (!text) return
+    inlineQuestions.supersedeOpen()
     skills.withSkills(text, (skillUse) =>
       send(text, undefined, false, undefined, undefined, skillUse),
     )
@@ -2499,7 +2521,22 @@ export function AiPanel({
               ) : (
                 entry.text && (
                   <div dir="auto">
-                    <Markdown text={entry.text} navs={[docNav, fileNav]} />
+                    <AiAssistantBody
+                      lang={lang}
+                      text={entry.text}
+                      navs={[docNav, fileNav]}
+                      streaming={entry.streaming}
+                      questionStatus={inlineQuestions.textCardStates[`m-${i}`]?.status}
+                      savedAnswers={inlineQuestions.textCardStates[`m-${i}`]?.answers}
+                      onQuestionSubmit={(spec, answers) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'submitted', answers)
+                        send(inlineQuestions.formatFollowUp(spec, answers, false))
+                      }}
+                      onQuestionSkip={(spec) => {
+                        inlineQuestions.markTextCard(`m-${i}`, 'skipped')
+                        send(inlineQuestions.formatFollowUp(spec, {}, true))
+                      }}
+                    />
                   </div>
                 )
               )}
@@ -2548,6 +2585,21 @@ export function AiPanel({
                   working={t('aiWorking')}
                 />
               )}
+              {isLast && !busy && qualityFindings.length > 0 && (
+                <AiQualityBadge
+                  lang={lang}
+                  findings={qualityFindings}
+                  aiVisible
+                  onFixWithAi={() => {
+                    const summary = qualityFindings
+                      .map((f) => `- [${f.severity}] ${f.message}`)
+                      .join('\n')
+                    send(
+                      `Please fix the following quality audit findings in the HTML document:\n${summary}`,
+                    )
+                  }}
+                />
+              )}
               {(showToolbar || entry.usage) && (
                 <AiReplyFooter
                   lang={lang}
@@ -2557,11 +2609,41 @@ export function AiPanel({
                     showToolbar && isLast && !busy && runInstructionRef.current ? retry : undefined
                   }
                   usage={entry.usage}
+                  nextSteps={
+                    isLast
+                      ? {
+                          context: {
+                            aiVisible: true,
+                            streaming: Boolean(entry.streaming),
+                            completedNormally: !entry.isError && !entry.blocked,
+                            editorKind: 'html',
+                            editedDocument: Boolean(entry.changes),
+                            qualityIssueCount: qualityFindings.length,
+                            usedSkillName: entry.skills?.[0]?.title,
+                            canGenerateOtherDoc: true,
+                            hasSavedPath: Boolean(filePath),
+                          },
+                          onRunAi: (fixPrompt) => send(fixPrompt),
+                          onOpenTweaks,
+                          onGenerateOtherDoc: openGenerateForCurrentDocument,
+                        }
+                      : undefined
+                  }
                 />
               )}
             </div>
           )
         })}
+        {inlineQuestions.activeToolCard && (
+          <AiQuestionCard
+            lang={lang}
+            spec={inlineQuestions.activeToolCard.spec}
+            status={inlineQuestions.activeToolCard.status}
+            savedAnswers={inlineQuestions.activeToolCard.answers}
+            onSubmit={inlineQuestions.submitToolCard}
+            onSkip={inlineQuestions.skipToolCard}
+          />
+        )}
         {skillTemplates.notes}
         {/* an MCP tool waiting for the person's yes (user MCP spec 7.4) */}
         <McpPermissionCard lang={lang} />

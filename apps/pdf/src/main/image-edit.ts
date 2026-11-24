@@ -26,6 +26,7 @@ import type {
 } from '../shared/ipc'
 
 const FPDF_PAGEOBJ_IMAGE = 3
+const FPDF_PAGEOBJ_FORM = 5
 const FPDF_BITMAP_BGRA = 4
 
 type Rect = readonly [number, number, number, number]
@@ -114,6 +115,20 @@ function matchImage(objects: ImageObj[], rect: Rect): ImageObj | null {
     }
   }
   return best
+}
+
+/** Index just above the topmost picture (an image, or a Form XObject a scanner
+    wrapped it in) under `rect`: where a patch over a scan's ink belongs. Undefined
+    when no picture lies under it. */
+const abovePictureIndex = (objects: PageObj[], rect: Rect): number | undefined => {
+  let top: number | undefined
+  for (const o of objects) {
+    if (o.type !== FPDF_PAGEOBJ_IMAGE && o.type !== FPDF_PAGEOBJ_FORM) continue
+    const [l, b, r, t] = o.bounds
+    if (l >= rect[2] || r <= rect[0] || b >= rect[3] || t <= rect[1]) continue
+    if (top === undefined || o.index > top) top = o.index
+  }
+  return top === undefined ? undefined : top + 1
 }
 
 const firstTextIndex = (objects: PageObj[]): number | undefined =>
@@ -216,9 +231,14 @@ function insertImage(m: Pdfium, doc: number, page: number, edit: ImageEditInput)
   m.HEAPF32.set(imageMatrix(edit.rect, edit.rotate ?? 0), matPtr >> 2)
   m._FPDFPageObj_SetMatrix(imgObj, matPtr)
   m._free(matPtr)
-  const textIdx = edit.layer === 'belowText' ? firstTextIndex(collectObjects(m, page)) : undefined
-  if (textIdx !== undefined && m._FPDFPage_InsertObjectAtIndex) {
-    if (!m._FPDFPage_InsertObjectAtIndex(page, imgObj, textIdx)) {
+  const objects = edit.overPicture || edit.layer === 'belowText' ? collectObjects(m, page) : []
+  const insertAt =
+    (edit.overPicture ? abovePictureIndex(objects, edit.rect) : undefined) ??
+    (edit.layer === 'belowText' ? firstTextIndex(objects) : undefined)
+  // index === count means "on top of everything": a plain append
+  const atEnd = insertAt !== undefined && insertAt >= m._FPDFPage_CountObjects(page)
+  if (insertAt !== undefined && !atEnd && m._FPDFPage_InsertObjectAtIndex) {
+    if (!m._FPDFPage_InsertObjectAtIndex(page, imgObj, insertAt)) {
       m._FPDFPageObj_Destroy(imgObj)
       throw new Error('FPDFPage_InsertObjectAtIndex failed')
     }

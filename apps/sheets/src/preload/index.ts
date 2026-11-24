@@ -1,6 +1,7 @@
 import type { AiPanelPrefs } from '@genoffice/ui'
 import { contextBridge, ipcRenderer, webFrame, webUtils } from 'electron'
 import { driveAiBridge } from '@genoffice/electron-utils/drive-ai-bridge'
+import { generateEditorBridge } from '@genoffice/electron-utils/generate-editor-bridge'
 import { mcpToolsBridge } from '@genoffice/electron-utils/mcp-tools-bridge'
 import { outboundBridge } from '@genoffice/electron-utils/outbound-bridge'
 import { userSkillsBridge } from '@genoffice/electron-utils/user-skills-bridge'
@@ -911,6 +912,7 @@ function parseAttachmentAddResult(input: unknown): AttachmentAddResult {
 contextBridge.exposeInMainWorld('desktopApi', desktopApi)
 // Google Drive for this editor's AI: search and read only (decision 0033)
 contextBridge.exposeInMainWorld('aiOfficeDriveAi', driveAiBridge())
+contextBridge.exposeInMainWorld('aiOfficeGenerateEditor', generateEditorBridge())
 contextBridge.exposeInMainWorld('aiOfficeOutbound', outboundBridge())
 // the person's MCP servers for this editor's AI: list and call approved tools (the shell checks each)
 contextBridge.exposeInMainWorld('aiOfficeMcpTools', mcpToolsBridge())

@@ -29,6 +29,7 @@ import {
 import { htmlLang, type Lang } from '@genoffice/i18n'
 import { aiSubscriptionText, type AiSubscriptionStringKey } from './strings-ai-subscription'
 import { aiContextText } from './strings-ai-context'
+import { aiDiagnosticsText } from './strings-ai-diagnostics'
 
 /** Subscription providers are named in plain text only: no vendor mark, no CLI product name */
 const SUBSCRIPTION_NAMES: Record<AiSubscriptionProviderId, string> = {
@@ -763,6 +764,14 @@ export function aiRunErrorText(
       return aiSubscriptionText(lang, 'errOffInApp', { provider })
     case 'context-limit':
       return aiContextText(lang, 'errContextLimit')
+    case 'proxy-error':
+      return aiDiagnosticsText(lang, 'errProxyError')
+    case 'cert-error':
+      return aiDiagnosticsText(lang, 'errCertError')
+    case 'network-unreachable':
+      return aiDiagnosticsText(lang, 'errNetworkUnreachable')
+    case 'timeout':
+      return aiDiagnosticsText(lang, 'errTimeout')
     default:
       return undefined
   }

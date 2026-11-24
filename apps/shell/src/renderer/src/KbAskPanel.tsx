@@ -16,12 +16,16 @@ import {
   windowMcpUsableServers,
 } from '@genoffice/agent-core'
 import {
+  AiAssistantBody,
   AiBlockedNotice,
   AiComposer,
   AiConnectPrompt,
+  AiNextSteps,
+  AiQuestionCard,
   AiToolsUnsupportedNotice,
   AiReplyProgress,
   AiUsageChip,
+  useAiInlineQuestions,
   addTokenUsage,
   aiContextConfirmText,
   aiRunErrorText,
@@ -29,7 +33,6 @@ import {
   aiSubscriptionText,
   consolidateProjectMemory,
   createFileNav,
-  Markdown,
   McpPermissionCard,
   McpServerButton,
   useMcpWindow,
@@ -201,6 +204,7 @@ export function KbAskPanel({
   const { t, lang } = useI18n()
   const [messages, setMessages] = useState<AskMessage[]>([])
   const [draft, setDraft] = useState('')
+  const inlineQuestions = useAiInlineQuestions()
   const [busy, setBusy] = useState(false)
   const [corpusCount, setCorpusCount] = useState<number | null>(null)
   const corpusRef = useRef<KbFileInfo[]>([])
@@ -491,6 +495,7 @@ export function KbAskPanel({
           onMemoryEdit: (line) => patchLast((last) => ({ memory: [...(last.memory ?? []), line] })),
         }),
         docSkill,
+        inlineQuestions.askQuestionsSkill,
       ]),
       events: {
         onText: (text) => {
@@ -1106,7 +1111,42 @@ export function KbAskPanel({
             ))}
             {m.skillProposals?.map((key) => skillCards.render(key))}
             {m.text &&
-              (m.role === 'assistant' ? <Markdown text={m.text} navs={[fileNav]} /> : m.text)}
+              (m.role === 'assistant' ? (
+                <AiAssistantBody
+                  lang={lang}
+                  text={m.text}
+                  navs={[fileNav]}
+                  streaming={m.streaming}
+                  questionStatus={inlineQuestions.textCardStates[`m-${i}`]?.status}
+                  savedAnswers={inlineQuestions.textCardStates[`m-${i}`]?.answers}
+                  onQuestionSubmit={(spec, answers) => {
+                    inlineQuestions.markTextCard(`m-${i}`, 'submitted', answers)
+                    void ask(inlineQuestions.formatFollowUp(spec, answers, false))
+                  }}
+                  onQuestionSkip={(spec) => {
+                    inlineQuestions.markTextCard(`m-${i}`, 'skipped')
+                    void ask(inlineQuestions.formatFollowUp(spec, {}, true))
+                  }}
+                />
+              ) : (
+                m.text
+              ))}
+            {m.role === 'assistant' && i === messages.length - 1 && !m.streaming && (
+              <AiNextSteps
+                lang={lang}
+                context={{
+                  aiVisible: true,
+                  streaming: false,
+                  completedNormally: !m.isError && !m.blocked,
+                  editorKind: 'home',
+                  editedDocument: false,
+                  qualityIssueCount: 0,
+                  usedSkillName: m.skills?.[0]?.title,
+                  canGenerateOtherDoc: false,
+                  hasSavedPath: false,
+                }}
+              />
+            )}
             {m.role === 'assistant' && m.usage && (
               <div className="ai-message-usage">
                 <AiUsageChip usage={m.usage} lang={lang} />
@@ -1172,6 +1212,16 @@ export function KbAskPanel({
             )}
           </div>
         ))}
+        {inlineQuestions.activeToolCard && (
+          <AiQuestionCard
+            lang={lang}
+            spec={inlineQuestions.activeToolCard.spec}
+            status={inlineQuestions.activeToolCard.status}
+            savedAnswers={inlineQuestions.activeToolCard.answers}
+            onSubmit={inlineQuestions.submitToolCard}
+            onSkip={inlineQuestions.skipToolCard}
+          />
+        )}
         {skillTemplates.notes}
         {/* an MCP tool waiting for the person's yes (user MCP spec 7.4) */}
         <McpPermissionCard lang={lang} />

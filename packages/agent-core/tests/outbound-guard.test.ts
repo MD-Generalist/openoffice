@@ -190,4 +190,40 @@ describe('guardOutbound', () => {
     const res = await skill.executeTool(call('read_url', { url: 'https://new.example/' }))
     expect(res).toMatchObject({ isError: true, output: ADDRESS_DECLINED })
   })
+
+  it('allows local attachment:// and file:// URLs on insert_web_image while still blocking https:// when internet tools are off', async () => {
+    const bridge: OutboundBridgeLike = {
+      internetToolsEnabled: vi.fn(async () => false),
+      confirmAddresses: vi.fn(async () => false),
+    }
+    const executed: string[] = []
+    const editor: AgentSkill = {
+      id: 'slides',
+      systemPrompt: '',
+      tools: ['insert_web_image', 'web_search'].map((name) => ({
+        name,
+        description: name,
+        inputSchema: { type: 'object' },
+      })),
+      executeTool: (c) => {
+        executed.push(String(c.input.url ?? ''))
+        return { output: 'ok', summary: c.name }
+      },
+    }
+    const skill = guardOutbound(editor, bridge, () => [{ role: 'user', text: 'hi' }])
+    await flush()
+    expect(skill.tools.map((t) => t.name)).toEqual(['insert_web_image'])
+
+    const att = await skill.executeTool(call('insert_web_image', { url: 'attachment://logo.png' }))
+    const cached = await skill.executeTool(
+      call('insert_web_image', { url: 'file:///tmp/genoffice-ai-images/a.png' }),
+    )
+    const remote = await skill.executeTool(
+      call('insert_web_image', { url: 'https://evil.example/a.png' }),
+    )
+    expect(att.isError).toBeFalsy()
+    expect(cached.isError).toBeFalsy()
+    expect(remote).toMatchObject({ isError: true, output: INTERNET_TOOLS_OFF })
+    expect(executed).toEqual(['attachment://logo.png', 'file:///tmp/genoffice-ai-images/a.png'])
+  })
 })

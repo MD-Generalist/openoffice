@@ -87,4 +87,24 @@ describe('shapeMcpResult', () => {
     expect(shaped.output.startsWith('ab\n')).toBe(true)
     expect(shaped.output).toContain('cut because it was long')
   })
+
+  it('surfaces validated image blocks as local file:// references when onImageBlock saves them', () => {
+    const shaped = shapeMcpResult(
+      {
+        content: [
+          { type: 'text', text: 'Diagram preview' },
+          { type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' },
+          { type: 'image', data: 'bad-payload', mimeType: 'image/png' },
+        ],
+      },
+      {
+        onImageBlock: ({ data }) =>
+          data === 'iVBORw0KGgo=' ? 'file:///tmp/genoffice-ai-images/abc.png' : null,
+      },
+    )
+    expect(shaped.isError).toBe(false)
+    expect(shaped.output).toContain('Diagram preview')
+    expect(shaped.output).toContain('file:///tmp/genoffice-ai-images/abc.png')
+    expect(shaped.output).toContain('[1 non-text item was not passed on.]')
+  })
 })

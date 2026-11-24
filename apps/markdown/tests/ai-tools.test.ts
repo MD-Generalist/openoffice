@@ -381,6 +381,24 @@ describe('insert_image', () => {
     expect(result.mutated).toBe(true)
     expect(editor.getMarkdown()).toContain('![chart](assets/pic.png)')
   })
+
+  it('accepts locally cached file:// image URLs from MCP/connector imports', async () => {
+    let fetchedUrl = ''
+    withApi({
+      fetchImage: async (u: string) => {
+        fetchedUrl = u
+        return { base64: PNG, mime: 'image/png' }
+      },
+      saveImage: async () => 'assets/from-mcp.png',
+    })
+    const editor = createEditor('# Notes')
+    const url = 'file:///tmp/genoffice-ai-images/12345678-1234-1234-1234-1234567890ab.png'
+    const result = await executeTool(editor, call('insert_image', { url, alt: 'diagram' }))
+    expect(result.isError).toBeUndefined()
+    expect(result.mutated).toBe(true)
+    expect(fetchedUrl).toBe(url)
+    expect(editor.getMarkdown()).toContain('![diagram](assets/from-mcp.png)')
+  })
 })
 
 describe('generate_image', () => {

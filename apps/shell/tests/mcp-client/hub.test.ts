@@ -283,7 +283,6 @@ function deepTexts(value: unknown): string {
 
 /** the remote fake's default result, as the hub answers it */
 const FOUND = { ok: true, output: 'found it', isError: false }
-const NL2 = String.fromCharCode(10).repeat(2)
 
 // ---- tests --------------------------------------------------------------------
 
@@ -520,7 +519,7 @@ describe('MCP hub: calls', () => {
     })
   })
 
-  it('shapes a remote result in the main process: no picture data reaches a window', async () => {
+  it('shapes a remote result in the main process: validated images cache locally and no raw picture bytes reach a window', async () => {
     const store = await storeWith(remoteServer())
     const { hub, remotes } = rig(store)
     await hub.call('w1', 'law', 'search', {}, 'warm')
@@ -530,15 +529,19 @@ describe('MCP hub: calls', () => {
       content: [
         { type: 'text', text: 'see the chart' },
         { type: 'image', data: picture, mimeType: 'image/png' },
+        { type: 'audio', data: 'AAAA', mimeType: 'audio/wav' },
       ],
       structuredContent: { rows: 2 },
     }
     const answer = await hub.call('w1', 'law', 'search', {}, 'c1')
-    expect(answer).toEqual({
-      ok: true,
-      output: 'see the chart' + NL2 + '{"rows":2}' + NL2 + '[1 non-text item was not passed on.]',
-      isError: false,
-    })
+    expect(answer).toMatchObject({ ok: true, isError: false })
+    const output = (answer as { output: string }).output
+    expect(output).toContain('see the chart')
+    expect(output).toMatch(
+      /\[Image saved locally — insert into the document using url: file:\/\/\/.+?\.png\]/,
+    )
+    expect(output).toContain('{"rows":2}')
+    expect(output).toContain('[1 non-text item was not passed on.]')
     expect(JSON.stringify(answer)).not.toContain(picture)
 
     remotes[0]!.callResult = {

@@ -159,7 +159,14 @@ describe('a run', () => {
       messages: Array<{ role: string; content?: unknown; images?: unknown }>
     }
     expect(request.tools.map((tool) => tool.name).sort()).toEqual(
-      ['apply_diagram_ops', 'read_attachment', 'read_diagram', 'read_url', 'web_search'].sort(),
+      [
+        'apply_diagram_ops',
+        'ask_questions',
+        'read_attachment',
+        'read_diagram',
+        'read_url',
+        'web_search',
+      ].sort(),
     )
     expect(request.system).toContain(`${PRODUCT_NAME} Diagram`)
     const sent = JSON.stringify(request.messages)

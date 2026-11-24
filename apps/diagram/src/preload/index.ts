@@ -17,6 +17,7 @@ import {
 } from '@genoffice/electron-utils/project-folder-bridge'
 import { installDropOpenBridge } from '@genoffice/electron-utils/drop-open'
 import { driveAiBridge } from '@genoffice/electron-utils/drive-ai-bridge'
+import { generateEditorBridge } from '@genoffice/electron-utils/generate-editor-bridge'
 import { mcpToolsBridge } from '@genoffice/electron-utils/mcp-tools-bridge'
 import { outboundBridge } from '@genoffice/electron-utils/outbound-bridge'
 import { userSkillsBridge } from '@genoffice/electron-utils/user-skills-bridge'
@@ -223,6 +224,7 @@ contextBridge.exposeInMainWorld(APP_CHOICE_BRIDGE_KEY, {
 contextBridge.exposeInMainWorld('projectApi', projectApi)
 // Google Drive for this editor's AI: search and read only (decision 0033)
 contextBridge.exposeInMainWorld('aiOfficeDriveAi', driveAiBridge())
+contextBridge.exposeInMainWorld('aiOfficeGenerateEditor', generateEditorBridge())
 contextBridge.exposeInMainWorld('aiOfficeOutbound', outboundBridge())
 // the person's MCP servers for this editor's AI: list and call approved tools (the shell checks each)
 contextBridge.exposeInMainWorld('aiOfficeMcpTools', mcpToolsBridge())

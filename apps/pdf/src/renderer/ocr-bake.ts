@@ -96,7 +96,26 @@ function groupDisplayLines(words: DispWord[]): DispWord[][] {
   return lines
 }
 
-/** one invisible insert per line: origin at the line's left baseline, size from its box height */
+/** Split a display line at gaps wider than this many line heights: table cells and
+    columns become runs of their own, each starting where its words start */
+const RUN_GAP_EM = 1.5
+
+function splitRuns(line: DispWord[]): DispWord[][] {
+  const height = Math.max(...line.map((w) => w.box.y1 - w.box.y0))
+  const runs: DispWord[][] = []
+  for (const w of line) {
+    const run = runs[runs.length - 1]
+    const prev = run?.[run.length - 1]
+    if (run && prev && w.box.x0 - prev.box.x1 <= height * RUN_GAP_EM) run.push(w)
+    else runs.push([w])
+  }
+  return runs
+}
+
+/** One invisible insert per run of a line (a line split at its wide gaps): origin at
+    the run's left baseline, size from its box height. A whole line as one run would
+    squeeze a form row ("안전 교육 ... 3시간") into its left cell, so after the save
+    the text found under the right cell would be nothing at all. */
 export function buildOcrBakeInserts(
   origIdx: number,
   words: OcrWord[],
@@ -110,26 +129,31 @@ export function buildOcrBakeInserts(
   // wrong axis from the wrong corner. The baseline maps back through
   // viewToPdf, the one transform every other layer uses.
   const disp = words.map((word) => ({ word, box: displayBox(geom, word.rect) }))
-  return groupDisplayLines(disp).map((line) => {
-    const left = Math.min(...line.map((w) => w.box.x0))
-    const bottom = Math.max(...line.map((w) => w.box.y1))
-    const height = Math.max(...line.map((w) => w.box.y1 - w.box.y0))
-    let text = ''
-    line.forEach(({ word }, i) => {
-      // spaceAfter is the overlay's own convention: a real space follows this word
-      if (i > 0 && line[i - 1]!.word.spaceAfter) text += ' '
-      text += word.text
+  return groupDisplayLines(disp)
+    .flatMap(splitRuns)
+    .map((line) => {
+      const left = Math.min(...line.map((w) => w.box.x0))
+      const right = Math.max(...line.map((w) => w.box.x1))
+      const bottom = Math.max(...line.map((w) => w.box.y1))
+      const height = Math.max(...line.map((w) => w.box.y1 - w.box.y0))
+      let text = ''
+      line.forEach(({ word }, i) => {
+        // spaceAfter is the overlay's own convention: a real space follows this word
+        if (i > 0 && line[i - 1]!.word.spaceAfter) text += ' '
+        text += word.text
+      })
+      const [ux, uy] = viewToPdf(geom, left, bottom - height * 0.22)
+      return {
+        pageIndex: origIdx,
+        origin: [ux, uy],
+        text,
+        fontSize: Math.max(4, Math.min(height * 0.82, 72)),
+        color: BAKE_COLOR,
+        lineLeading: height * 1.1,
+        // stretched to the recognized box: selections and search hits sit on the ink
+        fitWidth: right - left,
+        rotate,
+        invisible: true,
+      }
     })
-    const [ux, uy] = viewToPdf(geom, left, bottom - height * 0.22)
-    return {
-      pageIndex: origIdx,
-      origin: [ux, uy],
-      text,
-      fontSize: Math.max(4, Math.min(height * 0.82, 72)),
-      color: BAKE_COLOR,
-      lineLeading: height * 1.1,
-      rotate,
-      invisible: true,
-    }
-  })
 }

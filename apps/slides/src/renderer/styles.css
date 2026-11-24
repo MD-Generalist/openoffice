@@ -9545,7 +9545,9 @@ body.show-curtain::after {
 .print-schematic-pane {
   height: 100%;
   box-sizing: border-box;
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
   overflow: auto;
 }
 .print-options > * {
@@ -9787,4 +9789,60 @@ body.show-curtain::after {
 .ai-tpl-fonts-row + .ai-tpl-foot {
   border-top: none;
   padding-top: 4px;
+}
+
+.comment-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.comment-replies {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+}
+
+.comment-reply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 14px;
+}
+
+.comment-reply-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-6);
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.comment-reply-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.comment-reply-btn {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-6);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.comment-reply-btn:hover {
+  background: var(--hover);
+  color: var(--text-primary);
 }

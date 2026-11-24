@@ -133,6 +133,9 @@ function registerIpc(): void {
   ipcMain.handle(GENERATE_CHANNELS.setKind, (event, kind: unknown) => {
     if (fromWindow(event)) session?.setKind(kind)
   })
+  ipcMain.handle(GENERATE_CHANNELS.setSpeakerNotesSeparate, (event, enabled: unknown) => {
+    if (fromWindow(event)) session?.setSpeakerNotesSeparate(enabled)
+  })
   ipcMain.handle(GENERATE_CHANNELS.setConvert, (event, kind: unknown) => {
     if (fromWindow(event)) session?.setConvert(kind)
   })
