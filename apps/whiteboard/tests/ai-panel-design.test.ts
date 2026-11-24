@@ -54,4 +54,21 @@ describe('Whiteboard AI panel shared design system alignment', () => {
     expect(panel).toMatch(/<AiFirstConnectionNotice[\s\S]*?\bcodexKeepsHistory\b/)
     expect(panel).toContain('<AiChangesCard')
   })
+
+  it('wires the question card: kept input and output, read-only cards when reopened, paused time', () => {
+    const panel = readAiFile('AiPanel.tsx')
+    // the live card is the shared one, keyed per card
+    expect(panel).toMatch(/<AiQuestionCard\s+key=\{inlineQuestions\.activeToolCard\.id\}/)
+    expect(panel).toContain('view={inlineQuestions.activeToolCard.view}')
+    // a question call keeps its input and output, live and when read back from a saved chat
+    expect(panel).toMatch(/\.\.\.keptToolActivity\(\{[\s\S]*?input: call\.input,[\s\S]*?\}\)/)
+    expect(panel).toContain('tools: entry.tools.map(keptToolActivity)')
+    expect(panel).toContain('QUESTION_TOOL_FIELD_MAX_CHARS = 16_000')
+    // a reopened chat draws its question calls and question blocks read-only
+    expect(panel).toMatch(/function chatEntryOf[\s\S]*?restored: true/)
+    expect(panel).toContain('<AiQuestionReceipt')
+    expect(panel).toContain('restored={entry.restored}')
+    // the elapsed time holds while the card waits
+    expect(panel).toContain('paused={inlineQuestions.waitingForPerson}')
+  })
 })

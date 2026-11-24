@@ -389,3 +389,119 @@ describe('the panel strings', () => {
     }
   })
 })
+
+describe('the question card', () => {
+  const SURFACE = {
+    version: '1.0',
+    createSurface: {
+      surfaceId: 'flow-scope',
+      catalogId: 'ieumoffice.com:question-card/v1',
+      components: [
+        { id: 'root', component: 'Column', children: ['title', 'depth'] },
+        { id: 'title', component: 'Text', text: 'Shape the flow' },
+        {
+          id: 'depth',
+          component: 'ChoicePicker',
+          label: 'How detailed?',
+          variant: 'mutuallyExclusive',
+          options: [
+            { label: 'Overview', value: 'overview' },
+            { label: 'Every step', value: 'steps' },
+          ],
+          value: { '@path': '/depth' },
+        },
+      ],
+      dataModel: { depth: [] },
+    },
+  }
+
+  function fakeStore(stored: unknown[] = []) {
+    return {
+      resolveChat: vi.fn(async () => ({ projectId: 'doc', chatId: 'doc-chat' })),
+      appendChat: vi.fn(async (_args: unknown) => {}),
+      loadChat: vi.fn(async () => stored),
+      rebindChat: vi.fn(async () => null),
+    }
+  }
+
+  const questionCards = () => [
+    ...container.querySelectorAll<HTMLElement>('[data-testid="ai-question-card"]'),
+  ]
+
+  afterEach(() => {
+    delete (window as { projectApi?: unknown }).projectApi
+  })
+
+  it('saves the question call with its input and output', async () => {
+    const store = fakeStore()
+    ;(window as unknown as { projectApi: unknown }).projectApi = store
+    const { api, requests } = fakeApi((_request, nth) =>
+      nth === 1
+        ? toolCall('ask_questions', SURFACE)
+        : [{ type: 'delta', text: 'An overview it is.' }, { type: 'done' }],
+    )
+    await mount(api, fakeFrame())
+    await sendMessage('draw a flow')
+    expect(questionCards()).toHaveLength(1)
+    const overview = [...container.querySelectorAll<HTMLButtonElement>('.ai-qcard-opt')].find(
+      (button) => button.textContent?.includes('Overview'),
+    )!
+    act(() => overview.click())
+    act(() => container.querySelector<HTMLButtonElement>('.ai-qcard-btn-primary')!.click())
+    await settle(24)
+    expect(requests).toHaveLength(2)
+    const saved = store.appendChat.mock.calls
+      .map(([args]) => args as { role: string; tools?: Array<Record<string, unknown>> })
+      .flatMap((args) => args.tools ?? [])
+      .find((tool) => tool.name === 'ask_questions')
+    expect(saved).toBeDefined()
+    expect(JSON.parse(saved!.input as string)).toEqual(SURFACE)
+    expect(JSON.parse(saved!.output as string)).toMatchObject({
+      action: { name: 'submit', context: { answers: { depth: ['overview'] } } },
+    })
+  })
+
+  it('draws a reopened question call and question block read-only', async () => {
+    const output = JSON.stringify({
+      version: '1.0',
+      action: {
+        name: 'submit',
+        surfaceId: 'flow-scope',
+        sourceComponentId: 'root',
+        timestamp: '2026-11-24T09:00:00.000Z',
+        context: { answers: { depth: ['steps'] }, decideForMe: [] },
+      },
+    })
+    ;(window as unknown as { projectApi: unknown }).projectApi = fakeStore([
+      { seq: 1, ts: '2026-11-24T09:00:00.000Z', role: 'user', text: 'draw a flow' },
+      {
+        seq: 2,
+        ts: '2026-11-24T09:00:01.000Z',
+        role: 'assistant',
+        text: '',
+        tools: [
+          {
+            name: 'ask_questions',
+            summary: 'Shape the flow',
+            input: JSON.stringify(SURFACE),
+            output,
+          },
+        ],
+      },
+      {
+        seq: 3,
+        ts: '2026-11-24T09:00:02.000Z',
+        role: 'assistant',
+        text: `One more.\n<a2ui-json>${JSON.stringify([SURFACE])}</a2ui-json>`,
+      },
+    ])
+    const { api } = fakeApi(() => [{ type: 'done' }])
+    await mount(api, fakeFrame())
+    expect(questionCards()).toHaveLength(2)
+    expect(questionCards()[0]!.textContent).toContain('How detailed?')
+    expect(questionCards()[0]!.textContent).toContain('Every step')
+    expect(questionCards()[1]!.dataset.status).toBe('read-only')
+    expect(container.querySelectorAll('.ai-qcard-btn-primary')).toHaveLength(0)
+    expect(container.textContent).not.toContain('a2ui-json')
+  })
+})
