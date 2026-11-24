@@ -36,7 +36,11 @@ export async function organizePdfBytes(
     }
     const srcDoc = loaded.get(item.sourceId)!
     const count = srcDoc.getPageCount()
-    if (!Number.isInteger(item.sourcePageIndex) || item.sourcePageIndex < 0 || item.sourcePageIndex >= count) {
+    if (
+      !Number.isInteger(item.sourcePageIndex) ||
+      item.sourcePageIndex < 0 ||
+      item.sourcePageIndex >= count
+    ) {
       throw new Error(`page index out of range: ${item.sourcePageIndex}`)
     }
   }

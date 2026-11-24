@@ -178,9 +178,12 @@ const CW90_NEXT: Record<number, number> = {
 }
 
 /** Compose an EXIF orientation (1..8) with an additional clockwise rotation (0/90/180/270) */
-export function composeRotationWithExif(orientation: number, extraClockwiseDeg: ImageRotation): number {
+export function composeRotationWithExif(
+  orientation: number,
+  extraClockwiseDeg: ImageRotation,
+): number {
   let cur = orientation >= 1 && orientation <= 8 ? orientation : 1
-  const steps = ((extraClockwiseDeg % 360) + 360) % 360 / 90
+  const steps = (((extraClockwiseDeg % 360) + 360) % 360) / 90
   for (let i = 0; i < steps; i++) {
     cur = CW90_NEXT[cur] ?? 1
   }

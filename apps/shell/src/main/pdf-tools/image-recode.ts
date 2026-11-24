@@ -14,7 +14,10 @@ import { isSupportedWebImageBytes } from '../../../../pdf/src/main/images-to-pdf
 
 export type ImageOptimizeMode = 'original' | 'balanced' | 'compact'
 
-const OPTIMIZE_TARGETS: Record<Exclude<ImageOptimizeMode, 'original'>, { longSide: number; quality: number }> = {
+const OPTIMIZE_TARGETS: Record<
+  Exclude<ImageOptimizeMode, 'original'>,
+  { longSide: number; quality: number }
+> = {
   balanced: { longSide: 2400, quality: 85 },
   compact: { longSide: 1600, quality: 75 },
 }

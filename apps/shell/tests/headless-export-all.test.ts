@@ -8,10 +8,7 @@ import {
 } from '@genoffice/electron-utils'
 import { openEpub } from '@genoffice/epub-engine'
 import JSZip from 'jszip'
-import {
-  runExporterWithLegacyConversion,
-  validateHeadlessPaths,
-} from '../src/main/headless-export'
+import { runExporterWithLegacyConversion, validateHeadlessPaths } from '../src/main/headless-export'
 import {
   buildHeadlessExportArgs,
   parseHeadlessJsonEnvelope,
@@ -124,7 +121,15 @@ describe('headless all-format PDF export routing', () => {
 describe('headless runner argument and envelope helpers', () => {
   it('builds argv with --headless-export and parses JSON envelopes cleanly', () => {
     const args = buildHeadlessExportArgs('/in/doc.odt', '/out/doc.pdf')
-    expect(args).toEqual(['--headless-export', '/in/doc.odt', '--to', 'pdf', '--out', '/out/doc.pdf', '--json'])
+    expect(args).toEqual([
+      '--headless-export',
+      '/in/doc.odt',
+      '--to',
+      'pdf',
+      '--out',
+      '/out/doc.pdf',
+      '--json',
+    ])
     expect(
       parseHeadlessJsonEnvelope('noise\n{"status":"ok","output_path":"/out/doc.pdf"}\n'),
     ).toEqual({

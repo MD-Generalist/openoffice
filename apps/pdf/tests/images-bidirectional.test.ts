@@ -64,9 +64,7 @@ describe('images-to-pdf v2', () => {
     bmp[0] = 0x42
     bmp[1] = 0x4d
     expect(isSupportedWebImageBytes(bmp)).toBe('bmp')
-    expect(
-      isSupportedWebImageBytes(new TextEncoder().encode('GIF89a123456')),
-    ).toBe('gif')
+    expect(isSupportedWebImageBytes(new TextEncoder().encode('GIF89a123456'))).toBe('gif')
     expect(isSupportedWebImageBytes(new Uint8Array([1, 2, 3, 4]))).toBeNull()
   })
 

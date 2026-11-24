@@ -69,7 +69,12 @@ function pngChunk(type: string, data: Uint8Array): Uint8Array {
 }
 
 /** Encode a BGRA bitmap to RGB PNG bytes (no Electron/nativeImage dependency) */
-function encodeBgraToPng(bgra: Uint8Array, width: number, height: number, stride: number): Uint8Array {
+function encodeBgraToPng(
+  bgra: Uint8Array,
+  width: number,
+  height: number,
+  stride: number,
+): Uint8Array {
   const ihdr = new Uint8Array(13)
   const idv = new DataView(ihdr.buffer)
   idv.setUint32(0, width, false)
@@ -169,7 +174,9 @@ export async function ocrPdfBytes(
       const pageCount = m._FPDF_GetPageCount(doc)
       const targetPages =
         options.pages && options.pages.length > 0
-          ? [...new Set(options.pages)].filter((p) => Number.isInteger(p) && p >= 1 && p <= pageCount)
+          ? [...new Set(options.pages)].filter(
+              (p) => Number.isInteger(p) && p >= 1 && p <= pageCount,
+            )
           : Array.from({ length: pageCount }, (_, i) => i + 1)
 
       for (let i = 0; i < targetPages.length; i++) {

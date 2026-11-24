@@ -26,7 +26,13 @@ describe('shared ocr-bake & ocrPdfBytes', () => {
     for (const rot of [0, 90, 180, 270] as const) {
       const geom = { pw: 595, ph: 842, rot }
       const words = ocrLinesToWords(
-        [{ text: 'Recognized Line', box: { x0: 0.1, y0: 0.8, x1: 0.5, y1: 0.86 }, confidence: 0.95 }],
+        [
+          {
+            text: 'Recognized Line',
+            box: { x0: 0.1, y0: 0.8, x1: 0.5, y1: 0.86 },
+            confidence: 0.95,
+          },
+        ],
         geom,
       )
       expect(words).toHaveLength(1)

@@ -61,7 +61,7 @@ const fakeRecoder: ImageRecoder = async (source, target) => {
   const h = Math.max(1, Math.round(source.height * scale))
   // Size scales smoothly with quality and resolution so binary search can converge
   const factor = target.grayscale ? 0.55 : 1
-  const outSize = Math.max(1200, Math.round((w * h * (target.quality / 100) * 0.25) * factor))
+  const outSize = Math.max(1200, Math.round(w * h * (target.quality / 100) * 0.25 * factor))
   const jpeg = new Uint8Array(outSize)
   jpeg[0] = 0xff
   jpeg[1] = 0xd8
@@ -80,9 +80,9 @@ describe('compress v2', () => {
     expect(audit.imagesBytes).toBeGreaterThan(48 * 1024)
     expect(audit.duplicateImageCount).toBe(4)
     expect(audit.duplicateImageSavableBytes).toBeGreaterThan(0)
-    expect(audit.imagesBytes + audit.fontsBytes + audit.contentBytes + audit.otherBytes).toBeGreaterThanOrEqual(
-      audit.totalBytes,
-    )
+    expect(
+      audit.imagesBytes + audit.fontsBytes + audit.contentBytes + audit.otherBytes,
+    ).toBeGreaterThanOrEqual(audit.totalBytes)
   })
 
   it('deduplicates 5 identical images into one shared XObject and shrinks file size in lossless mode', async () => {
@@ -156,20 +156,12 @@ describe('compress v2', () => {
   it('binary-searches target size and reports targetMet=false with smallest bytes when unreachable', async () => {
     const pdf = await makePdfWithRepeatedImage(1, 400, 400)
     // Achievable target
-    const hit = await compressPdfV2Bytes(
-      pdf,
-      { mode: 'target', targetBytes: 25_000 },
-      fakeRecoder,
-    )
+    const hit = await compressPdfV2Bytes(pdf, { mode: 'target', targetBytes: 25_000 }, fakeRecoder)
     expect(hit.targetMet).toBe(true)
     expect(hit.bytes.length).toBeLessThanOrEqual(25_000)
 
     // Unreachable tiny target (500 bytes): returns smallest achieved with targetMet=false
-    const miss = await compressPdfV2Bytes(
-      pdf,
-      { mode: 'target', targetBytes: 500 },
-      fakeRecoder,
-    )
+    const miss = await compressPdfV2Bytes(pdf, { mode: 'target', targetBytes: 500 }, fakeRecoder)
     expect(miss.targetMet).toBe(false)
     expect(miss.bytes.length).toBeLessThan(pdf.length)
   })

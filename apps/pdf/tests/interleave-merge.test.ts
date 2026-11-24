@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, PDFRef, StandardFonts } from 'pdf-lib'
+import {
+  PDFDict,
+  PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFNumber,
+  PDFRef,
+  StandardFonts,
+} from 'pdf-lib'
 import { interleavePdfBytes } from '../src/main/interleave'
 import { mergePdfV2Bytes } from '../src/main/merge-v2'
 import { readPdfText } from '../src/main/read-text'
