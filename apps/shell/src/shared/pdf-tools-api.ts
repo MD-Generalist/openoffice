@@ -13,6 +13,7 @@ export const PDF_TOOLS_CHANNELS = {
   getInit: 'pdf-tools:get-init',
   pickInputs: 'pdf-tools:pick-inputs',
   dropInputs: 'pdf-tools:drop-inputs',
+  releaseInputs: 'pdf-tools:release-inputs',
   unlockInput: 'pdf-tools:unlock-input',
   promoteResult: 'pdf-tools:promote-result',
   promoteInput: 'pdf-tools:promote-input',
@@ -364,6 +365,8 @@ export interface PdfToolsWindowApi {
   ): Promise<PdfPickResult>
   /** drag-and-drop: preload resolves File -> path via webUtils.getPathForFile, main returns opaque ids */
   dropInputs(files: File[], kind?: PdfToolInputKind, accept?: PdfToolAccept): Promise<PdfPickResult>
+  /** release removed or abandoned input ids so main clears cached passwords, bytes, and mix temp PDFs */
+  releaseInputs(ids: string[]): Promise<void>
   unlockInput(
     inputId: string,
     password: string,

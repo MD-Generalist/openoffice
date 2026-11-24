@@ -467,7 +467,14 @@ export async function runStructureJob(
     }
     case 'encrypt': {
       if (!deps.qpdfWasmPath) throw new NotAvailableError('qpdf is not available')
-      const locked = await encryptPdfBytes(deps.qpdfWasmPath, bytes, {
+      let plain = bytes
+      if (job.source.password !== undefined) {
+        const m = (await deps.pdfium()) as unknown as RepairPdfium
+        plain = await decryptPdfBytes(deps.qpdfWasmPath, bytes, job.source.password, (b, p) =>
+          pdfiumOpens(m, b, p),
+        )
+      }
+      const locked = await encryptPdfBytes(deps.qpdfWasmPath, plain, {
         userPassword: job.userPassword,
         ...(job.ownerPassword !== undefined ? { ownerPassword: job.ownerPassword } : {}),
       })
@@ -576,6 +583,12 @@ export async function runStructureJob(
       let effectivePassword = job.source.password
       if (job.source.pages && job.source.pages.length > 0) {
         const checkedPages = pagesOf(m, bytes, job.source)
+        if (effectivePassword !== undefined) {
+          if (!deps.qpdfWasmPath) throw new NotAvailableError('qpdf is not available')
+          working = await decryptPdfBytes(deps.qpdfWasmPath, working, effectivePassword, (b, p) =>
+            pdfiumOpens(m as unknown as RepairPdfium, b, p),
+          )
+        }
         working = await extractPagesBytes(
           working,
           checkedPages.map((p) => p - 1),

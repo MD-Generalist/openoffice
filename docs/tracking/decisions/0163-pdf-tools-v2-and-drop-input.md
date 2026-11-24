@@ -11,17 +11,17 @@
 ## 결정
 
 1. **도구 창을 24개 직접 도구 + 3개 편집기 넘김 카드로 확장한다.**
-   - 기존 편집기 넘김 카드 중 "이미지 내보내기"(`pdfToImages`)와 "PDF 변환"(`convertFromPdf`)을 도구 창 직접 처리로 승격하고, 새 도구 4개("페이지 구성" `organize`, "홀짝 교차 병합" `interleave`, "스캔 PDF OCR" `ocrPdf`, "문서를 PDF로 변환" `docsToPdf`)를 추가한다.
+   - 기존 편집기 넘김 카드 중 "이미지 내보내기"(`pdfToImages`)와 "PDF 변환"(`convertFromPdf`)을 도구 창 직접 처리로 승격하고, 새 도구 4개("페이지 구성" `organize`, "홀짝 교차 병합" `interleave`, "스캔 PDF OCR" `ocr`, "문서를 PDF로 변환" `docsToPdf`)를 추가한다.
    - 기존 "용량 줄이기"(`compress`), "PDF 병합"(`merge`), "이미지로 PDF 만들기"(`imagesToPdf`)를 고도화한다(용량 분석·목표 크기 이진 탐색·무손실/qpdf 최적화·회색조·메타데이터 제거, PDF/이미지/문서 혼합 병합·파일별 범위·책갈피·용지 통일, WebP/BMP/GIF·방향·화질 최적화·개별 회전).
    - PDF 편집기 페이지 탭의 "PDF 도구" 메뉴(`PDF_TOOLS_HANDOFF`)를 14개 도구로 넓힌다. `split` 도구의 처리·화면·시험은 건드리지 않고 일괄 처리와 결과 이어쓰기 대상에서 제외한다.
 
 2. **끌어다 놓기 입력 채널을 preload 전용 `webUtils.getPathForFile`로만 허용한다(결정 0030의 입력 경로 규칙 보완).**
    - 렌더러에서 비롯되는 파일 경로는 메인 프로세스의 열기 대화 상자(`showOpenDialogWithMemory`)와 preload의 `dropInputs(files, kind, accept)` 두 길로만 제한한다.
    - `dropInputs`는 브라우저의 실제 OS 드롭 이벤트에서 받은 `File` 객체만 preload 안에서 `webUtils.getPathForFile(file)`로 경로로 바꿔 `pdf-tools:drop-inputs` 채널로 넘기며, 렌더러 JavaScript가 임의의 문자열 경로를 전달하는 API는 열지 않는다.
-   - 메인은 두 길 모두 동일한 `inputsFrom()` 검사(실재 파일 여부, 200MB 크기 상한, 매직 바이트·디코딩·확장자 검증)를 통과한 파일만 불투명 ID(`toPublicInput`)로 돌려주고, 경로는 메인 `Map`에만 보관한다.
+   - 메인 내부에서 신뢰하는 출처 4개(편집기 리본 넘김 `openPdfToolsWithFile`, 결과 이어쓰기 `promoteResult`, 입력 이어쓰기 `promoteInput`, 혼합 병합 백그라운드 임시 PDF `mix-queue`)도 모두 동일한 `inputsFrom()` 검사(실재 파일 여부, `MAX_TOOL_INPUT_BYTES` 1 GB 상한, 매직 바이트·디코딩·확장자 검증)를 통과한 파일만 불투명 ID(`toPublicInput`)로 돌려주고, 경로는 메인 `Map`에만 보관한다.
 
-3. **암호 PDF 도구 내 잠금 해제는 메모리 전용이며 결과 사본에는 암호가 걸리지 않는다.**
-   - 일반 PDF 도구에 암호 걸린 PDF를 추가하면 거부하지 않고 잠긴 상태(`encrypted: true`)로 등록하고, 도구 패널 안에서 암호를 입력받아 `unlockInput`이 작업 프로세스의 qpdf로 복호화한 바이트를 메모리에만 보관한다. 암호는 로그·오류·디스크에 남기지 않으며 창을 닫거나 앱을 종료할 때 즉시 비운다.
+3. **암호 PDF 도구 내 잠금 해제는 메모리 전용이며 항목 제거·도구 이탈·창 닫기·앱 종료 때 즉시 비운다.**
+   - 일반 PDF 도구에 암호 걸린 PDF를 추가하면 거부하지 않고 잠긴 상태(`encrypted: true`)로 등록하고, 도구 패널 안에서 암호를 입력받아 `unlockInput`이 작업 프로세스의 qpdf로 복호화한 바이트를 메모리에만 보관한다. 암호는 로그·오류·디스크에 남기지 않으며, 항목을 목록에서 빼거나 도구를 나갈 때(`releaseInputs`), 창을 닫거나 앱을 종료할 때(`cleanupPdfToolsOnQuit`) 암호 메모리·복호화 캐시·혼합 병합 임시 PDF와 진행 중인 자식 프로세스를 즉시 정리한다.
    - 잠금 해제된 입력을 사용한 결과 파일에는 원래 암호가 다시 걸리지 않으므로, 결과 화면에 암호 없는 새 사본임을 분명히 안내한다.
 
 4. **새 의존성 없이 기존 앱 구성 요소만 재사용한다.**

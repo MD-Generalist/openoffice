@@ -13,6 +13,7 @@ interface OrganizeViewProps {
   busy: boolean
   onSave(plan: PdfOrganizePageSpec[]): void
   onPickInsertPdf(): Promise<PdfToolInput | null>
+  onTrackExtraInput?(id: string): void
 }
 
 const THUMB_CHUNK_SIZE = 24
@@ -43,6 +44,7 @@ export function OrganizeView({
   busy,
   onSave,
   onPickInsertPdf,
+  onTrackExtraInput,
 }: OrganizeViewProps) {
   const api = window.aiOfficePdfTools
   const [cards, setCards] = useState<OrganizeCard[]>(() => buildInitialCards(primaryInput))
@@ -56,6 +58,9 @@ export function OrganizeView({
   const [loadingThumbs, setLoadingThumbs] = useState(false)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const [pendingLocked, setPendingLocked] = useState<PdfToolInput[]>([])
+  const [lockDrafts, setLockDrafts] = useState<Record<string, string>>({})
+  const [lockErrors, setLockErrors] = useState<Record<string, string>>({})
   const loadedSourcesRef = useRef<Set<string>>(new Set())
 
   const loadSourceThumbs = async (input: PdfToolInput, cancelled: () => boolean) => {
@@ -206,12 +211,58 @@ export function OrganizeView({
 
   const handleInsertPdf = async () => {
     const added = await onPickInsertPdf()
-    if (!added || added.pages <= 0) return
+    if (!added) return
+    onTrackExtraInput?.(added.id)
+    if (added.encrypted && !added.unlocked) {
+      setPendingLocked((prev) => [...prev, added])
+      return
+    }
+    if (added.pages <= 0) return
     const extraCards = buildInitialCards(added)
     commit((prev) => [...prev, ...extraCards])
-    if (!added.encrypted || added.unlocked) {
-      void loadSourceThumbs(added, () => false)
+    void loadSourceThumbs(added, () => false)
+  }
+
+  const unlockInserted = async (item: PdfToolInput) => {
+    const pw = lockDrafts[item.id] ?? ''
+    if (!pw) return
+    const res = await api.unlockInput(item.id, pw)
+    if (!res.ok) {
+      setLockErrors((prev) => ({ ...prev, [item.id]: t('errWrongPassword') }))
+      return
     }
+    const unlocked: PdfToolInput = { ...item, unlocked: true, pages: res.pages }
+    setPendingLocked((prev) => prev.filter((x) => x.id !== item.id))
+    setLockDrafts((prev) => {
+      const next = { ...prev }
+      delete next[item.id]
+      return next
+    })
+    setLockErrors((prev) => {
+      const next = { ...prev }
+      delete next[item.id]
+      return next
+    })
+    if (unlocked.pages > 0) {
+      const extraCards = buildInitialCards(unlocked)
+      commit((prev) => [...prev, ...extraCards])
+      void loadSourceThumbs(unlocked, () => false)
+    }
+  }
+
+  const dismissLocked = (id: string) => {
+    setPendingLocked((prev) => prev.filter((x) => x.id !== id))
+    setLockDrafts((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setLockErrors((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    void api.releaseInputs([id])
   }
 
   const reorder = (from: number, to: number) => {
@@ -335,6 +386,57 @@ export function OrganizeView({
       </div>
 
       {loadingThumbs && <p className="pt-hint">{t('organizeLoadingThumbs')}</p>}
+
+      {pendingLocked.length > 0 && (
+        <ul className="pt-list">
+          {pendingLocked.map((item) => (
+            <li key={item.id} className="pt-item pt-item-col">
+              <div className="pt-item-row">
+                <span className="pt-item-name" title={item.name}>
+                  {item.name}
+                </span>
+                <span className="pt-badge pt-badge-warn">{t('lockedBadge')}</span>
+                <button
+                  type="button"
+                  className="pt-btn pt-btn-sm"
+                  disabled={busy}
+                  onClick={() => dismissLocked(item.id)}
+                >
+                  {t('remove')}
+                </button>
+              </div>
+              <div className="pt-unlock-row">
+                <input
+                  type="password"
+                  className="pt-input pt-unlock-input"
+                  value={lockDrafts[item.id] ?? ''}
+                  placeholder={t('unlockPlaceholder')}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setLockDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void unlockInserted(item)
+                  }}
+                />
+                <button
+                  type="button"
+                  className="pt-btn pt-btn-sm"
+                  disabled={busy || !(lockDrafts[item.id] ?? '')}
+                  onClick={() => void unlockInserted(item)}
+                >
+                  {t('unlockButton')}
+                </button>
+                {lockErrors[item.id] && (
+                  <span className="pt-unlock-err" role="alert">
+                    {lockErrors[item.id]}
+                  </span>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="pt-org-grid">
         {cards.map((card, idx) => {

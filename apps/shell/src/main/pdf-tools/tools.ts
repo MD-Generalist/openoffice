@@ -799,14 +799,16 @@ export function outputNames(
   count: number,
   options: PdfToolOptions,
 ): string[] {
-  const base =
-    sourceName.replace(/\.(drawio\.(svg|png)|pdf|jpe?g|png|webp|bmp|gif|[a-z0-9]{1,10})$/i, '') ||
-    'document'
-  if (tool === 'split') return Array.from({ length: count }, (_, i) => `${base}-${i + 1}.pdf`)
-  if (tool === 'imagesToPdf') return [`${base}.pdf`]
-  if (tool === 'docsToPdf') {
-    return options.docsOutputMode === 'merge' ? [`${base}-merged.pdf`] : [`${base}.pdf`]
+  if (tool === 'imagesToPdf') {
+    const imgBase = sourceName.replace(/\.(jpe?g|png|webp|bmp|gif)$/i, '') || 'document'
+    return [`${imgBase}.pdf`]
   }
+  if (tool === 'docsToPdf') {
+    const docBase = sourceName.replace(/\.(drawio\.(svg|png)|[a-z0-9]{1,10})$/i, '') || 'document'
+    return options.docsOutputMode === 'merge' ? [`${docBase}-merged.pdf`] : [`${docBase}.pdf`]
+  }
+  const base = sourceName.replace(/\.pdf$/i, '') || 'document'
+  if (tool === 'split') return Array.from({ length: count }, (_, i) => `${base}-${i + 1}.pdf`)
   if (tool === 'pdfToImages') {
     return options.imageOutMode === 'folder' ? [base] : [`${base}-images.zip`]
   }

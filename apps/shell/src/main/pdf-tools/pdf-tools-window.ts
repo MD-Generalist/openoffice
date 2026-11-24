@@ -234,6 +234,19 @@ function samePath(a: string, b: string): boolean {
   return process.platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y
 }
 
+function uniqueSubdir(dir: string, stem: string, taken: Set<string>): string {
+  const clean = stem.replace(/[\\/:*?"<>|]/g, '_').trim() || 'document'
+  for (let n = 1; ; n++) {
+    const candidate = n === 1 ? clean : `${clean} (${n})`
+    const full = join(dir, candidate)
+    const key = process.platform === 'win32' ? full.toLowerCase() : full
+    if (!taken.has(key) && !existsSync(full)) {
+      taken.add(key)
+      return full
+    }
+  }
+}
+
 function sendProgress(contents: WebContents, ev: PdfProgressEvent): void {
   if (!contents.isDestroyed()) contents.send(PDF_TOOLS_CHANNELS.progress, ev)
 }
@@ -1131,7 +1144,7 @@ async function run(raw: unknown): Promise<PdfToolRunResult> {
             const targetPath =
               mode === 'pages' && outMode === 'zip'
                 ? uniqueOutputFile(outDir, `${base}-images.zip`, taken)
-                : join(outDir, base)
+                : uniqueSubdir(outDir, base, taken)
             const res = await runPdfToImagesOne(
               owner,
               source,
@@ -1235,7 +1248,8 @@ async function run(raw: unknown): Promise<PdfToolRunResult> {
           }
 
           if (tool === 'encrypt' || tool === 'decrypt' || tool === 'repair') {
-            const res = await runToolJob(owner, tool, source.path, batchChecked.options)
+            const unlockedPw = unlockedSecrets.get(source.id)?.password
+            const res = await runToolJob(owner, tool, source.path, batchChecked.options, unlockedPw)
             if (!res.ok) {
               if ('canceled' in res) return { status: 'canceled' }
               return { status: 'failed', reason: res.error }
@@ -1597,7 +1611,8 @@ async function run(raw: unknown): Promise<PdfToolRunResult> {
 
     let made: Uint8Array[]
     if (toolRunsAsJob(tool) && (tool === 'encrypt' || tool === 'decrypt' || tool === 'repair')) {
-      const job = await runToolJob(owner, tool, sources[0]!.path, checked.options)
+      const unlockedPw = unlockedSecrets.get(sources[0]!.id)?.password
+      const job = await runToolJob(owner, tool, sources[0]!.path, checked.options, unlockedPw)
       if (!job.ok) return job
       made = [job.bytes]
     } else {
@@ -1660,6 +1675,7 @@ async function runToolJob(
   tool: 'encrypt' | 'decrypt' | 'repair',
   path: string,
   options: PdfToolOptions,
+  password?: string,
 ): Promise<
   | { ok: true; bytes: Uint8Array }
   | { ok: false; error: 'failed' | 'wrong-password' }
@@ -1668,7 +1684,12 @@ async function runToolJob(
   if (!deps) return { ok: false, error: 'failed' }
   const jobId = randomUUID()
   runningJob = jobId
-  const outcome = await deps.runJob(owner.webContents, jobId, jobFor(tool, path, options), () => {})
+  const outcome = await deps.runJob(
+    owner.webContents,
+    jobId,
+    jobFor(tool, path, options, password),
+    () => {},
+  )
   if (!outcome.ok) {
     if (outcome.error === 'cancelled') return { ok: false, canceled: true }
     return { ok: false, error: outcome.error === 'password-required' ? 'wrong-password' : 'failed' }
@@ -1842,6 +1863,16 @@ function registerIpc(): void {
       return inputsFrom(paths, parseInputKind(kind), parseAccept(accept))
     },
   )
+  ipcMain.handle(PDF_TOOLS_CHANNELS.releaseInputs, async (event, rawIds: unknown) => {
+    if (!fromWindow(event) || !Array.isArray(rawIds)) return
+    for (const id of rawIds) {
+      if (typeof id !== 'string' || id.length === 0) continue
+      unlockedSecrets.delete(id)
+      inputs.delete(id)
+      blankFound.delete(id)
+      if (mixQueue) await mixQueue.remove(id)
+    }
+  })
   ipcMain.handle(PDF_TOOLS_CHANNELS.unlockInput, (event, inputId: unknown, password: unknown) => {
     if (!fromWindow(event)) return { ok: false, error: 'failed' }
     return unlockInput(inputId, password)

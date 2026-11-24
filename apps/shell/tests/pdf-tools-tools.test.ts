@@ -591,5 +591,7 @@ describe('PDF tools v2 contracts', () => {
     expect(outputNames('convertFromPdf', 'Deck.pdf', 1, { targetFormat: 'epub' })).toEqual([
       'Deck.epub',
     ])
+    // split keeps non-.pdf extensions intact (exact parity with origin/main)
+    expect(outputNames('split', 'scan.2024', 2, {})).toEqual(['scan.2024-1.pdf', 'scan.2024-2.pdf'])
   })
 })

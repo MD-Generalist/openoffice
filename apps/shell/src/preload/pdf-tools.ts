@@ -66,6 +66,10 @@ const api: PdfToolsWindowApi = {
     )) as PdfPickResult | undefined
     return result ?? { inputs: [], rejected: [] }
   },
+  async releaseInputs(ids: string[]) {
+    if (!Array.isArray(ids) || ids.length === 0) return
+    await ipcRenderer.invoke(PDF_TOOLS_CHANNELS.releaseInputs, ids)
+  },
   async unlockInput(inputId: string, password: string) {
     const result = (await ipcRenderer.invoke(PDF_TOOLS_CHANNELS.unlockInput, inputId, password)) as
       | { ok: true; pages: number }

@@ -49,8 +49,12 @@ describe('paths stay in the main process', () => {
   it('takes renderer inputs only from its open dialog or preload webUtils drop, and hands out ids only', () => {
     expect(win).toMatch(/showOpenDialogWithMemory\(dialog, owner/)
     expect(win).toMatch(/ipcMain\.handle\(\s*PDF_TOOLS_CHANNELS\.dropInputs/)
+    expect(win).toMatch(/ipcMain\.handle\(\s*PDF_TOOLS_CHANNELS\.releaseInputs/)
+    expect(win).toMatch(/unlockedSecrets\.delete\(id\)/)
+    expect(win).toMatch(/mixQueue\.remove\(id\)/)
     expect(preload).toMatch(/webUtils\.getPathForFile\(file\)/)
     expect(preload).toMatch(/PDF_TOOLS_CHANNELS\.dropInputs/)
+    expect(preload).toMatch(/PDF_TOOLS_CHANNELS\.releaseInputs/)
     // Renderer never receives paths — only toPublicInput(input) without a path property
     expect(win).toMatch(/inputs\.set\(input\.id, input\)/)
     expect(win).toMatch(/out\.inputs\.push\(toPublicInput\(input\)\)/)
@@ -80,7 +84,7 @@ describe('paths stay in the main process', () => {
   })
 
   it('adds and removes passwords in the PDF job process, and checks what comes back', () => {
-    expect(win).toMatch(/deps\.runJob\(owner\.webContents, jobId, jobFor\(tool,/)
+    expect(win).toMatch(/deps\.runJob\(\s*owner\.webContents,\s*jobId,\s*jobFor\(tool,/)
     expect(win).toMatch(
       /tool === 'encrypt' \? !info\.ok && info\.problem === 'encrypted' : info\.ok/,
     )

@@ -282,6 +282,27 @@ describe('PDF tools v2 structure jobs', () => {
     expect(existsSync(join(folderOut, 'five-02.png'))).toBe(true)
     expect(existsSync(join(folderOut, 'five-04.png'))).toBe(true)
 
+    // Re-exporting into the same folder avoids overwriting existing files
+    const exportedSecond = await exportPdfPagesToImages({
+      pageNumbers: [2],
+      dpi: 150,
+      format: 'png',
+      qualityPreset: 'high',
+      outMode: 'folder',
+      outPath: folderOut,
+      baseName: 'five',
+      renderChunk: async (pages, dpi) =>
+        (await runStructureJob(
+          { op: 'renderPages', source: { pdfPath: src }, pages, dpi },
+          deps,
+          noProgress,
+        )) as RenderPagesJobValue,
+      encodePage: (_bgra, w, h, format, quality) =>
+        new TextEncoder().encode(`${format}:${w}x${h}:q${quality}`),
+    })
+    expect(exportedSecond.writtenPaths[0]).toBe(join(folderOut, 'five-02 (2).png'))
+    expect(existsSync(join(folderOut, 'five-02 (2).png'))).toBe(true)
+
     // Cancellation mid-chunks stops before second chunk
     const controller = new AbortController()
     let calls = 0
@@ -326,5 +347,39 @@ describe('PDF tools v2 structure jobs', () => {
       expect(bytes[0]).toBe(0x50)
       expect(bytes[1]).toBe(0x4b)
     }
+
+    // Encrypted PDF with source.password can be re-encrypted AND page-range converted via convertDoc
+    const lockedRes = (await runStructureJob(
+      { op: 'encrypt', source: { pdfPath: src }, userPassword: 'oldpw' },
+      deps,
+      noProgress,
+    )) as { bytes: Uint8Array }
+    const lockedPath = write('locked-doc.pdf', lockedRes.bytes)
+    const relocked = (await runStructureJob(
+      { op: 'encrypt', source: { pdfPath: lockedPath, password: 'oldpw' }, userPassword: 'newpw' },
+      deps,
+      noProgress,
+    )) as { bytes: Uint8Array }
+    const relockedPath = write('relocked-doc.pdf', relocked.bytes)
+    const decryptedNew = (await runStructureJob(
+      { op: 'decrypt', source: { pdfPath: relockedPath }, password: 'newpw' },
+      deps,
+      noProgress,
+    )) as { bytes: Uint8Array }
+    expect((await PDFDocument.load(decryptedNew.bytes)).getPageCount()).toBe(2)
+
+    const encDocxPath = join(dir, 'locked-p1.docx')
+    const encConvertRes = await runStructureJob(
+      {
+        op: 'convertDoc',
+        source: { pdfPath: lockedPath, password: 'oldpw', pages: [1] },
+        format: 'docx',
+        outPath: encDocxPath,
+      },
+      deps,
+      noProgress,
+    )
+    expect(encConvertRes).toEqual({ outPath: encDocxPath })
+    expect(existsSync(encDocxPath)).toBe(true)
   })
 })

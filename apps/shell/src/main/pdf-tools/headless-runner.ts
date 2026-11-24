@@ -18,8 +18,7 @@ export interface HeadlessRunnerOptions {
 }
 
 export type HeadlessRunnerResult =
-  | { ok: true; outPath: string }
-  | { ok: false; error: string; canceled?: boolean }
+  { ok: true; outPath: string } | { ok: false; error: string; canceled?: boolean }
 
 const DEFAULT_TIMEOUT_MS = 180_000
 const activeChildren = new Set<ChildProcess>()
@@ -47,7 +46,10 @@ export function buildHeadlessExportArgs(
 /** Parse the single-line JSON envelope emitted by `--headless-export --json` */
 export function parseHeadlessJsonEnvelope(
   stdout: string,
-): { status: 'ok'; output_path?: string } | { status: 'error'; error?: string; summary?: string } | null {
+):
+  | { status: 'ok'; output_path?: string }
+  | { status: 'error'; error?: string; summary?: string }
+  | null {
   const lines = stdout
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -79,6 +81,18 @@ export function parseHeadlessJsonEnvelope(
 
 function terminateChild(child: ChildProcess): void {
   if (child.exitCode !== null || child.killed) return
+  if (process.platform === 'win32' && child.pid) {
+    try {
+      execFile(
+        'taskkill',
+        ['/pid', String(child.pid), '/T', '/F'],
+        { shell: false, windowsHide: true },
+        () => {},
+      )
+    } catch {
+      // fall through to child.kill
+    }
+  }
   try {
     child.kill('SIGTERM')
   } catch {

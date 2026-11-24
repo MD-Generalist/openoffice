@@ -422,8 +422,21 @@ export function PdfToolsWindow({ lang }: { lang: Lang }) {
   const [ocrStatus, setOcrStatus] = useState<{ available: boolean; platform: string } | null>(null)
   const [unlockErrors, setUnlockErrors] = useState<Record<string, string>>({})
   const [unlockDrafts, setUnlockDrafts] = useState<Record<string, string>>({})
+  const extraOrganizeIdsRef = useRef<string[]>([])
+
+  const releaseIds = (ids: string[]) => {
+    const clean = ids.filter((id) => id.length > 0)
+    if (clean.length > 0) void api.releaseInputs(clean)
+  }
 
   const openTool = (next: View) => {
+    releaseIds([
+      ...inputs.map((i) => i.id),
+      ...(background ? [background.id] : []),
+      ...(evenInput ? [evenInput.id] : []),
+      ...extraOrganizeIdsRef.current,
+    ])
+    extraOrganizeIdsRef.current = []
     setView(next)
     setInputs([])
     setBackground(null)
@@ -494,6 +507,12 @@ export function PdfToolsWindow({ lang }: { lang: Lang }) {
     setTargetMissed(null)
     setBlank(NO_BLANK)
     const many = takesMany(tool)
+    if (!many) {
+      releaseIds([...inputs.map((i) => i.id), ...extraOrganizeIdsRef.current])
+      extraOrganizeIdsRef.current = []
+      const unused = result.inputs.slice(1).map((i) => i.id)
+      releaseIds(unused)
+    }
     setInputs((prev) => (many ? [...prev, ...result.inputs] : result.inputs.slice(0, 1)))
   }
 
@@ -567,6 +586,7 @@ export function PdfToolsWindow({ lang }: { lang: Lang }) {
     setRejected(result.rejected.map((r) => t(REJECT_TEXT[r.problem], { name: r.name })))
     const picked = result.inputs[0]
     if (!picked) return
+    if (background) releaseIds([background.id])
     setOutcome(null)
     setBackground(picked)
     setOptions((prev) =>
@@ -579,6 +599,7 @@ export function PdfToolsWindow({ lang }: { lang: Lang }) {
     setRejected(result.rejected.map((r) => t(REJECT_TEXT[r.problem], { name: r.name })))
     const picked = result.inputs[0]
     if (!picked) return
+    if (evenInput) releaseIds([evenInput.id])
     setOutcome(null)
     setEvenInput(picked)
   }
@@ -881,11 +902,21 @@ export function PdfToolsWindow({ lang }: { lang: Lang }) {
               setRejected(res.rejected.map((r) => t(REJECT_TEXT[r.problem], { name: r.name })))
               return res.inputs[0] ?? null
             }}
+            onTrackExtraInput={(id) => {
+              extraOrganizeIdsRef.current.push(id)
+            }}
             onPickBackground={() => void pickBackground()}
-            onRemoveBackground={() => setBackground(null)}
+            onRemoveBackground={() => {
+              if (background) releaseIds([background.id])
+              setBackground(null)
+            }}
             onPickEven={() => void pickEven()}
-            onRemoveEven={() => setEvenInput(null)}
+            onRemoveEven={() => {
+              if (evenInput) releaseIds([evenInput.id])
+              setEvenInput(null)
+            }}
             onRemove={(id) => {
+              releaseIds([id])
               setInputs((prev) => prev.filter((i) => i.id !== id))
               setBlank(NO_BLANK)
             }}
@@ -939,6 +970,7 @@ interface ToolPanelProps {
   onPick(): void
   onDrop(files: File[]): void
   onPickInsertPdf(): Promise<PdfToolInput | null>
+  onTrackExtraInput(id: string): void
   onPickBackground(): void
   onRemoveBackground(): void
   onPickEven(): void
@@ -1389,6 +1421,7 @@ function ToolPanel(p: ToolPanelProps) {
           busy={p.busy}
           onSave={(plan) => p.onRun(plan)}
           onPickInsertPdf={p.onPickInsertPdf}
+          onTrackExtraInput={p.onTrackExtraInput}
         />
       )}
 

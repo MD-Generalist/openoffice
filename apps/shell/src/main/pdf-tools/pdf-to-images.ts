@@ -7,8 +7,10 @@
  * (Chromium `nativeImage` in main; pure mock/encoder in unit tests) and added to
  * either a STORE-compressed `jszip` archive or sequential files inside `outPath`.
  */
-import { mkdir } from 'node:fs/promises'
+import { createWriteStream, existsSync } from 'node:fs'
+import { mkdir, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { pipeline } from 'node:stream/promises'
 import JSZip from 'jszip'
 import { atomicWriteFile } from '../atomic-write'
 
@@ -93,6 +95,34 @@ function throwIfAborted(signal?: AbortSignal): void {
   throw err
 }
 
+function uniqueDestPath(dir: string, base: string, ext: string, taken: Set<string>): string {
+  for (let n = 1; ; n++) {
+    const candidate = n === 1 ? `${base}.${ext}` : `${base} (${n}).${ext}`
+    const full = join(dir, candidate)
+    const key = process.platform === 'win32' ? full.toLowerCase() : full
+    if (!taken.has(key) && !existsSync(full)) {
+      taken.add(key)
+      return full
+    }
+  }
+}
+
+async function writeZipStreaming(zip: JSZip, outPath: string): Promise<void> {
+  const tmpPath = `${outPath}.tmp-${process.pid}-${Date.now()}`
+  try {
+    const stream = zip.generateNodeStream({
+      type: 'nodebuffer',
+      compression: 'STORE',
+      streamFiles: true,
+    })
+    await pipeline(stream, createWriteStream(tmpPath))
+    await rename(tmpPath, outPath)
+  } catch (err) {
+    await rm(tmpPath, { force: true }).catch(() => {})
+    throw err
+  }
+}
+
 /**
  * Render, encode, and write PDF pages chunk by chunk.
  * Releases each chunk's BGRA buffers before requesting the next chunk.
@@ -124,6 +154,7 @@ export async function exportPdfPagesToImages(
 
   const zip = outMode === 'zip' ? new JSZip() : null
   const writtenPaths: string[] = []
+  const takenPaths = new Set<string>()
   if (outMode === 'folder') {
     await mkdir(outPath, { recursive: true })
   }
@@ -139,11 +170,11 @@ export async function exportPdfPagesToImages(
     for (const frame of rendered.pages) {
       throwIfAborted(signal)
       const encoded = encodePage(frame.bgra, frame.width, frame.height, format, quality)
-      const fileName = `${stem}-${String(frame.page).padStart(padDigits, '0')}.${ext}`
+      const baseFile = `${stem}-${String(frame.page).padStart(padDigits, '0')}`
       if (zip) {
-        zip.file(fileName, encoded, { compression: 'STORE' })
+        zip.file(`${baseFile}.${ext}`, encoded, { compression: 'STORE' })
       } else {
-        const dest = join(outPath, fileName)
+        const dest = uniqueDestPath(outPath, baseFile, ext, takenPaths)
         await atomicWriteFile(dest, encoded)
         writtenPaths.push(dest)
       }
@@ -154,8 +185,7 @@ export async function exportPdfPagesToImages(
 
   if (zip) {
     throwIfAborted(signal)
-    const zipBytes = await zip.generateAsync({ type: 'uint8array', compression: 'STORE' })
-    await atomicWriteFile(outPath, zipBytes)
+    await writeZipStreaming(zip, outPath)
     writtenPaths.push(outPath)
   }
 
