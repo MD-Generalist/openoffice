@@ -55,7 +55,17 @@ export const vi = {
   drivePick: 'Chọn từ Google Drive',
   drivePicking: 'Hãy chọn tệp trong cửa sổ Google đã mở trên trình duyệt…',
   drivePickNote:
-    'GenOffice chỉ mở được các tệp Drive bạn chọn trong cửa sổ của Google. Tệp đã chọn một lần sẽ ở lại trong danh sách này.',
+    'GenOffice chỉ mở được các tệp Drive bạn chọn trong cửa sổ của Google. Chọn nhiều tệp cùng lúc trong một thư mục (Ctrl+A hoặc Shift) để thêm vào danh sách này và dùng lại mà không cần đăng nhập lại.',
+  driveAddedMany: 'Đã thêm {n} tệp vào danh sách. Nhấp vào bất kỳ tệp nào bên dưới để mở.',
+  drivePickerTitle: 'Đính kèm từ Google Drive',
+  drivePickerEmpty:
+    'Chưa có tệp Drive nào được thêm. Nhấp “Thêm từ Google Drive” ở trên để chọn tệp.',
+  drivePickerNoMatches: 'Không có tệp phù hợp.',
+  drivePickMore: 'Thêm từ Google Drive',
+  drivePickerAttach: 'Đính kèm',
+  drivePickerSelected: 'Đã chọn {n}',
+  drivePickerLimit: 'Bạn có thể đính kèm tối đa {max} tệp mỗi lần.',
+  drivePickerWorking: 'Đang lấy tệp…',
   driveTrainingTitle: 'Trước khi dùng tệp Drive với AI',
   driveTrainingBody:
     'Google không cho phép gửi tệp Drive đến dịch vụ AI dùng chúng để huấn luyện mô hình. Gói cá nhân của Claude, ChatGPT và Codex có thể dùng cuộc trò chuyện của bạn để huấn luyện nếu bạn không tắt: trong Claude ở Cài đặt → Quyền riêng tư, trong ChatGPT ở Cài đặt → Kiểm soát dữ liệu → “Improve the model for everyone”. Nhà cung cấp dùng khóa API mặc định không huấn luyện trên dữ liệu API. Kết nối AI miễn phí không bao giờ được nhận tệp Drive.',

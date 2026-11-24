@@ -106,12 +106,19 @@ export type DriveOpenResult =
   { ok: true } | { ok: false; kind: DriveErrorKind | 'unsupported' | 'disk' }
 
 /**
- * Opening from Google's picker: how many picked files opened, and the first
- * problem among those that did not; or why the picker did not run (busy:
- * another pick or sign-in is open).
+ * Opening or adding from Google's picker: how many files were chosen, how many
+ * opened immediately (a single file opens right away; picking several adds
+ * them to the list without opening a flood of tabs), and the first problem if
+ * opening failed; or why the picker did not run (busy: another pick or sign-in
+ * is open).
  */
 export type DrivePickOpenResult =
-  | { ok: true; opened: number; problem?: DriveErrorKind | 'unsupported' | 'disk' }
+  | {
+      ok: true
+      picked: number
+      opened: number
+      problem?: DriveErrorKind | 'unsupported' | 'disk'
+    }
   | { ok: false; reason: DriveConnectFailure | 'busy' | 'not-connected' }
 
 /**

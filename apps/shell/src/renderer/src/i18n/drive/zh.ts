@@ -48,7 +48,16 @@ export const zh = {
   drivePick: '从 Google 云端硬盘选择',
   drivePicking: '请在浏览器中打开的 Google 窗口里选择文件…',
   drivePickNote:
-    'GenOffice 只能打开你在 Google 窗口中选择的云端硬盘文件。选择过的文件会保留在此列表中。',
+    'GenOffice 只能打开你在 Google 窗口中选择的云端硬盘文件。在文件夹中一次多选文件（Ctrl+A 或 Shift）添加到此列表后，之后无需再次登录即可直接使用。',
+  driveAddedMany: '已将 {n} 个文件添加到列表。点击下方任意文件即可打开。',
+  drivePickerTitle: '从 Google 云端硬盘附加',
+  drivePickerEmpty: '还没有添加云端硬盘文件。点击上方的“从 Google 云端硬盘添加”来选择文件。',
+  drivePickerNoMatches: '没有匹配的文件。',
+  drivePickMore: '从 Google 云端硬盘添加',
+  drivePickerAttach: '附加',
+  drivePickerSelected: '已选择 {n} 个',
+  drivePickerLimit: '一次最多可附加 {max} 个文件。',
+  drivePickerWorking: '正在获取文件…',
   driveTrainingTitle: '在 AI 中使用云端硬盘文件之前',
   driveTrainingBody:
     'Google 不允许将云端硬盘文件发送给会用这些文件训练模型的 AI 服务。Claude、ChatGPT 和 Codex 的个人套餐如果不关闭相关设置，可能会将你的对话用于训练：在 Claude 中前往 设置 → 隐私，在 ChatGPT 中前往 设置 → 数据控制 → “为所有人改进模型”。API 密钥提供方默认不会用 API 数据进行训练。不会向免费 AI 连接发送云端硬盘文件。',

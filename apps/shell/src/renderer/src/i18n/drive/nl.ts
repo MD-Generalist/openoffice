@@ -56,7 +56,18 @@ export const nl = {
   drivePick: 'Kiezen uit Google Drive',
   drivePicking: 'Kies bestanden in het Google-venster dat in je browser is geopend…',
   drivePickNote:
-    'GenOffice kan alleen de Drive-bestanden openen die je in het venster van Google kiest. Bestanden die je eenmaal hebt gekozen, blijven in deze lijst staan.',
+    'GenOffice kan alleen de Drive-bestanden openen die je in het venster van Google kiest. Selecteer meerdere bestanden tegelijk in een map (Ctrl+A of Shift) om ze aan deze lijst toe te voegen en ze later zonder opnieuw in te loggen te gebruiken.',
+  driveAddedMany:
+    '{n} bestanden aan de lijst toegevoegd. Klik op een bestand hieronder om het te openen.',
+  drivePickerTitle: 'Bijvoegen uit Google Drive',
+  drivePickerEmpty:
+    'Nog geen Drive-bestanden toegevoegd. Klik bovenaan op “Toevoegen uit Google Drive” om bestanden te kiezen.',
+  drivePickerNoMatches: 'Geen overeenkomende bestanden.',
+  drivePickMore: 'Toevoegen uit Google Drive',
+  drivePickerAttach: 'Bijvoegen',
+  drivePickerSelected: '{n} geselecteerd',
+  drivePickerLimit: 'Je kunt maximaal {max} bestanden tegelijk bijvoegen.',
+  drivePickerWorking: 'Bestanden ophalen…',
   driveTrainingTitle: 'Voordat je Drive-bestanden met AI gebruikt',
   driveTrainingBody:
     'Google staat niet toe dat Drive-bestanden naar een AI-dienst gaan die ze gebruikt om zijn modellen te trainen. Persoonlijke abonnementen van Claude, ChatGPT en Codex kunnen je chats gebruiken voor training, tenzij je dat uitzet: in Claude onder Instellingen → Privacy, in ChatGPT onder Instellingen → Gegevensbeheer → “Improve the model for everyone”. Aanbieders met een API-sleutel trainen standaard niet op API-gegevens. Gratis AI-verbindingen krijgen nooit Drive-bestanden.',

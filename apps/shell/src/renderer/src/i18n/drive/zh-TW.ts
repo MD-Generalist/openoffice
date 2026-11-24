@@ -50,7 +50,16 @@ export const zhTW = {
   drivePick: '從 Google 雲端硬碟選擇',
   drivePicking: '請在瀏覽器中開啟的 Google 視窗裡選擇檔案…',
   drivePickNote:
-    'GenOffice 只能開啟你在 Google 視窗中選擇的雲端硬碟檔案。選擇過的檔案會保留在這個清單中。',
+    'GenOffice 只能開啟你在 Google 視窗中選擇的雲端硬碟檔案。在資料夾中一次多選檔案（Ctrl+A 或 Shift）加入此清單後，之後不需重新登入就能直接使用。',
+  driveAddedMany: '已將 {n} 個檔案加入清單。點擊下方任意檔案即可開啟。',
+  drivePickerTitle: '從 Google 雲端硬碟附加',
+  drivePickerEmpty: '尚未加入雲端硬碟檔案。請點擊上方的「從 Google 雲端硬碟加入」來選擇檔案。',
+  drivePickerNoMatches: '沒有符合的檔案。',
+  drivePickMore: '從 Google 雲端硬碟加入',
+  drivePickerAttach: '附加',
+  drivePickerSelected: '已選擇 {n} 個',
+  drivePickerLimit: '一次最多可附加 {max} 個檔案。',
+  drivePickerWorking: '正在取得檔案…',
   driveTrainingTitle: '在 AI 中使用雲端硬碟檔案之前',
   driveTrainingBody:
     'Google 不允許將雲端硬碟檔案傳送給會用這些檔案訓練模型的 AI 服務。Claude、ChatGPT 和 Codex 的個人方案若未關閉相關設定，可能會將你的對話用於訓練：在 Claude 中前往 設定 → 隱私權，在 ChatGPT 中前往 設定 → 資料控管 → 「為所有人改善模型」。API 金鑰提供者預設不會用 API 資料進行訓練。免費 AI 連結一律不會收到雲端硬碟檔案。',

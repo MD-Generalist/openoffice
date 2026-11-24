@@ -4,7 +4,7 @@ Google 드라이브 연결의 뒷단(main) 코드다. 시스템 브라우저로 
 
 ## 맡은 범위
 
-- 로그인과 고르기: `signInWithGoogle`(`pick`을 주면 Google 선택 창, 고른 ID는 `pickedFileIds`로 거른다), `exchangeGoogleCode`, `refreshGoogleToken`, `revokeGoogleToken`(`src/oauth.ts`).
+- 로그인과 고르기: `signInWithGoogle`(`pick`을 주면 Google 선택 창, 고른 ID는 `pickedFileIds`로 거르며 이미 연결된 계정이 있으면 `login_hint`를 넘겨 계정 선택 화면을 건너뛴다), `exchangeGoogleCode`, `refreshGoogleToken`, `revokeGoogleToken`(`src/oauth.ts`).
 - 연결: `DriveConnection`(`src/connection.ts`)의 `connect`와 `pick`. 갱신 토큰은 호출자가 주는 금고(`TokenVault`)에, 접근 토큰은 메모리에 둔다.
 - 드라이브 호출: `DriveApi`(`src/drive-api.ts`). 결과는 `{ ok: true, … }` 또는 `{ ok: false, kind }`이고 던지지 않는다.
 - 형식: 앱이 여는 확장자, Google 문서 형식의 내보내기 형식, PC 사본 이름(`src/formats.ts`).
@@ -33,4 +33,4 @@ Google 드라이브 연결의 뒷단(main) 코드다. 시스템 브라우저로 
 
 - 실행: `npm run test -w @genoffice/google-drive`, `npm run typecheck -w @genoffice/google-drive`.
 - 테스트는 Google에 닿지 않는다. 모든 호출은 주입한 `fetch`를 지난다. 로그인 테스트는 루프백 서버를 실제로 열고, 브라우저 대신 테스트가 그 주소를 부른다.
-- 바꾸면 반드시 테스트하는 것: 선택 창 요청의 `trigger_onepick`·`allow_multiple`, 고른 ID 거르기, 고르기가 이전 토큰을 폐기하지 않는지, `state`가 다른 콜백을 무시하는지, 갱신 실패 종류별로 연결이 남거나 끝나는지, 동시에 들어온 호출이 갱신을 한 번만 하는지, 올리기 세션 주소 검사, 크기 상한.
+- 바꾸면 반드시 테스트하는 것: 선택 창 요청의 `trigger_onepick`·`allow_multiple`·`login_hint`, 고른 ID 거르기, 고르기가 이전 토큰을 폐기하지 않는지, `state`가 다른 콜백을 무시하는지, 갱신 실패 종류별로 연결이 남거나 끝나는지, 동시에 들어온 호출이 갱신을 한 번만 하는지, 올리기 세션 주소 검사, 크기 상한.

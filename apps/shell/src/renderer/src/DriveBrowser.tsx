@@ -2,37 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Lang } from '@genoffice/i18n'
 import type {
   DriveEntry,
-  DriveEntryType,
   DriveErrorKind,
   DriveListResult,
   DriveListingRequest,
 } from '../../shared/drive-api'
+import { DRIVE_ENTRY_ICONS } from './drive-icons'
 import { driveUiText, type DriveStringKey } from './i18n/strings-drive'
-import iconDocx from './assets/file-docx.svg'
-import iconXlsx from './assets/file-xlsx.svg'
-import iconPptx from './assets/file-pptx.svg'
-import iconPdf from './assets/file-pdf.svg'
-import iconMd from './assets/file-md.svg'
-import iconHtml from './assets/file-html.svg'
-import iconMindmap from './assets/file-mindmap.svg'
-import iconHwp from './assets/file-hwp.svg'
-import iconEpub from './assets/file-epub.svg'
-import iconDiagram from './assets/file-diagram.svg'
-import iconWhiteboard from './assets/file-whiteboard.svg'
 import './drive.css'
 
-const ICONS: Partial<Record<DriveEntryType, string>> = {
-  document: iconDocx,
-  spreadsheet: iconXlsx,
-  presentation: iconPptx,
-  pdf: iconPdf,
-  markdown: iconMd,
-  html: iconHtml,
-  mindmap: iconMindmap,
-  hwp: iconHwp,
-  epub: iconEpub,
-  diagram: iconDiagram,
-  whiteboard: iconWhiteboard,
+export interface DrivePickOutcome {
+  error?: DriveStringKey | undefined
+  /** number of files newly added to the list without opening all tabs at once */
+  added?: number | undefined
 }
 
 export const DRIVE_ERROR_KEYS: Record<DriveErrorKind | 'unsupported' | 'disk', DriveStringKey> = {
@@ -78,8 +59,8 @@ export function DriveBrowser({
   list: (listing: DriveListingRequest, pageToken?: string) => Promise<DriveListResult>
   /** open a file; returns an error to show, or null */
   onOpen: (entry: DriveEntry) => Promise<DriveStringKey | null>
-  /** Google's picker; the picked files open, and the list reloads after; returns an error or null */
-  onPick: () => Promise<DriveStringKey | null>
+  /** Google's picker; a single file opens, several add to the list; returns an outcome */
+  onPick: () => Promise<DrivePickOutcome>
   /** Google's picker is open in the browser */
   picking: boolean
 }) {
@@ -90,6 +71,7 @@ export function DriveBrowser({
   const [nextPage, setNextPage] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<DriveStringKey | null>(null)
+  const [addedCount, setAddedCount] = useState<number | null>(null)
   const [opening, setOpening] = useState<string | null>(null)
   const request = useRef(0)
 
@@ -123,8 +105,10 @@ export function DriveBrowser({
 
   const pick = async () => {
     setError(null)
-    const problem = await onPick().catch(() => 'driveErrNetwork' as const)
-    if (problem) setError(problem)
+    setAddedCount(null)
+    const outcome = await onPick().catch(() => ({ error: 'driveErrNetwork' as const }))
+    if (outcome.error) setError(outcome.error)
+    else if (outcome.added && outcome.added > 1) setAddedCount(outcome.added)
     setSearched(null)
     setQuery('')
     void load()
@@ -134,6 +118,7 @@ export function DriveBrowser({
     if (!entry.openable || opening) return
     setOpening(entry.id)
     setError(null)
+    setAddedCount(null)
     const problem = await onOpen(entry).catch(() => 'driveErrNetwork' as const)
     setOpening(null)
     if (problem) setError(problem)
@@ -196,10 +181,15 @@ export function DriveBrowser({
           {t(error)}
         </p>
       )}
+      {addedCount !== null && !error && (
+        <p className="drive-notice" role="status">
+          {t('driveAddedMany', { n: String(addedCount) })}
+        </p>
+      )}
 
       <ul className="drive-list" aria-busy={loading}>
         {files.map((entry) => {
-          const icon = ICONS[entry.type]
+          const icon = DRIVE_ENTRY_ICONS[entry.type]
           const unsupported = !entry.openable
           const note = unsupported
             ? t('driveUnsupported')
@@ -234,7 +224,9 @@ export function DriveBrowser({
           )
         })}
       </ul>
-      {!loading && files.length === 0 && !error && <p className="drive-muted">{t('driveEmpty')}</p>}
+      {!loading && files.length === 0 && !error && (
+        <p className="drive-muted">{t(searched ? 'drivePickerNoMatches' : 'driveEmpty')}</p>
+      )}
       {loading && <p className="drive-muted">{t('driveLoading')}</p>}
       {!loading && nextPage && (
         <button className="drive-ghost drive-more" onClick={() => void load(nextPage)}>

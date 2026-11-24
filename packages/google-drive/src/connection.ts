@@ -130,11 +130,12 @@ export class DriveConnection {
   ): Promise<
     { ok: true; picked: string[] } | { ok: false; reason: GoogleSignInFailure | 'unavailable' }
   > {
-    return this.signInOnce({ ...options, pick: { multiple } })
+    const loginHint = this.account?.emailAddress || undefined
+    return this.signInOnce({ ...options, pick: { multiple }, loginHint })
   }
 
   private async signInOnce(
-    options: Pick<GoogleSignInOptions, 'openBrowser' | 'pages' | 'pick'>,
+    options: Pick<GoogleSignInOptions, 'openBrowser' | 'pages' | 'pick' | 'loginHint'>,
   ): Promise<
     { ok: true; picked: string[] } | { ok: false; reason: GoogleSignInFailure | 'unavailable' }
   > {
