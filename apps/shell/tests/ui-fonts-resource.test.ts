@@ -84,6 +84,8 @@ describe('UI fonts in the installer', () => {
   it('allows the UI font scheme in font-src CSP of every renderer HTML entry', () => {
     const htmlFiles: string[] = []
     for (const app of readdirSync(join(ROOT, 'apps'))) {
+      // mobile runs in Capacitor rather than Electron's genoffice-app: protocol
+      if (app === 'mobile') continue
       const rendererDir = join(ROOT, 'apps', app, 'src', 'renderer')
       try {
         for (const e of readdirSync(rendererDir, { withFileTypes: true })) {
