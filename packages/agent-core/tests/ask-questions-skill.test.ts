@@ -50,7 +50,11 @@ function jsonObjectAt(text: string, from: number): string {
   throw new Error('no balanced JSON object')
 }
 
-/** Every array in a schema has `items`, and nothing Gemini's proto refuses appears. */
+/**
+ * Every array in a schema has `items`, nothing Gemini's proto refuses appears,
+ * and no declared property name starts with `@` (A2UI's `@path` / `@checks`
+ * stay undeclared: one provider refusing such a name would fail every request).
+ */
 function geminiSafe(schema: unknown, path: string, problems: string[]): void {
   if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return
   const node = schema as Record<string, unknown>
@@ -64,8 +68,14 @@ function geminiSafe(schema: unknown, path: string, problems: string[]): void {
   if (Array.isArray(node.enum) && !node.enum.every((v) => typeof v === 'string')) {
     problems.push(`${path}: non-string enum`)
   }
+  if (Array.isArray(node.required)) {
+    for (const key of node.required) {
+      if (typeof key === 'string' && key.startsWith('@')) problems.push(`${path}: requires ${key}`)
+    }
+  }
   if (typeof node.properties === 'object' && node.properties !== null) {
     for (const [key, sub] of Object.entries(node.properties)) {
+      if (key.startsWith('@')) problems.push(`${path}.${key}: property name starts with @`)
       geminiSafe(sub, `${path}.${key}`, problems)
     }
   }

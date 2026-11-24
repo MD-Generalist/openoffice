@@ -123,16 +123,13 @@ const TOOL_DEF: AgentToolDef = {
                     required: ['label', 'value'],
                   },
                 },
-                value: {
-                  type: 'object',
-                  properties: { '@path': { type: 'string', description: '"/<this id>"' } },
-                  required: ['@path'],
-                },
+                // left loose: a property name starting with "@" is not declared
+                // anywhere, since one provider refusing it would fail every request
+                value: { type: 'object' },
                 placeholder: { type: 'string' },
                 min: { type: 'number' },
                 max: { type: 'number' },
                 steps: { type: 'integer' },
-                '@checks': { type: 'array', items: { type: 'object' } },
               },
               required: ['id', 'component'],
             },
