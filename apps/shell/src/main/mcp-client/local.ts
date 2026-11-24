@@ -43,6 +43,7 @@ import {
 import {
   MCP_RESULT_MAX_CHARS,
   shapeMcpResult,
+  type ShapeMcpImageBlock,
   type ShapedMcpResult,
 } from '@genoffice/agent-core/user-mcp/result'
 import { launchReviewNeeded, planFingerprint } from './fingerprint'
@@ -126,6 +127,8 @@ export interface LocalMcpDeps {
   startTimeoutMs?: number | undefined
   maxStartFailures?: number | undefined
   resultMaxChars?: number | undefined
+  /** optional handler to persist validated MCP `image` blocks into the local image store */
+  onImageBlock?: ((block: ShapeMcpImageBlock) => string | null) | undefined
   /** the app is quitting: stop, and abort a runtime download under way */
   appSignal?: AbortSignal | undefined
   spawn?: LocalMcpSpawn | undefined
@@ -653,7 +656,10 @@ export function createLocalMcpConnection(
             signal,
             timeout: callTimeoutMs,
           })
-          return shapeMcpResult(result, resultMaxChars)
+          return shapeMcpResult(result, {
+            maxChars: resultMaxChars,
+            ...(deps.onImageBlock ? { onImageBlock: deps.onImageBlock } : {}),
+          })
         })
       } catch (error) {
         if (signal?.aborted) throw abortError()

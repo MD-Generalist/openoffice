@@ -88,6 +88,8 @@ export const MCP_PRESETS = {
     url: 'https://mcp.notion.com/mcp',
     keepResultsInside: true,
     defaultActiveTools: NOTION_DEFAULT_TOOLS,
+    presetInstructions:
+      'When Notion page results include a "Cached images" section with local file:// URLs, pass those file:// URLs directly to the editor’s image insertion tool to embed the page’s images.',
   },
   canva: {
     id: 'canva',
@@ -97,7 +99,7 @@ export const MCP_PRESETS = {
     keepResultsInside: true,
     defaultActiveTools: CANVA_DEFAULT_TOOLS,
     presetInstructions:
-      'Canva searches designs and brand templates in the user’s own Canva account (not the public Canva template marketplace). To create a new design from the current document, use create-design (and poll get-create-design-async-job). To bring an existing design into a document, use read-design or export-design.',
+      'Canva searches designs and brand templates in the user’s own Canva account (not the public Canva template marketplace). To create a new design from the current document, use create-design (and poll get-create-design-async-job). To bring an existing design into a document with its visuals, use read-design together with export-design (type "png") or get-design-pages; when results include a "Cached images" section with local file:// URLs, pass those file:// URLs directly to the editor’s image insertion tool.',
   },
   'korean-law': {
     id: 'korean-law',

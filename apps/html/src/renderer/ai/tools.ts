@@ -461,6 +461,7 @@ const STALE_MESSAGE =
   'The document changed since you last looked at it (the user edited it). Call get_outline or read_source again and re-plan before editing.'
 
 const ATTACHMENT_SCHEME = 'attachment://'
+const FILE_IMAGE_URL_RE = /file:\/\/[^\s"'<>()]+?\.(?:png|jpe?g|gif|webp)/gi
 /** fallback token shape when no known attachment name follows the scheme */
 const ATTACHMENT_REF_RE = /^[^\s"'<>()]+/
 /** a known name only matches when the reference ends right after it */
@@ -615,6 +616,82 @@ function addedDocumentMarkers(before: string, after: string): string | null {
 
 const WHOLE_DOCUMENT_ADVICE =
   'apply_ops edits part of the page and must not carry a whole document. To rewrite the whole page, call plan_page with mode "redesign". To rewrite one section, use replace_element on that section\'s sid with only that section\'s HTML (get_outline lists the sids).'
+
+function hasCachedFileImageRef(op: HtmlOp): boolean {
+  const fields = op as unknown as Record<string, unknown>
+  const hasFile = (v: unknown) => {
+    if (typeof v !== 'string' || !v.includes('file://')) return false
+    FILE_IMAGE_URL_RE.lastIndex = 0
+    return FILE_IMAGE_URL_RE.test(v)
+  }
+  return (
+    hasFile(fields.html) ||
+    hasFile(fields.new) ||
+    hasFile(fields.value) ||
+    (op.op === 'set_style' && Object.values(op.styles).some(hasFile))
+  )
+}
+
+/**
+ * Expand `file://` URLs pointing into the app's validated local image store
+ * (from MCP / Obsidian / Notion / Canva / generated images) into saved `assets/`
+ * paths or inline `data:` URLs so the preview and saved HTML never contain raw
+ * `file://` srcs. Any `file://` URL outside the app's image store is refused by
+ * `htmlApi.fetchImage` -> `readGeneratedImage` and reported as an error.
+ */
+export async function expandCachedFileImageRefs(
+  ops: HtmlOp[],
+  persist: (
+    url: string,
+  ) => Promise<{ src: string; where: 'assets' | 'inline' | 'remote' }> = persistImageSrc,
+): Promise<{ ops: HtmlOp[]; errors: string[] }> {
+  const srcByUrl = new Map<string, string>()
+  const errors: string[] = []
+  const collect = (value: unknown): void => {
+    if (typeof value !== 'string' || !value.includes('file://')) return
+    FILE_IMAGE_URL_RE.lastIndex = 0
+    for (const m of value.matchAll(FILE_IMAGE_URL_RE)) {
+      if (m[0]) srcByUrl.set(m[0], '')
+    }
+  }
+  for (const op of ops) {
+    const fields = op as unknown as Record<string, unknown>
+    collect(fields.html)
+    collect(fields.new)
+    collect(fields.value)
+    if (op.op === 'set_style') for (const v of Object.values(op.styles)) collect(v)
+  }
+  if (srcByUrl.size === 0) return { ops, errors }
+  for (const url of srcByUrl.keys()) {
+    const landed = await persist(url)
+    if (landed.where === 'remote') {
+      errors.push(`${url}: could not load cached image`)
+    } else {
+      srcByUrl.set(url, landed.src)
+    }
+  }
+  if (errors.length > 0) return { ops, errors }
+  const expand = (value: unknown): unknown => {
+    if (typeof value !== 'string' || !value.includes('file://')) return value
+    return value.replace(FILE_IMAGE_URL_RE, (match) => srcByUrl.get(match) ?? match)
+  }
+  const expanded = ops.map((op) => {
+    const fields = op as unknown as Record<string, unknown>
+    const next: Record<string, unknown> = {
+      ...fields,
+      ...('html' in fields ? { html: expand(fields.html) } : {}),
+      ...('new' in fields ? { new: expand(fields.new) } : {}),
+      ...('value' in fields ? { value: expand(fields.value) } : {}),
+    }
+    if (op.op === 'set_style') {
+      next.styles = Object.fromEntries(
+        Object.entries(op.styles).map(([k, v]) => [k, expand(v) as string | null]),
+      )
+    }
+    return next as unknown as HtmlOp
+  })
+  return { ops: expanded, errors }
+}
 
 /**
  * Replace `attachment://` references in op payload strings with real srcs so
@@ -795,10 +872,24 @@ export function createHtmlSkillCore(access: HtmlDocAccess): {
         isError: true,
         summary: t('aiToolWritePageFailed'),
       }
-    access.replaceAll(result.html, 'generate')
+    let finalHtml = result.html
+    if (finalHtml.includes('file://')) {
+      FILE_IMAGE_URL_RE.lastIndex = 0
+      const urls = new Set<string>()
+      for (const m of finalHtml.matchAll(FILE_IMAGE_URL_RE)) {
+        if (m[0]) urls.add(m[0])
+      }
+      for (const url of urls) {
+        const landed = await persistImageSrc(url)
+        if (landed.where !== 'remote') {
+          finalHtml = finalHtml.split(url).join(landed.src)
+        }
+      }
+    }
+    access.replaceAll(finalHtml, 'generate')
     markSeen()
-    const lines = result.html.split('\n').length
-    const sections = [...result.html.matchAll(/data-section="([^"]+)"/g)].map((m) => m[1])
+    const lines = finalHtml.split('\n').length
+    const sections = [...finalHtml.matchAll(/data-section="([^"]+)"/g)].map((m) => m[1])
     const note = result.truncated
       ? ' The stream ended early, so the page is INCOMPLETE (the user chose to keep it): the tail is missing. Say so and offer to finish the missing sections with apply_ops.'
       : ''
@@ -1100,22 +1191,40 @@ export function createHtmlSkillCore(access: HtmlDocAccess): {
               summary: t('aiToolApplyOps', { n: ops.length }),
             }
           }
-          if (access.resolveAttachmentSrc && ops.some((op) => hasAttachmentRef(op))) {
-            return expandAttachmentRefs(
-              ops as HtmlOp[],
-              access.resolveAttachmentSrc,
-              access.listAttachmentNames?.() ?? [],
-            ).then((expanded) => {
-              if (expanded.errors.length > 0)
-                return {
-                  output: `0 of ${ops.length} ops applied — unresolved attachment reference(s):\n${expanded.errors.join('\n')}`,
-                  isError: true,
-                  summary: t('aiToolApplyOpsFailed'),
-                }
+          const needsAttach =
+            Boolean(access.resolveAttachmentSrc) && ops.some((op) => hasAttachmentRef(op))
+          const needsFileImg = ops.some((op) => hasCachedFileImageRef(op))
+          if (needsAttach || needsFileImg) {
+            return (async (): Promise<ToolExecution> => {
+              let working = ops as HtmlOp[]
+              if (needsAttach && access.resolveAttachmentSrc) {
+                const expanded = await expandAttachmentRefs(
+                  working,
+                  access.resolveAttachmentSrc,
+                  access.listAttachmentNames?.() ?? [],
+                )
+                if (expanded.errors.length > 0)
+                  return {
+                    output: `0 of ${ops.length} ops applied — unresolved attachment reference(s):\n${expanded.errors.join('\n')}`,
+                    isError: true,
+                    summary: t('aiToolApplyOpsFailed'),
+                  }
+                working = expanded.ops
+              }
+              if (working.some((op) => hasCachedFileImageRef(op))) {
+                const expanded = await expandCachedFileImageRefs(working)
+                if (expanded.errors.length > 0)
+                  return {
+                    output: `0 of ${ops.length} ops applied — unresolved cached image reference(s):\n${expanded.errors.join('\n')}`,
+                    isError: true,
+                    summary: t('aiToolApplyOpsFailed'),
+                  }
+                working = expanded.ops
+              }
               // the user may have typed while the image was read and saved over IPC
               if (stale()) return staleResult()
-              return finish(expanded.ops)
-            })
+              return finish(working)
+            })()
           }
           return finish(ops as HtmlOp[])
         }

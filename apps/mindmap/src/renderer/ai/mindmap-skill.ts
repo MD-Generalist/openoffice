@@ -447,10 +447,11 @@ export function createMindmapSkill(deps: MindmapSkillDeps): AgentSkill {
             break
           }
           const url = String(input.url ?? '')
-          if (!/^https?:\/\//.test(url)) {
+          // file:// = a locally cached/generated image in the app's validated store (the main process only resolves its own UUID files)
+          if (!/^(https?|file):\/\//.test(url)) {
             result = {
               output:
-                'give either url (a direct https image address) or attachment (the exact name of an image attached to this chat)',
+                'give either url (a direct https or cached file:// image address) or attachment (the exact name of an image attached to this chat)',
               isError: true,
             }
             break

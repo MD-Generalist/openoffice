@@ -242,6 +242,46 @@ describe('generate_image', () => {
     expect(empty.output).toBe('prompt must not be empty')
   })
 
+  it('expands cached file:// image URLs in apply_ops into saved assets/ paths and refuses unknown file:// URLs', async () => {
+    const doc = fakeAccess(DOC)
+    const core = createHtmlSkillCore(doc.access)
+    core.buildContext()
+    const cachedUrl = 'file:///tmp/genoffice-ai-images/12345678-1234-1234-1234-1234567890ab.png'
+    bridge.fetchImage.mockResolvedValueOnce({ base64: PNG_BASE64, mime: 'image/png' })
+    bridge.saveImage.mockResolvedValueOnce('assets/mcp-hero.png')
+
+    const ok = await core.executeTool(
+      call('apply_ops', {
+        ops: [
+          {
+            op: 'str_replace',
+            old: '</body>',
+            new: `<img src="${cachedUrl}" alt="hero"></body>`,
+          },
+        ],
+      }),
+    )
+    expect(ok.isError).toBeUndefined()
+    expect(ok.mutated).toBe(true)
+    expect(doc.text).toContain('<img src="assets/mcp-hero.png" alt="hero">')
+    expect(doc.text).not.toContain('file:///')
+
+    bridge.fetchImage.mockResolvedValueOnce(null)
+    const refused = await core.executeTool(
+      call('apply_ops', {
+        ops: [
+          {
+            op: 'str_replace',
+            old: '</body>',
+            new: '<img src="file:///etc/secret.png"></body>',
+          },
+        ],
+      }),
+    )
+    expect(refused.isError).toBe(true)
+    expect(refused.output).toContain('unresolved cached image reference')
+  })
+
   it('refuses to write when the user edited during the generation', async () => {
     const doc = fakeAccess(DOC)
     const core = createHtmlSkillCore(doc.access)

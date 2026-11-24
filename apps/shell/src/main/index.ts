@@ -11122,6 +11122,12 @@ app.whenReady().then(async () => {
       if (!res.ok) throw new Error(`Download failed (${res.status})`)
       return new Uint8Array(await res.arrayBuffer())
     },
+    convertWebpToPng: (bytes) => {
+      const img = nativeImage.createFromBuffer(Buffer.from(bytes))
+      if (img.isEmpty()) return null
+      const png = img.toPNG()
+      return png.byteLength > 0 ? new Uint8Array(png.buffer, png.byteOffset, png.byteLength) : null
+    },
   })
   // Which open documents have unsaved changes, for the attachment readers of the
   // editor mains and the knowledge base: a file being edited is not read as

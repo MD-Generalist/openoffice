@@ -159,7 +159,7 @@
 **클라이언트는 앱이다.** 모든 연결은 껍데기 앱 뒷단의 허브(`apps/shell/src/main/mcp-client/`) 한 곳에서 맺는다. 편집기 창과 홈 창은 preload 다리(`window.aiOfficeMcpTools`)로 허브에 묻고, 서버의 주소·열쇠·명령은 보지 못한다. 구독 프로그램에게는 사용자 서버를 주지 않는다. 기본 AI 창에서 프로그램이 가진 도구는 그대로다(0개, 문서 편집 차례는 `StructuredOutput` 하나). 서버의 도구는 앱 도구로 붙고 앱이 실행한다.
 
 - 클라이언트는 아무 능력도 알리지 않는다(`capabilities: {}`). 서버가 sampling(앱에게 AI를 대신 불러 달라는 것), elicitation, roots를 요청하면 거절한다. sampling을 받으면 남의 서버가 사람의 구독을 쓰게 된다(절대 규칙 2와 약관).
-- prompts, resources, 자원 구독은 쓰지 않는다. 결과 가운데 `content`의 글 블록과 `structuredContent`(JSON 글)만 AI에게 넘기고, 그림·소리·자원 링크는 "글이 아닌 내용 n개는 넘기지 않았다"로 바꾼다. 이 거르기와 자르기는 허브가 뒷단에서 두 종류의 서버 모두에 한다. 창과 에이전트 중계에는 거른 글(`{ ok: true, output, isError }`)만 건너가고, 서버가 보낸 그림 자료는 뒷단을 떠나지 않는다.
+- prompts, resources, 자원 구독은 쓰지 않는다. 결과 가운데 `content`의 글 블록과 `structuredContent`(JSON 글)를 AI에게 넘긴다. `image` 블록은 허브가 뒷단에서 실제 그림 바이트(PNG·JPEG·GIF·WebP)와 크기 상한을 확인한 뒤 전용 임시 저장소(`GENERATED_IMAGE_DIR`)에 UUID 이름으로 저장하고, 그 `file://` 주소만 글로 넘긴다. Notion·Canva 프리셋 응답에 든 해당 서비스 공식 호스트의 그림 주소와 내장 Obsidian 볼트 `read_note`가 참조하는 볼트 안 로컬 그림(숨김·심볼릭 링크·하드링크·크기 검사 통과)도 같은 저장소로 내려받아 `file://` 주소로 넘긴다. 편집기 뒷단(`readGeneratedImage`)은 이 저장소 바로 아래의 UUID 그림 파일만 읽으므로 임의 로컬 파일에 닿지 않고, `keepResultsInside`가 켜진 대화에서도 바깥 요청 없이 문서에 그림을 넣을 수 있다. 그림이 아닌 소리·자원 링크·검증에 실패한 항목은 "글이 아닌 내용 n개는 넘기지 않았다"로 바꾼다. 이 거르기와 자르기는 허브가 뒷단에서 모든 서버에 한다. 창과 에이전트 중계에는 거른 글(`{ ok: true, output, isError }`)만 건너간다.
 - 터미널 명령어, 그 MCP 서버, 앱 안 MCP 서버는 사용자 서버를 쓰지 않는다.
 
 **바깥 도구로 친다.** 사용자 MCP 도구는 모두 바깥 도구다(이름의 `mcp__` 앞붙이로 판정, `packages/agent-core`의 `user-mcp/`). 그래서 다음이 그대로 걸린다.
