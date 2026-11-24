@@ -280,6 +280,20 @@ function initialState(view: QuestionSurfaceView): FormState {
 /** Numbers only: an optional minus, digits and one decimal point. */
 const NUMBER_TEXT = /^-?\d*(?:\.\d*)?$/
 
+/** a number field holding only a sign or a point has no number in it yet */
+const NUMBER_UNFINISHED = /^-?\.?$/
+
+/** the value an input sends: a number field's unfinished entry counts as empty */
+function settledValue(
+  input: QuestionInput,
+  value: QuestionAnswerValue | undefined,
+): QuestionAnswerValue | undefined {
+  if (input.kind === 'TextField' && input.variant === 'number' && typeof value === 'string') {
+    return NUMBER_UNFINISHED.test(value.trim()) ? '' : value
+  }
+  return value
+}
+
 function FieldLabel({
   id,
   input,
@@ -467,7 +481,9 @@ function OpenCard({
 
   const canSubmit = view.inputs.every(
     (input) =>
-      !input.required || state.decided.has(input.id) || !isEmptyAnswer(state.values[input.id]),
+      !input.required ||
+      state.decided.has(input.id) ||
+      !isEmptyAnswer(settledValue(input, state.values[input.id])),
   )
 
   const submit = () => {
@@ -476,7 +492,7 @@ function OpenCard({
     const decideForMe: string[] = []
     for (const input of view.inputs) {
       if (state.decided.has(input.id)) decideForMe.push(input.id)
-      else answers[input.id] = state.values[input.id] ?? input.initial
+      else answers[input.id] = settledValue(input, state.values[input.id]) ?? input.initial
     }
     onSubmit?.({ kind: 'submit', answers, decideForMe })
   }

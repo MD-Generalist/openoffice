@@ -65,7 +65,8 @@ describe.each(Object.entries(PANELS))('%s AI panel', (_name, panel) => {
   })
 
   it('pauses the elapsed time while a card waits', () => {
-    expect(src).toMatch(/\bwaitingForPerson\b/)
+    // the shared progress line takes it as `paused`; HTML's waiting label reads it via panelWaitOf
+    expect(src).toMatch(/paused=\{[^}]*\bwaitingForPerson\b|panelWaitOf\([^)]*\bwaitingForPerson\b/)
   })
 
   it('clears question cards when a new chat starts', () => {

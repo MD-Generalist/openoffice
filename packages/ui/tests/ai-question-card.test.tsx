@@ -233,6 +233,16 @@ describe('AiQuestionCard (open)', () => {
     expect(range.value).toBe('10')
   })
 
+  it('sends a number field holding only a sign or a point as empty', () => {
+    const onSubmit = vi.fn()
+    render(<AiQuestionCard view={VIEW} status="open" lang="ko" onSubmit={onSubmit} />)
+    click(option('audience', '학부모'))
+    click(option('topics', '예산'))
+    typeInto(field('count').querySelector('input') as HTMLInputElement, '-')
+    click(sendButton())
+    expect(onSubmit.mock.calls[0]?.[0].answers.count).toBe('')
+  })
+
   it('submits answers for every input not left to the AI, decideForMe in screen order', () => {
     const onSubmit = vi.fn()
     render(<AiQuestionCard view={VIEW} status="open" lang="ko" onSubmit={onSubmit} />)
