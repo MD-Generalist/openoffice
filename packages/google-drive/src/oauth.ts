@@ -31,7 +31,7 @@ export const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 
 /** The most picked file ids one round trip hands on */
-export const MAX_PICKED_FILES = 50
+export const MAX_PICKED_FILES = 200
 
 /** how long the browser sign-in may take before the waiting server gives up */
 export const GOOGLE_SIGN_IN_TIMEOUT_MS = 10 * 60 * 1000
@@ -93,6 +93,8 @@ export interface GoogleSignInOptions {
   now?: (() => number) | undefined
   /** show Google's file picker on the consent page */
   pick?: PickRequest | undefined
+  /** connected account email to skip Google's account chooser on repeat picks */
+  loginHint?: string | undefined
 }
 
 function base64url(bytes: Buffer): string {
@@ -118,6 +120,7 @@ export function googleAuthUrl(
   challenge: string,
   state: string,
   pick?: PickRequest,
+  loginHint?: string,
 ): string {
   const params = new URLSearchParams({
     client_id: clientId,
@@ -134,6 +137,10 @@ export function googleAuthUrl(
   if (pick) {
     params.set('trigger_onepick', 'true')
     if (pick.multiple) params.set('allow_multiple', 'true')
+  }
+  const hint = typeof loginHint === 'string' ? loginHint.trim() : ''
+  if (hint && hint.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(hint)) {
+    params.set('login_hint', hint)
   }
   return `${GOOGLE_AUTH_URL}?${params.toString()}`
 }
@@ -261,7 +268,14 @@ async function waitForCode(
     if (options.signal?.aborted) onAbort()
     else if (
       !(await options.openBrowser(
-        googleAuthUrl(options.client.clientId, port, challenge, state, options.pick),
+        googleAuthUrl(
+          options.client.clientId,
+          port,
+          challenge,
+          state,
+          options.pick,
+          options.loginHint,
+        ),
       ))
     ) {
       settle({ ok: false, reason: 'network' })

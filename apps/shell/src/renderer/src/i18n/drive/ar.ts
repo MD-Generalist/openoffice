@@ -55,7 +55,17 @@ export const ar = {
   drivePick: 'الاختيار من Google Drive',
   drivePicking: 'اختر الملفات في نافذة Google التي فُتحت في المتصفح…',
   drivePickNote:
-    'لا يستطيع GenOffice أن يفتح إلا ملفات Drive التي تختارها في نافذة Google. تبقى الملفات التي اخترتها مرة في هذه القائمة.',
+    'لا يستطيع GenOffice أن يفتح إلا ملفات Drive التي تختارها في نافذة Google. اختر عدة ملفات معًا داخل مجلد (Ctrl+A أو Shift) لإضافتها إلى هذه القائمة واستخدامها لاحقًا من دون تسجيل الدخول مجددًا.',
+  driveAddedMany: 'أُضيف {n} ملفات إلى القائمة. انقر على أي ملف أدناه لفتحه.',
+  drivePickerTitle: 'إرفاق من Google Drive',
+  drivePickerEmpty:
+    'لم تُضف أي ملفات من Drive بعد. انقر على «إضافة من Google Drive» أعلاه لاختيار ملفات.',
+  drivePickerNoMatches: 'لا توجد ملفات مطابقة.',
+  drivePickMore: 'إضافة من Google Drive',
+  drivePickerAttach: 'إرفاق',
+  drivePickerSelected: 'تم تحديد {n}',
+  drivePickerLimit: 'يمكنك إرفاق ما يصل إلى {max} ملفًا في المرة الواحدة.',
+  drivePickerWorking: 'جارٍ جلب الملفات…',
   driveTrainingTitle: 'قبل استخدام ملفات Drive مع الذكاء الاصطناعي',
   driveTrainingBody:
     'لا تسمح Google بإرسال ملفات Drive إلى خدمة ذكاء اصطناعي تستخدمها لتدريب نماذجها. قد تستخدم الخطط الشخصية في Claude وChatGPT وCodex محادثاتك للتدريب ما لم توقف ذلك: في Claude من الإعدادات → الخصوصية، وفي ChatGPT من الإعدادات → عناصر التحكم في البيانات → “Improve the model for everyone”. لا يدرّب مزوّدو مفاتيح API نماذجهم على بيانات API افتراضيًا. لا تُعطى ملفات Drive أبدًا لاتصالات الذكاء الاصطناعي المجانية.',

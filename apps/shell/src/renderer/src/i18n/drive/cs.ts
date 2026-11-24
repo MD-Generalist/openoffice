@@ -55,7 +55,18 @@ export const cs = {
   drivePick: 'Vybrat z Disku Google',
   drivePicking: 'Vyberte soubory v okně Google, které se otevřelo v prohlížeči…',
   drivePickNote:
-    'GenOffice může otevřít jen soubory z Disku, které vyberete v okně Google. Jednou vybrané soubory v tomto seznamu zůstanou.',
+    'GenOffice může otevřít jen soubory z Disku, které vyberete v okně Google. Označte ve složce více souborů najednou (Ctrl+A nebo Shift) a přidejte je do tohoto seznamu, abyste je mohli používat bez dalšího přihlašování.',
+  driveAddedMany:
+    'Do seznamu přidáno souborů: {n}. Kliknutím na libovolný soubor níže ho otevřete.',
+  drivePickerTitle: 'Připojit z Disku Google',
+  drivePickerEmpty:
+    'Zatím nejsou přidány žádné soubory z Disku. Klikněte nahoře na „Přidat z Disku Google“ a vyberte je.',
+  drivePickerNoMatches: 'Žádné odpovídající soubory.',
+  drivePickMore: 'Přidat z Disku Google',
+  drivePickerAttach: 'Připojit',
+  drivePickerSelected: 'Vybráno: {n}',
+  drivePickerLimit: 'Najednou lze připojit nejvýše {max} souborů.',
+  drivePickerWorking: 'Načítání souborů…',
   driveTrainingTitle: 'Než použijete soubory z Disku s AI',
   driveTrainingBody:
     'Google nedovoluje posílat soubory z Disku službě AI, která na nich trénuje své modely. Osobní tarify Claude, ChatGPT a Codex mohou vaše konverzace používat k trénování, pokud to nevypnete: v Claude v Nastavení → Soukromí, v ChatGPT v Nastavení → Ovládací prvky dat → „Improve the model for everyone“. Poskytovatelé s klíčem API ve výchozím stavu na datech z API netrénují. Bezplatná připojení AI soubory z Disku nikdy nedostanou.',

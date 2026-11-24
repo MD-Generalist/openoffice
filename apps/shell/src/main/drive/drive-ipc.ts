@@ -5,16 +5,7 @@
  * lists; tokens never leave this process.
  */
 import { join } from 'node:path'
-import {
-  app,
-  dialog,
-  ipcMain,
-  net,
-  safeStorage,
-  shell,
-  webContents,
-  type BrowserWindow,
-} from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, safeStorage, shell, webContents } from 'electron'
 import type { Lang } from '@genoffice/i18n'
 import { safeExternalUrl } from '@genoffice/electron-utils'
 import {
@@ -45,9 +36,11 @@ import {
 import { DriveAi, entryType, type ParseToText } from './drive-ai'
 import { downloadPicks } from './drive-attach'
 import { DriveFiles, type SyncAnswer, type SyncNotice, type SyncQuestion } from './drive-files'
+import { createDrivePicker, type DriveAttachBlockReason } from './drive-picker-window'
 import { copyFileName, driveText } from './drive-strings'
 import { createDriveVault, driveTokenSeals } from './drive-vault'
 import { isFreeAi } from './drive-consent'
+import type { DrivePickerTheme } from '../../shared/drive-picker-api'
 import { setAiRunGuard } from '@genoffice/electron-utils/ai-run-guard'
 
 declare const __GENOFFICE_GOOGLE_CLIENT_ID__: string
@@ -68,6 +61,8 @@ export interface DriveIpcDeps {
   userData: () => string
   settingsPath: () => string
   lang: () => Lang
+  /** theme for modal windows opened by Drive */
+  theme?: () => DrivePickerTheme
   /** the window dialogs attach to */
   window: () => BrowserWindow | null
   openPath: (path: string) => boolean
@@ -324,14 +319,15 @@ export function registerDriveIpc(deps: DriveIpcDeps): DriveService {
   ipcMain.handle(DRIVE_CHANNELS.pickOpen, async (): Promise<DrivePickOpenResult> => {
     const result = await pickFiles()
     if (!result.ok) return result
-    let opened = 0
-    let problem: Extract<DriveOpenResult, { ok: false }>['kind'] | undefined
-    for (const id of result.picked) {
-      const one = await files.open(id)
-      if (one.ok) opened += 1
-      else problem ??= one.kind
+    // a single picked file opens right away; picking several adds them to the
+    // list without opening a flood of tabs at once
+    if (result.picked.length === 1) {
+      const one = await files.open(result.picked[0]!)
+      return one.ok
+        ? { ok: true, picked: 1, opened: 1 }
+        : { ok: true, picked: 1, opened: 0, problem: one.kind }
     }
-    return problem ? { ok: true, opened, problem } : { ok: true, opened }
+    return { ok: true, picked: result.picked.length, opened: 0 }
   })
 
   ipcMain.handle(DRIVE_CHANNELS.disconnect, async () => {
@@ -370,28 +366,33 @@ export function registerDriveIpc(deps: DriveIpcDeps): DriveService {
 
   // ---- attaching Drive files to an editor's AI panel (a person picks them) ----
 
+  const attachGuard = (): DriveAttachBlockReason | null => {
+    if (!connection.connected()) return 'not-connected'
+    if (!trainingAck(deps.settingsPath())) return 'training'
+    if (deps.freeAi()) return 'free-ai'
+    return null
+  }
+
+  const drivePicker = createDrivePicker({
+    list: listEntries,
+    pickMore: pickFiles,
+    cancelPickMore: () => connection.cancelConnect(),
+    download: (ids) =>
+      downloadPicks(connection.api, ids, join(app.getPath('temp'), 'ieumoffice-drive-attach')),
+    guard: attachGuard,
+    lang: deps.lang,
+    theme: deps.theme ?? (() => 'system'),
+  })
+
   ipcMain.handle(DRIVE_CHANNELS.connected, (): boolean => connection.connected())
 
-  ipcMain.handle(DRIVE_CHANNELS.pickAttachments, async (): Promise<DriveAttachResult> => {
+  ipcMain.handle(DRIVE_CHANNELS.pickAttachments, async (event): Promise<DriveAttachResult> => {
     // asked before the picker opens, so nothing is fetched for an AI that may train on it
-    if (connection.connected() && deps.freeAi()) return { ok: false, reason: 'free-ai' }
-    const result = await pickFiles()
-    if (!result.ok) {
-      const { reason } = result
-      const kept =
-        reason === 'busy' ||
-        reason === 'not-connected' ||
-        reason === 'training' ||
-        reason === 'cancelled'
-      return { ok: false, reason: kept ? reason : 'failed' }
-    }
-    if (result.picked.length === 0) return { ok: false, reason: 'cancelled' }
-    const got = await downloadPicks(
-      connection.api,
-      result.picked,
-      join(app.getPath('temp'), 'ieumoffice-drive-attach'),
-    )
-    return { ok: true, ...got }
+    const blocked = attachGuard()
+    if (blocked) return { ok: false, reason: blocked }
+    if ((picking || connecting) && !drivePicker.isOpen()) return { ok: false, reason: 'busy' }
+    const parent = BrowserWindow.fromWebContents(event.sender) ?? deps.window()
+    return drivePicker.open(parent)
   })
 
   ipcMain.handle(DRIVE_CHANNELS.open, async (_event, fileId: unknown): Promise<DriveOpenResult> => {
@@ -433,6 +434,7 @@ export function registerDriveIpc(deps: DriveIpcDeps): DriveService {
     },
     stop() {
       setAiRunGuard('drive', null)
+      drivePicker.close()
       files.stop()
       connection.cancelConnect()
     },

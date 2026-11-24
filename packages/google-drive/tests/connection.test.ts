@@ -141,8 +141,10 @@ describe('DriveConnection', () => {
       done: { lang: 'en', title: 'ok', body: '' },
       failed: { lang: 'en', title: 'no', body: '' },
     }
+    const openedUrls: URL[] = []
     const openBrowser = (ids: string) => async (address: string) => {
       const url = new URL(address)
+      openedUrls.push(url)
       expect(url.searchParams.get('trigger_onepick')).toBe('true')
       const back = new URL(url.searchParams.get('redirect_uri')!)
       back.searchParams.set('code', 'c')
@@ -151,16 +153,19 @@ describe('DriveConnection', () => {
       setTimeout(() => void globalThis.fetch(back).catch(() => {}), 5)
       return true
     }
-    // picking with no connection yet connects
+    // picking with no connection yet connects without a login_hint
     expect(await connection.pick({ pages, openBrowser: openBrowser('f1') }, false)).toEqual({
       ok: true,
       picked: ['f1'],
     })
+    expect(openedUrls[0]!.searchParams.has('login_hint')).toBe(false)
     expect(kept.stored()).toBe('rt1')
+    // picking again passes the connected email as login_hint to skip Google's account chooser
     expect(await connection.pick({ pages, openBrowser: openBrowser('f2,f3') }, true)).toEqual({
       ok: true,
       picked: ['f2', 'f3'],
     })
+    expect(openedUrls[1]!.searchParams.get('login_hint')).toBe('kim@example.com')
     expect(kept.stored()).toBe('rt2')
     // revoking the older token could end the grant that covers f1
     expect(urls).not.toContain(GOOGLE_REVOKE_URL)

@@ -20,6 +20,7 @@ import {
   noteTextHooks,
   patchTargets,
   pluginHooks,
+  textboxEditHooks,
 } from '../scripts/rhwp-patches.mjs'
 import { AGENT_PLUGIN_ID, EASY_WORDS_COMMAND } from '../studio-plugin/agent-plugin.mjs'
 
@@ -107,7 +108,7 @@ describe('a patch whose text is gone', () => {
 
 describe('what the plugin reaches into the studio for', () => {
   const complete = (file: string) => {
-    const needles = [...pluginHooks, ...hancomHooks, ...noteTextHooks]
+    const needles = [...pluginHooks, ...hancomHooks, ...noteTextHooks, ...textboxEditHooks]
       .filter((hook) => hook.file === file)
       .flatMap((hook) => hook.needles)
     return needles.length > 0 ? needles.join('\n') : null

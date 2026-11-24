@@ -52,7 +52,17 @@ export const he = {
   drivePick: 'בחירה מ-Google Drive',
   drivePicking: 'בחרו קבצים בחלון של Google שנפתח בדפדפן…',
   drivePickNote:
-    'GenOffice יכול לפתוח רק את קובצי ה-Drive שתבחרו בחלון של Google. קבצים שבחרתם פעם אחת נשארים ברשימה הזו.',
+    'GenOffice יכול לפתוח רק את קובצי ה-Drive שתבחרו בחלון של Google. בחרו כמה קבצים יחד בתוך תיקייה (Ctrl+A או Shift) כדי להוסיף אותם לרשימה הזו ולהשתמש בהם שוב בלי להתחבר מחדש.',
+  driveAddedMany: 'נוספו {n} קבצים לרשימה. לחצו על כל קובץ למטה כדי לפתוח אותו.',
+  drivePickerTitle: 'צירוף מ-Google Drive',
+  drivePickerEmpty:
+    'עדיין לא נוספו קובצי Drive. לחצו למעלה על “הוספה מ-Google Drive” כדי לבחור קבצים.',
+  drivePickerNoMatches: 'אין קבצים תואמים.',
+  drivePickMore: 'הוספה מ-Google Drive',
+  drivePickerAttach: 'צירוף',
+  drivePickerSelected: 'נבחרו {n}',
+  drivePickerLimit: 'אפשר לצרף עד {max} קבצים בכל פעם.',
+  drivePickerWorking: 'מביא קבצים…',
   driveTrainingTitle: 'לפני שמשתמשים בקובצי Drive עם AI',
   driveTrainingBody:
     'Google לא מתירה לשלוח קובצי Drive לשירות AI שמשתמש בהם כדי לאמן את המודלים שלו. תוכניות אישיות של Claude,‏ ChatGPT ו-Codex עשויות להשתמש בשיחות שלכם לאימון אם לא תכבו זאת: ב-Claude תחת הגדרות → פרטיות, ב-ChatGPT תחת הגדרות → בקרת נתונים → “Improve the model for everyone”. ספקים עם מפתח API לא מאמנים על נתוני API כברירת מחדל. חיבורי AI חינמיים אף פעם לא מקבלים קובצי Drive.',

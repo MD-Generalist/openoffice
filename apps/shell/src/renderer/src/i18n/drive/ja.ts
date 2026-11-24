@@ -57,7 +57,17 @@ export const ja = {
   drivePick: 'Google ドライブから選ぶ',
   drivePicking: 'ブラウザで開いた Google のウィンドウでファイルを選んでください…',
   drivePickNote:
-    'GenOffice が開けるのは、Google のウィンドウで選んだドライブのファイルだけです。一度選んだファイルはこの一覧に残ります。',
+    'GenOffice が開けるのは、Google のウィンドウで選んだドライブのファイルだけです。フォルダ内で複数のファイルをまとめて選択（Ctrl+A や Shift）して追加しておくと、次からは再ログインせずにこの一覧からすぐ使えます。',
+  driveAddedMany: '{n} 件のファイルを一覧に追加しました。下の一覧からクリックして開けます。',
+  drivePickerTitle: 'Google ドライブから添付',
+  drivePickerEmpty:
+    'まだ追加されたドライブのファイルがありません。上の「Google ドライブから追加」を押して選んでください。',
+  drivePickerNoMatches: '一致するファイルがありません。',
+  drivePickMore: 'Google ドライブから追加',
+  drivePickerAttach: '添付',
+  drivePickerSelected: '{n} 件選択中',
+  drivePickerLimit: '一度に添付できるのは最大 {max} 件までです。',
+  drivePickerWorking: 'ファイルを取得しています…',
   driveTrainingTitle: 'ドライブのファイルを AI で使う前に',
   driveTrainingBody:
     'Google は、ドライブのファイルをモデルの学習に使う AI サービスへ送ることを認めていません。Claude、ChatGPT、Codex の個人向けプランは、オフにしない限り会話を学習に使うことがあります。Claude では 設定 → プライバシー、ChatGPT では 設定 → データコントロール → 「すべての人のためにモデルを改善する」でオフにしてください。API キーのプロバイダーは、既定では API のデータを学習に使いません。無料の AI 接続にはドライブのファイルを送りません。',

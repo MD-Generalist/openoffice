@@ -55,7 +55,17 @@ export const id = {
   drivePick: 'Pilih dari Google Drive',
   drivePicking: 'Pilih file di jendela Google yang terbuka di browser Anda…',
   drivePickNote:
-    'GenOffice hanya dapat membuka file Drive yang Anda pilih di jendela Google. File yang pernah Anda pilih tetap ada di daftar ini.',
+    'GenOffice hanya dapat membuka file Drive yang Anda pilih di jendela Google. Pilih beberapa file sekaligus di dalam folder (Ctrl+A atau Shift) untuk menambahkannya ke daftar ini dan memakainya lagi tanpa masuk ulang.',
+  driveAddedMany: 'Menambahkan {n} file ke daftar. Klik file mana saja di bawah untuk membukanya.',
+  drivePickerTitle: 'Lampirkan dari Google Drive',
+  drivePickerEmpty:
+    'Belum ada file Drive yang ditambahkan. Klik “Tambah dari Google Drive” di atas untuk memilih file.',
+  drivePickerNoMatches: 'Tidak ada file yang cocok.',
+  drivePickMore: 'Tambah dari Google Drive',
+  drivePickerAttach: 'Lampirkan',
+  drivePickerSelected: '{n} dipilih',
+  drivePickerLimit: 'Anda dapat melampirkan hingga {max} file sekaligus.',
+  drivePickerWorking: 'Mengambil file…',
   driveTrainingTitle: 'Sebelum memakai file Drive dengan AI',
   driveTrainingBody:
     'Google tidak mengizinkan file Drive dikirim ke layanan AI yang memakainya untuk melatih modelnya. Paket pribadi Claude, ChatGPT, dan Codex dapat memakai percakapan Anda untuk pelatihan kecuali Anda mematikannya: di Claude pada Pengaturan → Privasi, di ChatGPT pada Pengaturan → Kontrol data → “Improve the model for everyone”. Penyedia kunci API secara bawaan tidak melatih model dengan data API. Koneksi AI gratis tidak pernah diberi file Drive.',

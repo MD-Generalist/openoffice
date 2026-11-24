@@ -57,7 +57,18 @@ export const pt = {
   drivePick: 'Escolher no Google Drive',
   drivePicking: 'Escolha os arquivos na janela do Google que abriu no navegador…',
   drivePickNote:
-    'O GenOffice só pode abrir os arquivos do Drive que você escolher na janela do Google. Os arquivos escolhidos uma vez ficam nesta lista.',
+    'O GenOffice só pode abrir os arquivos do Drive que você escolher na janela do Google. Selecione vários arquivos de uma pasta de uma vez (Ctrl+A ou Shift) para adicioná-los a esta lista e reutilizá-los sem entrar novamente.',
+  driveAddedMany:
+    '{n} arquivos adicionados à lista. Clique em qualquer arquivo abaixo para abri-lo.',
+  drivePickerTitle: 'Anexar do Google Drive',
+  drivePickerEmpty:
+    'Nenhum arquivo do Drive adicionado ainda. Clique em “Adicionar do Google Drive” acima para escolher alguns.',
+  drivePickerNoMatches: 'Nenhum arquivo correspondente.',
+  drivePickMore: 'Adicionar do Google Drive',
+  drivePickerAttach: 'Anexar',
+  drivePickerSelected: '{n} selecionado(s)',
+  drivePickerLimit: 'Você pode anexar até {max} arquivos por vez.',
+  drivePickerWorking: 'Buscando arquivos…',
   driveTrainingTitle: 'Antes de usar arquivos do Drive com IA',
   driveTrainingBody:
     'O Google não permite que arquivos do Drive vão para um serviço de IA que os use para treinar seus modelos. Os planos pessoais do Claude, ChatGPT e Codex podem usar suas conversas para treinamento, a menos que você desative isso: no Claude, em Configurações → Privacidade; no ChatGPT, em Configurações → Controles de dados → “Melhorar o modelo para todos”. Provedores com chave de API não treinam com dados da API por padrão. Conexões de IA gratuitas nunca recebem arquivos do Drive.',
