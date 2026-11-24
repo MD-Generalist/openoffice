@@ -11,7 +11,13 @@ import type {
   MobileTheme,
 } from '@genoffice/mobile-bridge/transport'
 import { useMobileLocale } from '../i18n'
-import { IconBack, IconChevronDown, IconChevronRight } from '../components/MobileIcons'
+import {
+  DocTypeIcon,
+  IconBack,
+  IconChevronDown,
+  IconChevronRight,
+  IeumAppIcon,
+} from '../components/MobileIcons'
 
 const LANG_NATIVE_LABELS: Record<Lang, string> = {
   ar: 'العربية',
@@ -114,6 +120,12 @@ export function SettingsScreen({
 
   const openRouterConfigured = aiSettings.configuredProviders.openrouter
   const geminiConfigured = aiSettings.configuredProviders.gemini
+  const themeDisplay =
+    prefs.theme === 'light'
+      ? t('themeLight')
+      : prefs.theme === 'dark'
+        ? t('themeDark')
+        : t('themeSystem')
 
   const renderProviderAccordion = (opts: {
     slot: string
@@ -123,6 +135,7 @@ export function SettingsScreen({
     freeOnly?: boolean
   }) => {
     const isExpanded = expandedSlot === opts.slot
+    const isSelected = aiSettings.selectedProvider === opts.providerId
     return (
       <div key={opts.slot} className="mobile-accordion-item">
         <button
@@ -131,9 +144,21 @@ export function SettingsScreen({
           onClick={() => toggleSlot(opts.slot)}
           aria-expanded={isExpanded}
         >
-          <span className="mobile-accordion-title">{opts.label}</span>
+          <span className="mobile-accordion-left">
+            <span
+              className={
+                opts.connected ? 'mobile-status-dot connected' : 'mobile-status-dot'
+              }
+              aria-hidden="true"
+            />
+            <span className="mobile-accordion-title">{opts.label}</span>
+          </span>
           <span className="mobile-accordion-right">
-            {opts.connected && <span className="mobile-badge mobile-badge-ok">{t('settingsKeyConnected')}</span>}
+            {opts.connected && (
+              <span className={isSelected ? 'mobile-badge mobile-badge-ok' : 'mobile-badge'}>
+                {t('settingsKeyConnected')}
+              </span>
+            )}
             {isExpanded ? (
               <IconChevronDown size={17} className="mobile-chevron" />
             ) : (
@@ -155,7 +180,7 @@ export function SettingsScreen({
                 </button>
                 <button
                   type="button"
-                  className="mobile-touch-btn mobile-btn-ghost"
+                  className="mobile-touch-btn mobile-btn-ghost mobile-btn-danger-text"
                   onClick={() => void onRemoveKey(opts.providerId)}
                 >
                   {t('settingsKeyRemove')}
@@ -204,54 +229,68 @@ export function SettingsScreen({
       </header>
 
       <main className="mobile-page-body">
-        <section className="mobile-card">
-          <label className="mobile-field">
-            <span className="mobile-field-label">{t('settingsLanguage')}</span>
-            <select
-              className="mobile-select"
-              value={prefs.lang}
-              onChange={(e) => onUpdatePrefs({ lang: e.target.value as Lang })}
-              data-testid="settings-lang-select"
-            >
-              {LANGS.map((code) => (
-                <option key={code} value={code}>
-                  {LANG_NATIVE_LABELS[code] ?? code}
-                </option>
-              ))}
-            </select>
+        <section className="mobile-set-card">
+          <label className="mobile-set-row">
+            <span className="mobile-set-label">{t('settingsLanguage')}</span>
+            <span className="mobile-set-select-wrap">
+              <span className="mobile-set-select-text">
+                {LANG_NATIVE_LABELS[prefs.lang as Lang] ?? prefs.lang}
+              </span>
+              <IconChevronDown size={15} className="mobile-chevron" />
+              <select
+                className="mobile-set-select-native"
+                value={prefs.lang}
+                onChange={(e) => onUpdatePrefs({ lang: e.target.value as Lang })}
+                data-testid="settings-lang-select"
+              >
+                {LANGS.map((code) => (
+                  <option key={code} value={code}>
+                    {LANG_NATIVE_LABELS[code] ?? code}
+                  </option>
+                ))}
+              </select>
+            </span>
           </label>
 
-          <label className="mobile-field">
-            <span className="mobile-field-label">{t('settingsTheme')}</span>
-            <select
-              className="mobile-select"
-              value={prefs.theme}
-              onChange={(e) => onUpdatePrefs({ theme: e.target.value as MobileTheme })}
-              data-testid="settings-theme-select"
-            >
-              <option value="system">{t('themeSystem')}</option>
-              <option value="light">{t('themeLight')}</option>
-              <option value="dark">{t('themeDark')}</option>
-            </select>
+          <label className="mobile-set-row">
+            <span className="mobile-set-label">{t('settingsTheme')}</span>
+            <span className="mobile-set-select-wrap">
+              <span className="mobile-set-select-text">{themeDisplay}</span>
+              <IconChevronDown size={15} className="mobile-chevron" />
+              <select
+                className="mobile-set-select-native"
+                value={prefs.theme}
+                onChange={(e) => onUpdatePrefs({ theme: e.target.value as MobileTheme })}
+                data-testid="settings-theme-select"
+              >
+                <option value="system">{t('themeSystem')}</option>
+                <option value="light">{t('themeLight')}</option>
+                <option value="dark">{t('themeDark')}</option>
+              </select>
+            </span>
           </label>
 
-          <label className="mobile-field">
-            <span className="mobile-field-label">{t('settingsHwpFormat')}</span>
-            <select
-              className="mobile-select"
-              value={prefs.hwpDefaultFormat}
-              onChange={(e) =>
-                onUpdatePrefs({ hwpDefaultFormat: e.target.value as 'hwp' | 'hwpx' })
-              }
-              data-testid="settings-hwp-format-select"
-            >
-              <option value="hwp">.hwp</option>
-              <option value="hwpx">.hwpx</option>
-            </select>
+          <label className="mobile-set-row">
+            <span className="mobile-set-label">{t('settingsHwpFormat')}</span>
+            <span className="mobile-set-select-wrap">
+              <span className="mobile-set-select-text">.{prefs.hwpDefaultFormat}</span>
+              <IconChevronDown size={15} className="mobile-chevron" />
+              <select
+                className="mobile-set-select-native"
+                value={prefs.hwpDefaultFormat}
+                onChange={(e) =>
+                  onUpdatePrefs({ hwpDefaultFormat: e.target.value as 'hwp' | 'hwpx' })
+                }
+                data-testid="settings-hwp-format-select"
+              >
+                <option value="hwp">.hwp</option>
+                <option value="hwpx">.hwpx</option>
+              </select>
+            </span>
           </label>
 
-          <label className="mobile-toggle-row">
-            <span className="mobile-field-label">{t('settingsAiEnabled')}</span>
+          <label className="mobile-set-row">
+            <span className="mobile-set-label">{t('settingsAiEnabled')}</span>
             <input
               type="checkbox"
               className="mobile-switch"
@@ -275,7 +314,15 @@ export function SettingsScreen({
               <div className="mobile-card" data-testid="settings-chatgpt-card">
                 <div className="mobile-list-row">
                   <strong>{t('settingsChatgptCard')}</strong>
-                  <span className="mobile-badge">{chatgptStatus.state}</span>
+                  <span
+                    className={
+                      chatgptStatus.state === 'ready'
+                        ? 'mobile-badge mobile-badge-ok'
+                        : 'mobile-badge'
+                    }
+                  >
+                    {chatgptStatus.state}
+                  </span>
                 </div>
                 {chatgptStatus.state === 'ready' ? (
                   <>
@@ -302,7 +349,7 @@ export function SettingsScreen({
                       </button>
                       <button
                         type="button"
-                        className="mobile-touch-btn mobile-btn-ghost"
+                        className="mobile-touch-btn mobile-btn-ghost mobile-btn-danger-text"
                         onClick={() => void onChatgptSignOut()}
                       >
                         {t('settingsChatgptDisconnect')}
@@ -385,9 +432,12 @@ export function SettingsScreen({
             ) : (
               <ul className="mobile-list" data-testid="settings-backup-list">
                 {backups.map((item) => (
-                  <li key={item.backupId} className="mobile-list-item-col">
+                  <li key={item.backupId} className="mobile-list-item-col mobile-backup-item">
                     <div className="mobile-list-row">
-                      <span className="mobile-list-name">{item.originalName}</span>
+                      <div className="mobile-list-meta">
+                        <DocTypeIcon format={item.format} size={26} />
+                        <span className="mobile-list-name">{item.originalName}</span>
+                      </div>
                       <span className="mobile-badge">{item.format.toUpperCase()}</span>
                     </div>
                     <div className="mobile-row-actions">
@@ -407,7 +457,7 @@ export function SettingsScreen({
                       </button>
                       <button
                         type="button"
-                        className="mobile-touch-btn mobile-btn-ghost"
+                        className="mobile-touch-btn mobile-btn-ghost mobile-btn-danger-text"
                         onClick={() => void onDeleteBackup(item.backupId)}
                       >
                         {t('backupDelete')}
@@ -419,6 +469,12 @@ export function SettingsScreen({
             )}
           </div>
         </section>
+
+        <footer className="mobile-about-footer">
+          <IeumAppIcon size={24} />
+          <span className="mobile-about-name">{t('appTitle')}</span>
+          <span className="mobile-about-ver">v0.1.0</span>
+        </footer>
       </main>
     </div>
   )

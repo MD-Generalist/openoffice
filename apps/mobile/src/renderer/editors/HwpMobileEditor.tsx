@@ -42,6 +42,41 @@ const MOBILE_HIDDEN_CHROME = {
   statusbar: false,
 } as const
 
+/**
+ * Strips desktop centimeter rulers inside the same-origin rhwp-studio iframe on
+ * narrow phone viewports so the Hangul page uses the full width cleanly.
+ */
+function applyMobileStudioCanvasStyle(editor: RhwpEditor): void {
+  try {
+    const doc = editor.element?.contentDocument
+    if (!doc?.head) return
+    const existing = doc.getElementById('ieum-mobile-studio-style')
+    if (existing) return
+    const style = doc.createElement('style')
+    style.id = 'ieum-mobile-studio-style'
+    style.textContent = `
+      @media (max-width: 767px) {
+        #ruler-corner,
+        #h-ruler,
+        #v-ruler {
+          display: none !important;
+        }
+        #editor-area {
+          grid-template-columns: 0 1fr !important;
+          grid-template-rows: 0 1fr !important;
+        }
+        #scroll-container {
+          grid-column: 1 / -1 !important;
+          grid-row: 1 / -1 !important;
+        }
+      }
+    `
+    doc.head.appendChild(style)
+  } catch {
+    // Ignore cross-origin restrictions in non-same-origin test harnesses.
+  }
+}
+
 export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditorProps>(
   function HwpMobileEditor(
     { fileName, documentBytes, mode, lang, theme, onDirty, onReady, onError },
@@ -102,8 +137,9 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           }
           editorRef.current = editor
 
-          // Ensure desktop menu/toolbar/statusbar chrome stays hidden on mobile viewports.
+          // Hide desktop menu/toolbar/statusbar chrome and phone centimeter rulers.
           await editor.chrome.set(MOBILE_HIDDEN_CHROME).catch(() => {})
+          applyMobileStudioCanvasStyle(editor)
           if (cancelled) return
 
           if (documentBytes && documentBytes.byteLength > 0) {
@@ -116,7 +152,7 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           }
           if (cancelled) return
 
-          // Fit the page cleanly to the narrow mobile viewport width.
+          // Fit the page cleanly to the narrow mobile viewport width after rulers hide.
           await editor.commands.execute('view:zoom-fit-width').catch(() => {})
           if (cancelled) return
 
@@ -158,6 +194,16 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
         }
       }
     }, [documentBytes, fileName, lang, theme])
+
+    // Refit page width when rotating between portrait and landscape.
+    useEffect(() => {
+      if (typeof window === 'undefined') return
+      const onOrientation = () => {
+        void editorRef.current?.commands.execute('view:zoom-fit-width').catch(() => {})
+      }
+      window.addEventListener('orientationchange', onOrientation)
+      return () => window.removeEventListener('orientationchange', onOrientation)
+    }, [])
 
     useImperativeHandle(
       ref,

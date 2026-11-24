@@ -1,4 +1,9 @@
 import type { SVGProps } from 'react'
+import type { MobileDocFormat } from '@genoffice/mobile-bridge/transport'
+import appIconSvg from '../assets/brand/app-icon.svg'
+import fileHwpSvg from '../assets/brand/file-hwp.svg'
+import fileMdSvg from '../assets/brand/file-md.svg'
+import fileTxtSvg from '../assets/brand/file-txt.svg'
 
 type IconProps = SVGProps<SVGSVGElement> & { readonly size?: number }
 
@@ -10,7 +15,7 @@ function SvgIcon({ size = 20, children, ...rest }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.9}
+      strokeWidth={1.85}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -18,6 +23,46 @@ function SvgIcon({ size = 20, children, ...rest }: IconProps) {
     >
       {children}
     </svg>
+  )
+}
+
+export function IeumAppIcon({ size = 28 }: { readonly size?: number }) {
+  return (
+    <img
+      src={appIconSvg}
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden="true"
+      className="mobile-brand-img"
+      draggable={false}
+    />
+  )
+}
+
+export function DocTypeIcon({
+  format,
+  size = 34,
+}: {
+  readonly format: MobileDocFormat
+  readonly size?: number
+}) {
+  const src =
+    format === 'hwp' || format === 'hwpx'
+      ? fileHwpSvg
+      : format === 'txt'
+        ? fileTxtSvg
+        : fileMdSvg
+  return (
+    <img
+      src={src}
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden="true"
+      className="mobile-doc-tile-img"
+      draggable={false}
+    />
   )
 }
 
@@ -49,17 +94,6 @@ export function IconFileText(props: IconProps) {
   )
 }
 
-export function IconMarkdown(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M7 15V9l2.5 3L12 9v6" />
-      <path d="M16 9v6" />
-      <path d="M14.5 13.5 16 15l1.5-1.5" />
-    </SvgIcon>
-  )
-}
-
 export function IconFolderOpen(props: IconProps) {
   return (
     <SvgIcon {...props}>
@@ -74,15 +108,6 @@ export function IconMore(props: IconProps) {
       <circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none" />
       <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
       <circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none" />
-    </SvgIcon>
-  )
-}
-
-export function IconSparkles(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
-      <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z" />
     </SvgIcon>
   )
 }
@@ -180,6 +205,19 @@ export function IconHeading(props: IconProps) {
   )
 }
 
+export function IconList(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <circle cx="4" cy="6" r="1" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="18" r="1" fill="currentColor" stroke="none" />
+    </SvgIcon>
+  )
+}
+
 export function IconImage(props: IconProps) {
   return (
     <SvgIcon {...props}>
@@ -242,8 +280,16 @@ export function IconChevronDown(props: IconProps) {
 export function IconSend(props: IconProps) {
   return (
     <SvgIcon {...props}>
-      <line x1="22" y1="2" x2="11" y2="13" />
-      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <polyline points="5 12 12 5 19 12" />
+    </SvgIcon>
+  )
+}
+
+export function IconStop(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none" />
     </SvgIcon>
   )
 }

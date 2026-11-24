@@ -99,6 +99,23 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
   const [hwpBytes, setHwpBytes] = useState<Uint8Array | null>(null)
   const [zoomScale, setZoomScale] = useState(1)
   const [noticeBanner, setNoticeBanner] = useState<string | null>(null)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message)
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage(null)
+      toastTimerRef.current = null
+    }, 2600)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    }
+  }, [])
 
   const [aiMessages, setAiMessages] = useState<readonly AgentMessage[]>([])
   const [aiStreaming, setAiStreaming] = useState(false)
@@ -187,7 +204,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
               dirty: false,
               isUntitled: false,
             })
-            setNoticeBanner(tNow('savedNotice'))
+            showToast(tNow('savedNotice'))
             await refreshHomeData()
             return true
           } catch (err) {
@@ -199,7 +216,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
         try {
           await markdownApi.saveDocument(session, currentText)
           sessionControllerRef.current?.markDirty(false)
-          setNoticeBanner(tNow('savedNotice'))
+          showToast(tNow('savedNotice'))
           await refreshHomeData()
           return true
         } catch (err) {
@@ -237,7 +254,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
         } else {
           sessionControllerRef.current?.markDirty(false)
         }
-        setNoticeBanner(tNow('savedNotice'))
+        showToast(tNow('savedNotice'))
         await refreshHomeData()
         return true
       }
@@ -255,7 +272,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
       }
       return false
     },
-    [hwpApi, hwpVerifyFailed, markdownApi, refreshHomeData, tNow],
+    [hwpApi, hwpVerifyFailed, markdownApi, refreshHomeData, showToast, tNow],
   )
 
   const saveDocumentRef = useRef(saveDocumentInternal)
@@ -684,6 +701,11 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
           onPress: () => markdownEditorRef.current?.runAction('heading'),
         },
         {
+          id: 'list',
+          label: '•',
+          onPress: () => markdownEditorRef.current?.runAction('list'),
+        },
+        {
           id: 'image',
           label: tNow('insertImage'),
           onPress: () => markdownEditorRef.current?.runAction('insertImage'),
@@ -791,6 +813,8 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
           canEdit={canEditActive}
           aiEnabled={prefs.aiEnabled}
           noticeBanner={noticeBanner}
+          onDismissNotice={() => setNoticeBanner(null)}
+          toastMessage={toastMessage}
           quickActions={quickActions}
           onBack={() => void handleBackFromEditor()}
           onToggleMode={() => setMode((prev) => (prev === 'view' ? 'edit' : 'view'))}

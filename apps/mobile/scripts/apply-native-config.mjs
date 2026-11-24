@@ -6,10 +6,12 @@
  */
 import {
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -43,6 +45,18 @@ export function applyAndroidConfig(genRoot = GEN_DIR) {
   const xmlDir = join(androidAppMain, 'res', 'xml')
   mkdirSync(xmlDir, { recursive: true })
   copyFileSync(join(NATIVE_CONFIG, 'android', 'file_paths.xml'), join(xmlDir, 'file_paths.xml'))
+
+  // Replace Tauri's default launcher icons with IeumOffice adaptive/legacy icons.
+  const brandResSrc = join(NATIVE_CONFIG, 'android', 'res')
+  const androidResDest = join(androidAppMain, 'res')
+  if (existsSync(brandResSrc)) {
+    cpSync(brandResSrc, androidResDest, { recursive: true, force: true })
+    // Remove Tauri's default vector foreground so Android loads our @mipmap/ic_launcher_foreground.
+    const defaultVectorFg = join(androidResDest, 'drawable-v24', 'ic_launcher_foreground.xml')
+    if (existsSync(defaultVectorFg)) {
+      rmSync(defaultVectorFg, { force: true })
+    }
+  }
 
   const providerBlock = readFileSync(
     join(NATIVE_CONFIG, 'android', 'provider-fragment.xml'),

@@ -1,9 +1,11 @@
 import { useState, type ReactNode } from 'react'
+import { AiMark } from '@genoffice/ui'
 import type { DocumentMode } from '@genoffice/mobile-bridge/view-edit-gate'
 import type { MobileDocFormat } from '@genoffice/mobile-bridge/transport'
 import { useMobileLocale } from '../i18n'
 import { BottomSheet } from '../components/BottomSheet'
 import {
+  DocTypeIcon,
   IconBack,
   IconBold,
   IconCheck,
@@ -14,11 +16,11 @@ import {
   IconHistory,
   IconImage,
   IconItalic,
+  IconList,
   IconMore,
   IconRedo,
   IconSave,
   IconShare,
-  IconSparkles,
   IconUnderline,
   IconUndo,
 } from '../components/MobileIcons'
@@ -38,6 +40,8 @@ export interface EditorShellProps {
   readonly canEdit: boolean
   readonly aiEnabled: boolean
   readonly noticeBanner?: string | null
+  readonly toastMessage?: string | null
+  readonly onDismissNotice?: () => void
   readonly quickActions: readonly EditorQuickActionItem[]
   readonly aiPanelContent: ReactNode
   readonly onBack: () => void
@@ -64,6 +68,8 @@ function renderQuickActionIcon(id: string): ReactNode {
       return <IconUnderline size={18} />
     case 'heading':
       return <IconHeading size={19} />
+    case 'list':
+      return <IconList size={19} />
     case 'image':
       return <IconImage size={19} />
     default:
@@ -79,6 +85,8 @@ export function EditorShell({
   canEdit,
   aiEnabled,
   noticeBanner,
+  toastMessage,
+  onDismissNotice,
   quickActions,
   aiPanelContent,
   onBack,
@@ -94,6 +102,7 @@ export function EditorShell({
   const { isTablet, keyboardInsetPx } = useViewportLayout()
   const [aiOpen, setAiOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const isHwpFamily = docFormat === 'hwp' || docFormat === 'hwpx'
 
   return (
     <div
@@ -114,6 +123,7 @@ export function EditorShell({
         </button>
 
         <div className="mobile-header-title-wrap">
+          <DocTypeIcon format={docFormat} size={20} />
           <span className="mobile-header-title">{docTitle}</span>
           {dirty && <span className="mobile-dirty-dot" aria-label="unsaved" />}
         </div>
@@ -126,18 +136,22 @@ export function EditorShell({
               onClick={onToggleMode}
               data-testid="editor-mode-toggle"
             >
-              {mode === 'view' ? <IconEdit size={15} /> : <IconCheck size={15} />}
+              {mode === 'view' ? <IconEdit size={14} /> : <IconCheck size={14} />}
               <span>{mode === 'view' ? t('switchToEdit') : t('switchToView')}</span>
             </button>
           )}
           <button
             type="button"
-            className="mobile-pill-btn mobile-btn-primary"
+            className={
+              dirty
+                ? 'mobile-pill-btn mobile-btn-primary'
+                : 'mobile-pill-btn mobile-btn-secondary'
+            }
             onClick={onSave}
             aria-label={t('save')}
             data-testid="editor-save-btn"
           >
-            <IconSave size={15} />
+            <IconSave size={14} />
             <span>{t('save')}</span>
           </button>
           {isTablet && aiEnabled && (
@@ -147,7 +161,7 @@ export function EditorShell({
               onClick={() => setAiOpen((prev) => !prev)}
               data-testid="tablet-ai-toggle"
             >
-              <IconSparkles size={15} />
+              <AiMark size={15} />
               <span>{t('aiTitle')}</span>
             </button>
           )}
@@ -187,17 +201,38 @@ export function EditorShell({
 
       {noticeBanner && (
         <div className="mobile-editor-banner" role="status" data-testid="editor-notice-banner">
-          {noticeBanner}
+          <span className="mobile-editor-banner-text">{noticeBanner}</span>
+          {onDismissNotice && (
+            <button
+              type="button"
+              className="mobile-banner-close"
+              onClick={onDismissNotice}
+              aria-label={t('cancel')}
+            >
+              <IconClose size={16} />
+            </button>
+          )}
         </div>
       )}
 
       <div className="mobile-workspace-row">
-        <section className="mobile-editor-stage">{children}</section>
+        <section className="mobile-editor-stage">
+          {children}
+          {toastMessage && (
+            <div className="mobile-toast" role="status" aria-live="polite">
+              <IconCheck size={15} />
+              <span>{toastMessage}</span>
+            </div>
+          )}
+        </section>
 
         {isTablet && aiEnabled && aiOpen && (
           <aside className="mobile-tablet-ai-dock" data-testid="tablet-ai-dock">
             <header className="mobile-sheet-header">
-              <h2 className="mobile-sheet-title">{t('aiTitle')}</h2>
+              <div className="mobile-sheet-title-wrap">
+                <AiMark size={18} />
+                <h2 className="mobile-sheet-title">{t('aiTitle')}</h2>
+              </div>
               <button
                 type="button"
                 className="mobile-icon-btn"
@@ -244,24 +279,37 @@ export function EditorShell({
               aria-label={t('aiTitle')}
               data-testid="phone-ai-open-btn"
             >
-              <IconSparkles size={15} />
+              <AiMark size={15} />
               <span>AI</span>
             </button>
           )}
         </nav>
       )}
 
-      {!isTablet && mode === 'view' && aiEnabled && (
+      {!isTablet && mode === 'view' && (
         <div className="mobile-view-fab-bar">
-          <button
-            type="button"
-            className="mobile-fab-btn mobile-btn-ai"
-            onClick={() => setAiOpen(true)}
-            data-testid="phone-view-ai-btn"
-          >
-            <IconSparkles size={17} />
-            <span>{t('aiTitle')}</span>
-          </button>
+          {isHwpFamily && (
+            <button
+              type="button"
+              className="mobile-fab-mini"
+              onClick={onFitToWidth}
+              aria-label={t('fitToWidth')}
+              title={t('fitToWidth')}
+            >
+              <IconFitWidth size={18} />
+            </button>
+          )}
+          {aiEnabled && (
+            <button
+              type="button"
+              className="mobile-fab-btn mobile-btn-ai"
+              onClick={() => setAiOpen(true)}
+              data-testid="phone-view-ai-btn"
+            >
+              <AiMark size={17} />
+              <span>{t('aiTitle')}</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -316,7 +364,7 @@ export function EditorShell({
             <IconFitWidth size={19} />
             <span>{t('fitToWidth')}</span>
           </button>
-          {(docFormat === 'hwp' || docFormat === 'hwpx') && (
+          {isHwpFamily && (
             <button
               type="button"
               className="mobile-menu-row-btn"

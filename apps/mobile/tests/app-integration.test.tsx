@@ -11,7 +11,7 @@ import {
 } from '@genoffice/mobile-bridge/transport'
 import { MobileApp } from '../src/renderer/App'
 import { applyAndroidConfig, applyIosConfig } from '../scripts/apply-native-config.mjs'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -183,6 +183,10 @@ describe('apply-native-config idempotency for Android and iOS', () => {
       expect(manifest.match(/IEUM_MOBILE_INTENT_FILTERS_START/g)?.length).toBe(1)
       expect(manifest).toContain('com.ieumoffice.mobile.fileprovider')
       expect(manifest).toContain('ieumoffice.com')
+      expect(existsSync(join(androidMain, 'res', 'drawable', 'ic_launcher_background.xml'))).toBe(
+        true,
+      )
+      expect(existsSync(join(androidMain, 'res', 'mipmap-xxxhdpi', 'ic_launcher.png'))).toBe(true)
 
       const i1 = applyIosConfig(tmp)
       const i2 = applyIosConfig(tmp)

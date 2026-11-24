@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import type { AgentMessage } from '@genoffice/agent-core'
 import { SUBSCRIPTION_CHATGPT_USAGE_URL } from '@genoffice/ai-provider/browser'
+import { AiMark } from '@genoffice/ui'
 import { evaluateMobileAiSendGate } from '@genoffice/mobile-bridge/ai-bridge'
 import type {
   MobileAiSettingsSnapshot,
   MobileChatGptStatus,
 } from '@genoffice/mobile-bridge/transport'
 import { useMobileLocale } from '../i18n'
+import { IconSend, IconStop } from './MobileIcons'
 
 export type ChatGptRecoveryNoticeKind =
   'usage-limit' | 'sharing-declined' | 'reauth' | 'connection-error' | null
@@ -56,7 +58,12 @@ export function AiSheetPanel({
   if (!aiEnabled) {
     return (
       <div className="mobile-ai-panel" data-testid="mobile-ai-off">
-        <p className="mobile-muted">{t('aiOffNotice')}</p>
+        <div className="mobile-ai-empty">
+          <span className="mobile-ai-empty-mark">
+            <AiMark size={22} />
+          </span>
+          <p className="mobile-muted">{t('aiOffNotice')}</p>
+        </div>
       </div>
     )
   }
@@ -100,7 +107,7 @@ export function AiSheetPanel({
       {effectiveRecovery === 'usage-limit' && (
         <div className="mobile-inline-alert" role="alert" data-testid="ai-recovery-usage-limit">
           <strong>{t('aiUsageLimitTitle')}</strong>
-          <p>{t('aiUsageLimitDesc')}</p>
+          <p className="mobile-alert-text">{t('aiUsageLimitDesc')}</p>
           <a
             href={SUBSCRIPTION_CHATGPT_USAGE_URL}
             target="_blank"
@@ -115,7 +122,7 @@ export function AiSheetPanel({
       {effectiveRecovery === 'sharing-declined' && (
         <div className="mobile-inline-alert" role="alert" data-testid="ai-recovery-sharing">
           <strong>{t('aiSharingDeclinedTitle')}</strong>
-          <p>{t('aiSharingDeclinedDesc')}</p>
+          <p className="mobile-alert-text">{t('aiSharingDeclinedDesc')}</p>
           <button
             type="button"
             className="mobile-touch-btn mobile-btn-primary"
@@ -129,7 +136,7 @@ export function AiSheetPanel({
       {effectiveRecovery === 'reauth' && (
         <div className="mobile-inline-alert" role="alert" data-testid="ai-recovery-reauth">
           <strong>{t('aiReauthTitle')}</strong>
-          <p>{t('aiReauthDesc')}</p>
+          <p className="mobile-alert-text">{t('aiReauthDesc')}</p>
           <button
             type="button"
             className="mobile-touch-btn mobile-btn-primary"
@@ -143,7 +150,7 @@ export function AiSheetPanel({
       {effectiveRecovery === 'connection-error' && (
         <div className="mobile-inline-alert" role="alert" data-testid="ai-recovery-error">
           <strong>{t('aiConnectionErrorTitle')}</strong>
-          <p>{t('aiConnectionErrorDesc')}</p>
+          <p className="mobile-alert-text">{t('aiConnectionErrorDesc')}</p>
           {onRetryLast && (
             <button
               type="button"
@@ -157,23 +164,26 @@ export function AiSheetPanel({
       )}
 
       {gate.kind === 'connect' && (
-        <div className="mobile-card" data-testid="ai-connect-prompt">
-          <strong>{t('aiNotConnectedTitle')}</strong>
-          <div className="mobile-row-actions">
-            <button
-              type="button"
-              className="mobile-touch-btn mobile-btn-primary"
-              onClick={onOpenSettings}
-            >
-              {t('aiOpenSettings')}
-            </button>
+        <div className="mobile-ai-connect-card" data-testid="ai-connect-prompt">
+          <div className="mobile-ai-connect-head">
+            <span className="mobile-ai-empty-mark">
+              <AiMark size={20} />
+            </span>
+            <strong>{t('aiNotConnectedTitle')}</strong>
           </div>
+          <button
+            type="button"
+            className="mobile-touch-btn mobile-btn-primary"
+            onClick={onOpenSettings}
+          >
+            {t('aiOpenSettings')}
+          </button>
         </div>
       )}
 
       {gate.kind === 'notice' && (
         <div className="mobile-card" data-testid="ai-subscription-notice">
-          <p>{t('settingsChatgptConnectedPlan')}</p>
+          <p className="mobile-muted">{t('settingsChatgptConnectedPlan')}</p>
           <button
             type="button"
             className="mobile-touch-btn mobile-btn-primary"
@@ -186,7 +196,12 @@ export function AiSheetPanel({
 
       <div className="mobile-ai-messages" data-testid="ai-message-list">
         {messages.length === 0 ? (
-          <p className="mobile-muted">{t('aiEmptyHint')}</p>
+          <div className="mobile-ai-empty">
+            <span className="mobile-ai-empty-mark">
+              <AiMark size={22} />
+            </span>
+            <p className="mobile-muted">{t('aiEmptyHint')}</p>
+          </div>
         ) : (
           messages.map((msg, idx) => {
             if (msg.role === 'tool') return null
@@ -207,11 +222,11 @@ export function AiSheetPanel({
       </div>
 
       {lastChangeSummary && onUndoLastChange && (
-        <div className="mobile-card mobile-changes-card" data-testid="ai-changes-card">
-          <span>{lastChangeSummary}</span>
+        <div className="mobile-changes-card" data-testid="ai-changes-card">
+          <span className="mobile-changes-summary">{lastChangeSummary}</span>
           <button
             type="button"
-            className="mobile-touch-btn mobile-btn-ghost"
+            className="mobile-pill-btn mobile-btn-secondary"
             onClick={onUndoLastChange}
           >
             {t('undo')}
@@ -222,7 +237,7 @@ export function AiSheetPanel({
       <form className="mobile-ai-composer" onSubmit={handleSubmit}>
         <input
           type="text"
-          className="mobile-input"
+          className="mobile-ai-composer-input"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={t('aiPlaceholder')}
@@ -230,16 +245,24 @@ export function AiSheetPanel({
           aria-label={t('aiPlaceholder')}
         />
         {streaming ? (
-          <button type="button" className="mobile-touch-btn mobile-btn-secondary" onClick={onStop}>
-            {t('aiStop')}
+          <button
+            type="button"
+            className="mobile-ai-send-btn mobile-btn-secondary"
+            onClick={onStop}
+            aria-label={t('aiStop')}
+            title={t('aiStop')}
+          >
+            <IconStop size={16} />
           </button>
         ) : (
           <button
             type="submit"
-            className="mobile-touch-btn mobile-btn-primary"
+            className="mobile-ai-send-btn mobile-btn-primary"
             disabled={!draft.trim() || gate.kind === 'connect'}
+            aria-label={t('aiSend')}
+            title={t('aiSend')}
           >
-            {t('aiSend')}
+            <IconSend size={17} />
           </button>
         )}
       </form>
