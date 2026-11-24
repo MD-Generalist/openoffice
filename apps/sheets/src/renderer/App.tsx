@@ -123,6 +123,7 @@ import {
   useSubscriptionUsageUpdates,
   aiChangesLabels,
   isQuestionToolActivity,
+  printLayoutText,
   useAiInlineQuestions,
 } from '@genoffice/ui'
 
@@ -758,6 +759,12 @@ export function App({
     new Set(),
   )
   const [printHost, setPrintHost] = useState<PrintPreviewHost | null>(null)
+  const [printInitialDest, setPrintInitialDest] = useState<string | undefined>(undefined)
+  const quickPrintPreparedRef = useRef<{
+    host: PrintPreviewHost
+    job: Awaited<ReturnType<PrintPreviewHost['buildJob']>>
+    at: number
+  } | null>(null)
   const pageBreakLayersRef = useRef<Map<string, { dispose(): void }[]>>(new Map())
   const pageBreakIdRef = useRef(0)
   /// App-level setting, Excel-style: not stored in the file, kept across
@@ -5782,7 +5789,56 @@ export function App({
         sheetHasContent={sheetHasContent}
         pageLayout={activePageLayout}
         printHost={printHost}
-        onClosePrint={() => setPrintHost(null)}
+        printInitialDestination={printInitialDest}
+        onOpenPrint={(dest) => {
+          if (openingWorkbook || workbookOpeningRef.current) return
+          setPrintInitialDest(dest)
+          void openPrintPreviewHost(pageLayoutContext()).then(setPrintHost)
+        }}
+        onQuickPrint={async (printerLabel) => {
+          if (openingWorkbook || workbookOpeningRef.current) return
+          setMessage(printLayoutText(getLang(), 'quickPrintSending', { printer: printerLabel }))
+          try {
+            const cached = quickPrintPreparedRef.current
+            quickPrintPreparedRef.current = null
+            let host = cached && Date.now() - cached.at < 15_000 ? cached.host : null
+            let job = cached && Date.now() - cached.at < 15_000 ? cached.job : null
+            if (!host || !job) {
+              host = await openPrintPreviewHost(pageLayoutContext())
+              if (!host) return
+              job = await host.buildJob('active', {})
+            }
+            const msg = await host.print(job, {
+              deviceName: '',
+              copies: 1,
+              collate: true,
+              duplex: 'simplex',
+              pages: null,
+            })
+            setMessage(msg)
+          } catch (err) {
+            setMessage(err instanceof Error ? err.message : t('appPrintFailed'))
+          }
+        }}
+        getPrintPageCount={async () => {
+          if (openingWorkbook || workbookOpeningRef.current) return null
+          try {
+            const host = await openPrintPreviewHost(pageLayoutContext())
+            if (!host) return null
+            const job = await host.buildJob('active', {})
+            quickPrintPreparedRef.current = { host, job, at: Date.now() }
+            return job.pageCount
+          } catch {
+            return null
+          }
+        }}
+        listPrinters={() => window.desktopApi?.listPrinters?.() ?? Promise.resolve([])}
+        quickPrintPrefStore={window.desktopApi?.printLayout}
+        onQuickPrintNotice={setMessage}
+        onClosePrint={() => {
+          setPrintHost(null)
+          setPrintInitialDest(undefined)
+        }}
         calcManual={calcManual}
         showFormulas={activeShowFormulas}
         onGoalSeek={(setCell, toValue, byCell) => {
