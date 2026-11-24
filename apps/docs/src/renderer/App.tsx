@@ -23,12 +23,15 @@ import {
   rememberAiPanelOpen,
   createZoomWheelClassifier,
   presentationKeyOf,
+  printLayoutText,
+  QuickPrintButton,
   useAutoSavePref,
   useAiSidebarEnabled,
   useSplitPaneFocusPing,
   templateDocumentOf,
   type TemplateDocument,
 } from '@genoffice/ui'
+import { createDefaultOptions } from '@genoffice/print-layout/plan'
 import { wordRangeAtCaret } from './editor/comments'
 import { isCommandLetter } from './command-letter'
 import { setFieldInstr, toggleAllFieldCodes, type FieldRange } from './editor/field-codes'
@@ -2120,6 +2123,9 @@ export function App() {
   const [pendingExportTick, setPendingExportTick] = useState(0)
   // Print dialog (Word-style preview + range); the pagination preview is its print source
   const [showPrintDialog, setShowPrintDialog] = useState(false)
+  const [printDialogInitialDest, setPrintDialogInitialDest] = useState<string | undefined>(
+    undefined,
+  )
   // the dialog auto-opened the pagination preview: close it again with the dialog
   const printAutoOpenedPreviewRef = useRef(false)
 
@@ -3048,10 +3054,67 @@ export function App() {
 
   const closePrintDialog = useCallback(() => {
     setShowPrintDialog(false)
+    setPrintDialogInitialDest(undefined)
     if (printAutoOpenedPreviewRef.current) {
       printAutoOpenedPreviewRef.current = false
       setShowPagePreview(false)
     }
+  }, [])
+
+  const openPrintDialogWithDest = useCallback((initialDestination?: string) => {
+    setPrintDialogInitialDest(initialDestination)
+    printDoc()
+  }, [])
+
+  const runQuickPrintDocs = useCallback(
+    async (printerLabel: string) => {
+      const currentDoc = fileCtxRef.current.doc
+      if (!currentDoc) return
+      setStatus(printLayoutText(lang, 'quickPrintSending', { printer: printerLabel }))
+      const autoOpened = !document.querySelector('.pagination-preview')
+      if (autoOpened) setShowPagePreview(true)
+      try {
+        let last = -1
+        let pages: HTMLElement[] = []
+        for (let i = 0; i < 40; i++) {
+          await new Promise((r) => window.setTimeout(r, 150))
+          pages = [...document.querySelectorAll<HTMLElement>('.pagination-preview .pv-page')]
+          if (pages.length > 0 && pages.length === last) break
+          last = pages.length
+        }
+        if (pages.length === 0) {
+          setStatus(t('appPrintFailed', { error: 'no printable pages' }))
+          return
+        }
+        const indices = pages.map((_, i) => i)
+        const built = await buildPrintJobParts(indices)
+        if (!built.ok) {
+          setStatus(t('appPrintFailed', { error: built.error ?? t('appPrintGroupFailed') }))
+          return
+        }
+        const result = await window.desktop.printLayout.print({
+          options: createDefaultOptions(),
+          editor: { parts: built.parts, name: currentDoc.fileName },
+          job: { deviceName: '', copies: 1, collate: true, duplex: 'simplex' },
+        })
+        if (result.ok) {
+          setStatus(printLayoutText(lang, 'quickPrintSent', { printer: printerLabel }))
+        } else if (!('aborted' in result)) {
+          setStatus(t('appPrintFailed', { error: result.error }))
+        }
+      } finally {
+        if (autoOpened) setShowPagePreview(false)
+      }
+    },
+    [lang, t],
+  )
+
+  const getDocsPageCount = useCallback((): number | null => {
+    const pv = document.querySelectorAll('.pagination-preview .pv-page').length
+    if (pv > 0) return pv
+    const pm = document.querySelector<HTMLElement>('.ProseMirror')
+    if (!pm || pm.scrollHeight <= 0) return null
+    return Math.max(1, Math.ceil(pm.scrollHeight / 1056))
   }, [])
 
   // ---- References: footnotes / endnotes ----
@@ -7275,6 +7338,16 @@ export function App() {
         >
           <IconRedo size={16} />
         </button>
+        <QuickPrintButton
+          lang={lang}
+          disabled={!hasDoc}
+          listPrinters={() => window.desktop.listPrinters()}
+          prefStore={window.desktop.printLayout}
+          getPageCount={getDocsPageCount}
+          onOpenDialog={openPrintDialogWithDest}
+          onQuickPrint={runQuickPrintDocs}
+          onNoPrinter={setStatus}
+        />
         <label className={`autosave-toggle ${autoSave ? 'on' : ''}`} data-tip={t('appAutoSaveTip')}>
           <span className="autosave-knob" />
           <span className="autosave-text">{t('appAutoSave')}</span>
@@ -8572,6 +8645,7 @@ export function App() {
           onClose={closePrintDialog}
           setStatus={setStatus}
           docName={doc.fileName}
+          initialDestination={printDialogInitialDest}
           buildPageJob={buildPrintJobParts}
           prepareSelection={
             editor && !editor.state.selection.empty
