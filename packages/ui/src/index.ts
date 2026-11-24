@@ -730,6 +730,13 @@ export {
   type QuestionCardSubmission,
 } from './AiQuestionCard'
 export {
+  AiQuestionReceipt,
+  isQuestionToolActivity,
+  questionToolActivities,
+  type AiQuestionReceiptProps,
+  type QuestionToolActivity,
+} from './AiQuestionReceipt'
+export {
   questionAnswerText,
   questionAnswerValueText,
   questionCardTitleText,
