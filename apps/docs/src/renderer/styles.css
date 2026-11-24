@@ -2334,6 +2334,7 @@ th.cell-rev-del {
   /* one card row tall: wrapped cards land on the hidden second row */
   height: 62px;
   overflow: hidden;
+  contain: layout style;
 }
 
 .style-gallery-more {

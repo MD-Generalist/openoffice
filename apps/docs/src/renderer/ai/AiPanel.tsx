@@ -59,7 +59,7 @@ import {
   type ProjectMemoryLine,
   useSubscriptionUsageUpdates,
 } from '@genoffice/ui'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { Lang } from '@genoffice/i18n'
 import type { Editor } from '@tiptap/core'
 import type { Block } from '@genoffice/docx-engine'
@@ -84,7 +84,7 @@ import type {
   AttachmentAddResult,
   AttachmentMeta,
 } from '../../shared/ipc'
-import { redactTextBetween, type RedactableNode } from './redact-view'
+import { redactDocRange } from './redact-view'
 import { ATTACHMENT_IMAGE_EXTS } from '../../shared/ipc'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { Transaction } from '@tiptap/pm/state'
@@ -605,7 +605,7 @@ const MODEL_BRIDGE: AiModelPickerBridge = {
   openModelSettings: () => window.desktop.openAiModelSettings().catch(() => {}),
 }
 
-export function AiPanel({
+function AiPanelInner({
   editor,
   blocks,
   settings,
@@ -1541,18 +1541,19 @@ export function AiPanel({
     }
   }, [editor])
 
-  // scope chip data, recomputed per render (the scope tick above keeps it fresh)
+  // scope chip data, memoised on doc + selection endpoints so unrelated
+  // re-renders never re-serialise the selection or walk the document
   const liveSelection = editor.state.selection
-  const selectionText = liveSelection.empty
-    ? ''
-    : redactTextBetween(
-        editor.getJSON() as RedactableNode,
-        liveSelection.from,
-        liveSelection.to,
-        '\n',
-      )
-        .replace(/\s+/g, ' ')
-        .trim()
+  const liveDoc = editor.state.doc
+  const selectionText = useMemo(
+    () =>
+      liveSelection.empty
+        ? ''
+        : redactDocRange(liveDoc, liveSelection.from, liveSelection.to, '\n')
+            .replace(/\s+/g, ' ')
+            .trim(),
+    [liveDoc, liveSelection.empty, liveSelection.from, liveSelection.to],
+  )
   const hasScopeSelection = selectionText.length > 0
 
   /** the × on the scope chip: collapse the selection so the run targets the whole document */
@@ -1563,9 +1564,7 @@ export function AiPanel({
   const selectionScopeQuote = (): AiScopeQuoteData | undefined => {
     const { from, to, empty } = editor.state.selection
     if (empty) return undefined
-    const text = redactTextBetween(editor.getJSON() as RedactableNode, from, to, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
+    const text = redactDocRange(editor.state.doc, from, to, ' ').replace(/\s+/g, ' ').trim()
     if (!text) return undefined
     return {
       label: t('aiScopeSelection', { words: countWords(text) }),
@@ -2628,3 +2627,5 @@ export function AiPanel({
     </aside>
   )
 }
+
+export const AiPanel = memo(AiPanelInner)

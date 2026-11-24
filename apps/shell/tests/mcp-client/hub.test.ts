@@ -283,7 +283,6 @@ function deepTexts(value: unknown): string {
 
 /** the remote fake's default result, as the hub answers it */
 const FOUND = { ok: true, output: 'found it', isError: false }
-const NL2 = String.fromCharCode(10).repeat(2)
 
 // ---- tests --------------------------------------------------------------------
 
