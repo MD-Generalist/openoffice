@@ -9,7 +9,7 @@
 }
 
 :root:lang(ko) {
-  --ui-cjk: 'Malgun Gothic', 'Apple SD Gothic Neo';
+  --ui-cjk: 'UI Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic';
   word-break: keep-all;
 }
 

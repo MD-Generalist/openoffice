@@ -10,9 +10,11 @@
 import { createReadStream } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { Readable } from 'node:stream'
-import { session } from 'electron'
+import { app, session } from 'electron'
 import type { Session } from 'electron'
 import { RENDERER_SCHEME, resolveRendererFile } from '@genoffice/electron-utils/renderer-scheme'
+import { uiFontResponse } from '@genoffice/electron-utils/ui-font-response'
+import { uiFontsDir } from '@genoffice/electron-utils/ui-fonts-dir'
 import { DRAWIO_SCHEME } from '../shared/bridge-protocol'
 import {
   PRINT_PAGE_CSP,
@@ -109,7 +111,13 @@ async function serveDrawio(request: Request, paths: DiagramSessionPaths): Promis
   }
 }
 
-async function serveRenderer(request: Request, rendererDir: string): Promise<Response> {
+async function serveRenderer(
+  request: Request,
+  rendererDir: string,
+  fontsDir: string,
+): Promise<Response> {
+  const font = await uiFontResponse(request.url, fontsDir)
+  if (font) return font
   const file = resolveRendererFile(new Map([['diagram', rendererDir]]), request.url)
   if (!file) return notFound()
   return fileResponse(file, null, request.method)
@@ -122,8 +130,15 @@ async function serveRenderer(request: Request, rendererDir: string): Promise<Res
 export function diagramSession(paths: DiagramSessionPaths): Session {
   if (installed) return installed.session
   const ses = session.fromPartition(DIAGRAM_PARTITION)
+  const fontsDir = uiFontsDir({
+    isPackaged: app.isPackaged,
+    getAppPath: () => app.getAppPath(),
+    resourcesPath: process.resourcesPath ?? '',
+  })
   ses.protocol.handle(DRAWIO_SCHEME, (request) => serveDrawio(request, paths))
-  ses.protocol.handle(RENDERER_SCHEME, (request) => serveRenderer(request, paths.rendererDir))
+  ses.protocol.handle(RENDERER_SCHEME, (request) =>
+    serveRenderer(request, paths.rendererDir, fontsDir),
+  )
   ses.webRequest.onBeforeRequest((details, callback) => {
     callback({ cancel: !screenRequest(requestLog, details.url, paths.devOrigins) })
   })

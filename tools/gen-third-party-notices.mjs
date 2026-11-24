@@ -876,6 +876,13 @@ const FONTS = [
       'KaTeX_Main, KaTeX_Math, KaTeX_SansSerif, KaTeX_Script, KaTeX_Size1, ' +
       'KaTeX_Size2, KaTeX_Size3, KaTeX_Size4, and KaTeX_Typewriter.',
   ],
+  [
+    'Pretendard Variable 1.309 (UI font, resources/ui-fonts)',
+    'SIL OFL 1.1',
+    'Copyright (c) 2021, Kil Hyung-jin (https://github.com/orioncactus/pretendard),\n' +
+      'with Reserved Font Name Pretendard. Full SIL OFL 1.1 license text reproduced\n' +
+      'under Pretendard 1.309 below.',
+  ],
 ]
 
 /**

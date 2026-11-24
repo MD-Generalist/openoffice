@@ -184,6 +184,7 @@ export {
   templateFontsDir,
   type TemplateFontsHost,
 } from './template-fonts-dir'
+export { UI_FONTS_DIR_NAME, UI_FONTS_REPO_DIR, uiFontsDir } from './ui-fonts-dir'
 export {
   RECOVERY_COPY_MAX_AGE_MS,
   RECOVERY_EDITOR_KINDS,
