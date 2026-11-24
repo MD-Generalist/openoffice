@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { PDFDocument, PDFName, PDFString, StandardFonts } from 'pdf-lib'
 import {
@@ -390,9 +391,10 @@ describe('split-pdf execution engine', () => {
   })
 
   it('picks collision-free subfolder names', () => {
-    const taken = new Set(['C:\\out\\Report-split', 'C:\\out\\Report-split (2)'])
-    expect(uniqueSplitSubfolder('C:\\out', 'Report-split', (p) => taken.has(p))).toBe(
-      'C:\\out\\Report-split (3)',
+    const parent = join('tmp', 'out')
+    const taken = new Set([join(parent, 'Report-split'), join(parent, 'Report-split (2)')])
+    expect(uniqueSplitSubfolder(parent, 'Report-split', (p) => taken.has(p))).toBe(
+      join(parent, 'Report-split (3)'),
     )
   })
 
