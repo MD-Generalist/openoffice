@@ -294,6 +294,14 @@ import {
 } from './color-runs'
 import type { CharStyle } from './color-runs'
 import { platformShortcuts } from '@genoffice/i18n'
+import { SplitDialog } from './SplitDialog'
+import { splitText } from './i18n/strings-split'
+import {
+  formatPartPages,
+  type SplitBookmarkEntry,
+  type SplitOutputOptions,
+  type SplitPlanRequest,
+} from '../shared/split-plan'
 import {
   AiMark,
   Dropdown,
@@ -1463,8 +1471,12 @@ export default function App() {
   const [extractInput, setExtractInput] = useState('')
   const [extractInvalid, setExtractInvalid] = useState(false)
   const [splitDlg, setSplitDlg] = useState(false)
-  const [splitInput, setSplitInput] = useState('1')
-  const [splitInvalid, setSplitInvalid] = useState(false)
+  const [splitInitialCuts, setSplitInitialCuts] = useState<number[] | undefined>(undefined)
+  const [splitBookmarks, setSplitBookmarks] = useState<SplitBookmarkEntry[]>([])
+  const [splitBookmarksLoading, setSplitBookmarksLoading] = useState(false)
+  const [splitBusy, setSplitBusy] = useState(false)
+  const [splitProgress, setSplitProgress] = useState<{ done: number; total: number } | null>(null)
+  const pendingSplitRequestRef = useRef(false)
   const [mergePagesDlg, setMergePagesDlg] = useState(false)
   const [mergeCount, setMergeCount] = useState('2')
   const [mergeCountInvalid, setMergeCountInvalid] = useState(false)
@@ -8354,21 +8366,100 @@ export default function App() {
     return { ok: true, pageIndex }
   }
 
-  const openSplitDlg = () => {
-    setSplitInput('1')
-    setSplitInvalid(false)
+  const openSplitDlg = (initialCuts?: number[]) => {
+    setSplitInitialCuts(initialCuts)
+    setSplitProgress(null)
+    setSplitBusy(false)
     setSplitDlg(true)
-  }
-
-  /** Split dialog confirm: every N pages becomes its own file (at least two output files) */
-  const confirmSplit = () => {
-    const n = Number(splitInput.trim())
-    if (!Number.isInteger(n) || n < 1 || n >= pageCount) {
-      setSplitInvalid(true)
+    // Resolve bookmarks from edited pendingOutline or embedded PDF outline
+    if (pendingOutline?.tree) {
+      const flat: SplitBookmarkEntry[] = []
+      const walkPending = (nodes: readonly OutlineEntryInput[], level: number) => {
+        if (level > 2) return
+        for (const node of nodes) {
+          const vis = visList.indexOf(node.pageIndex)
+          if (vis >= 0) flat.push({ title: node.title, level, page: vis + 1 })
+          if (node.children?.length) walkPending(node.children, level + 1)
+        }
+      }
+      walkPending(pendingOutline.tree, 1)
+      setSplitBookmarks(flat)
+      setSplitBookmarksLoading(false)
       return
     }
-    setSplitDlg(false)
-    void splitPdfToFolder(n)
+    if (!doc || !outline || outlineGenerated) {
+      setSplitBookmarks([])
+      setSplitBookmarksLoading(false)
+      return
+    }
+    setSplitBookmarksLoading(true)
+    const activeDoc = doc
+    const curVis = visList
+    void (async () => {
+      const flat: SplitBookmarkEntry[] = []
+      const walkOutline = async (nodes: readonly OutlineNode[], level: number) => {
+        if (level > 2) return
+        for (const node of nodes) {
+          let dest = node.dest
+          try {
+            if (typeof dest === 'string') dest = await activeDoc.getDestination(dest)
+            if (Array.isArray(dest) && dest[0] != null) {
+              const orig =
+                typeof dest[0] === 'number'
+                  ? dest[0]
+                  : await activeDoc.getPageIndex(
+                      dest[0] as Parameters<typeof activeDoc.getPageIndex>[0],
+                    )
+              const vis = curVis.indexOf(orig)
+              if (vis >= 0) flat.push({ title: node.title, level, page: vis + 1 })
+            }
+          } catch {
+            // Skip unresolvable destinations without failing the rest of the outline
+          }
+          if (node.items?.length) await walkOutline(node.items, level + 1)
+        }
+      }
+      await walkOutline(outline, 1)
+      if (outlineDocRef.current === activeDoc) {
+        setSplitBookmarks(flat)
+        setSplitBookmarksLoading(false)
+      }
+    })()
+  }
+
+  /** Split dialog confirm: flush unsaved edits, run plan in main, report completion */
+  const runSplitPlan = (plan: SplitPlanRequest, output: SplitOutputOptions) => {
+    void flushThen(async () => {
+      setSplitBusy(true)
+      setSplitProgress(null)
+      const stopProgress = window.pdfApi.onSplitPdfProgress?.((p) => setSplitProgress(p))
+      try {
+        const result = await window.pdfApi.splitPdf({
+          path: filePath,
+          plan,
+          baseName: baseName(),
+          output,
+        })
+        if (!result.ok) {
+          opFailed(result.error)
+          return
+        }
+        if ('canceled' in result) return
+        setSplitDlg(false)
+        const baseMsg =
+          result.count === 1
+            ? splitText(lang, 'splitDoneOne')
+            : splitText(lang, 'splitDone', { n: result.count })
+        const oversized = result.oversizedPages?.length
+          ? ` ${splitText(lang, 'splitOversizedWarn', { pages: formatPartPages(result.oversizedPages) })}`
+          : ''
+        showNotice(`${baseMsg}${oversized}`)
+      } finally {
+        stopProgress?.()
+        setSplitBusy(false)
+        setSplitProgress(null)
+      }
+    })
   }
 
   const mergePdf = () =>
@@ -9551,6 +9642,32 @@ export default function App() {
   // Shell File menu › Markdown / EPUB or Save As › Markdown / EPUB → the same
   // dialog (Save As carries the target it already picked)
   useEffect(() => window.pdfApi.onConvertDialogRequest((request) => setConvertDialog(request)), [])
+
+  // PDF Tools window → "Cut visually in editor" opens this tab and asks for the Split dialog
+  const openSplitDlgRef = useRef(openSplitDlg)
+  openSplitDlgRef.current = openSplitDlg
+  const splitReadyRef = useRef(false)
+  splitReadyRef.current = status === 'ready' && pageCount > 1 && !readOnly
+  useEffect(() => {
+    void window.pdfApi.takeSplitDialogRequest?.().then((waiting) => {
+      if (!waiting) return
+      if (splitReadyRef.current) openSplitDlgRef.current()
+      else pendingSplitRequestRef.current = true
+    })
+  }, [])
+  useEffect(() => {
+    return window.pdfApi.onSplitDialogRequest?.(() => {
+      void window.pdfApi.takeSplitDialogRequest?.()
+      if (splitReadyRef.current) openSplitDlgRef.current()
+      else pendingSplitRequestRef.current = true
+    })
+  }, [])
+  useEffect(() => {
+    if (pendingSplitRequestRef.current && status === 'ready' && pageCount > 1 && !readOnly) {
+      pendingSplitRequestRef.current = false
+      openSplitDlgRef.current()
+    }
+  }, [status, pageCount, readOnly])
 
   // Shortcuts: ⌘S/⌘F/⌘P/⌘±/⌘0 + page navigation (only ⌘ combos kept while an input control is focused)
   useEffect(() => {
@@ -11525,7 +11642,7 @@ export default function App() {
                         className="rb-small"
                         disabled={pageCount <= 1 || readOnly}
                         data-tip={t('splitPdf')}
-                        onClick={openSplitDlg}
+                        onClick={() => openSplitDlg()}
                       >
                         <span className="rb-small-icon">
                           <IconSplitPdf />
@@ -14272,6 +14389,17 @@ export default function App() {
                         ? t('pageSelExtract', { n: menuPages.length })
                         : t('extractPage')}
                     </button>
+                    {pageCount > 1 && !readOnly && visList.indexOf(menuPages[0]!) > 0 && (
+                      <button
+                        onClick={() => {
+                          const cutAt = visList.indexOf(menuPages[0]!)
+                          setThumbMenu(null)
+                          if (cutAt > 0) openSplitDlg([cutAt])
+                        }}
+                      >
+                        {splitText(lang, 'thumbSplitBefore')}
+                      </button>
+                    )}
                     <div className="thumb-menu-sep" />
                     <button
                       disabled={readOnly || menuPages.length >= pageCount}
@@ -14710,33 +14838,22 @@ export default function App() {
               </div>
             )}
             {splitDlg && (
-              <div className="pdf-modal-mask" onClick={() => setSplitDlg(false)}>
-                <div className="pdf-modal" onClick={(e) => e.stopPropagation()}>
-                  <div className="pdf-modal-title">{t('splitDlgTitle')}</div>
-                  <input
-                    className={`pdf-modal-input${splitInvalid ? ' invalid' : ''}`}
-                    value={splitInput}
-                    placeholder={t('splitDlgHint', { total: pageCount })}
-                    autoFocus
-                    onChange={(e) => {
-                      setSplitInput(e.target.value)
-                      setSplitInvalid(false)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') confirmSplit()
-                      else if (e.key === 'Escape') setSplitDlg(false)
-                    }}
-                  />
-                  <div className="pdf-modal-actions">
-                    <button className="pdf-modal-btn" onClick={() => setSplitDlg(false)}>
-                      {t('cancel')}
-                    </button>
-                    <button className="pdf-modal-btn primary" onClick={confirmSplit}>
-                      {t('ok')}
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <SplitDialog
+                lang={lang}
+                doc={doc}
+                visList={visList}
+                rotations={rotations}
+                pageCount={pageCount}
+                baseName={baseName()}
+                bookmarks={splitBookmarks}
+                bookmarksLoading={splitBookmarksLoading}
+                initialCutAfter={splitInitialCuts}
+                busy={splitBusy}
+                progress={splitProgress}
+                onSplit={runSplitPlan}
+                onCancelSplit={() => void window.pdfApi.cancelSplitPdf?.()}
+                onClose={() => setSplitDlg(false)}
+              />
             )}
             {printDlg && (
               <PrintDialog
