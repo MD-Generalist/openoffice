@@ -13,15 +13,12 @@ export type {
   ToolDisplay,
   ToolExecution,
 } from './types'
-export { ASK_QUESTIONS_TOOL, createAskQuestionsSkill } from './ask-questions-skill'
-export type {
-  AskQuestionField,
-  AskQuestionOption,
-  AskQuestionsDeps,
-  AskQuestionsRequest,
-  AskQuestionsResponse,
-  AskQuestionsSkill,
+export {
+  ASK_QUESTIONS_TOOL,
+  ASK_QUESTIONS_TOOLS_OFF_PROMPT,
+  createAskQuestionsSkill,
 } from './ask-questions-skill'
+export type { AskQuestionsDeps, AskQuestionsSkill } from './ask-questions-skill'
 export {
   A2UI_PROTOCOL_VERSION,
   QUESTION_CARD_CATALOG_ID,
