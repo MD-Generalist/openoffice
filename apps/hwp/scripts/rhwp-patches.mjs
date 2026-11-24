@@ -235,6 +235,7 @@ import { EASY_WORDS_COMMAND } from '../studio-plugin/agent-plugin.mjs'
 import { HANCOM_KEYS_MODULE, studioCommandIds } from '../studio-plugin/hancom-keys.mjs'
 import { NOTE_TEXT_MODULE } from '../studio-plugin/note-text.mjs'
 import { PC_FONTS_MODULE } from '../studio-plugin/pc-fonts.mjs'
+import { TEXTBOX_EDIT_MODULE } from '../studio-plugin/textbox-edit.mjs'
 
 /** Must equal RENDERER_SCHEME in packages/electron-utils/src/renderer-scheme.ts. */
 export const APP_SCHEME = 'genoffice-app'
@@ -262,6 +263,9 @@ export { PC_FONTS_MODULE }
 
 /** Module specifier the studio-note-text patches import; build-studio.mjs aliases it. */
 export { NOTE_TEXT_MODULE }
+
+/** Module specifier the studio-textbox-edit-* patches import; build-studio.mjs aliases it. */
+export { TEXTBOX_EDIT_MODULE }
 
 /** Module specifier the studio-wheel-zoom patch imports; build-studio.mjs aliases it. */
 export const WHEEL_ZOOM_MODULE = '@ieum/wheel-zoom'
@@ -1918,6 +1922,358 @@ const PATCHES = {
       "        this.error.textContent = '';",
     ].join('\n'),
   },
+  'studio-textbox-edit-mouse': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]engine[\\/]input-handler-mouse\.ts$/,
+    edits: [
+      {
+        find: "import { shouldStartPersistentTableResize } from './table-resize-updates';",
+        replace: [
+          "import { shouldStartPersistentTableResize } from './table-resize-updates';",
+          `import { enterTextBoxOnDblClick, isTableCellPosition, preparePendingTextBoxEnter, selectTextBoxOnBorderClick, shapeHasTextBox } from '${TEXTBOX_EDIT_MODULE}';`,
+        ].join('\n'),
+      },
+      // Record a pending text box entry on mousedown inside a selected floating shape/group;
+      // if mouseup happens without dragging, finishPictureMoveDrag enters editing at the click.
+      {
+        find: [
+          '                    totalDeltaH: 0, totalDeltaV: 0,',
+          '                    pageIndex: pi,',
+          '                  };',
+        ].join('\n'),
+        replace: [
+          '                    totalDeltaH: 0, totalDeltaV: 0,',
+          '                    pageIndex: pi,',
+          '                    pendingEnterTextBoxHit: preparePendingTextBoxEnter(this, ref, pi, px, py),',
+          '                  };',
+        ].join('\n'),
+      },
+      // Support border clicks for both body and in-cell text boxes, with tolerance scaled for thin boxes.
+      {
+        find: [
+          '    if (hit.isTextBox && hit.parentParaIndex !== undefined && hit.controlIndex !== undefined) {',
+          '      if (this.isShapeBorderClickByRef(pageX, pageY, hit.sectionIndex, hit.parentParaIndex, hit.controlIndex)) {',
+          '        this.cursor.clearSelection();',
+          '        this.exitPictureObjectSelectionIfNeeded();',
+          '        this.cursor.enterPictureObjectSelectionDirect(',
+          "          hit.sectionIndex, hit.parentParaIndex, hit.controlIndex, 'shape',",
+          '          undefined, undefined, undefined, undefined, undefined, undefined, undefined, pageIdx,',
+          '        );',
+          '        this.active = true;',
+          '        this.caret.hide();',
+          '        this.selectionRenderer.clear();',
+          '        this.renderPictureObjectSelection();',
+          "        this.eventBus.emit('picture-object-selection-changed', true);",
+          '        this.textarea.focus();',
+          '        return;',
+          '      }',
+          '    }',
+        ].join('\n'),
+        replace: [
+          '    if (selectTextBoxOnBorderClick(this, pageIdx, pageX, pageY, hit)) {',
+          '      return;',
+          '    }',
+        ].join('\n'),
+      },
+      // Keep interior clicks on shapes with a text box from falling into object selection.
+      {
+        find: [
+          '        // 이미지/방정식/OLE → 객체 선택 (z-order 미지원)',
+          '        this.cursor.clearSelection();',
+          '        this.exitPictureObjectSelectionIfNeeded();',
+          '        this.cursor.enterPictureObjectSelectionDirect(',
+          '          picHit.sec, picHit.ppi, picHit.ci, picHit.type,',
+          '          picHit.cellIdx, picHit.cellParaIdx, (picHit as any).headerFooter,',
+          '          (picHit as any).outerTableControlIdx,',
+          '          (picHit as any).cellPath,',
+          '          (picHit as any).noteRef,',
+          '          (picHit as any).missing,',
+          '          (picHit as any).pageIndex,',
+          '        );',
+          '        this.active = true;',
+          '        this.caret.hide();',
+          '        this.selectionRenderer.clear();',
+          '        this.renderPictureObjectSelection();',
+          "        this.eventBus.emit('picture-object-selection-changed', true);",
+          '        this.textarea.focus();',
+          '        return;',
+        ].join('\n'),
+        replace: [
+          "        if (picHit.type !== 'shape' || !shapeHasTextBox(this.wasm, picHit)) {",
+          '          // 이미지/방정식/OLE → 객체 선택 (z-order 미지원)',
+          '          this.cursor.clearSelection();',
+          '          this.exitPictureObjectSelectionIfNeeded();',
+          '          this.cursor.enterPictureObjectSelectionDirect(',
+          '            picHit.sec, picHit.ppi, picHit.ci, picHit.type,',
+          '            picHit.cellIdx, picHit.cellParaIdx, (picHit as any).headerFooter,',
+          '            (picHit as any).outerTableControlIdx,',
+          '            (picHit as any).cellPath,',
+          '            (picHit as any).noteRef,',
+          '            (picHit as any).missing,',
+          '            (picHit as any).pageIndex,',
+          '          );',
+          '          this.active = true;',
+          '          this.caret.hide();',
+          '          this.selectionRenderer.clear();',
+          '          this.renderPictureObjectSelection();',
+          "          this.eventBus.emit('picture-object-selection-changed', true);",
+          '          this.textarea.focus();',
+          '          return;',
+          '        }',
+        ].join('\n'),
+      },
+      // Double-click enters editing for shapes, groups, and in-cell text boxes.
+      {
+        find: [
+          '    // 글상자 객체 → 텍스트 편집 진입',
+          "    if (ref && ref.type === 'shape') {",
+        ].join('\n'),
+        replace: [
+          '    if (enterTextBoxOnDblClick(this, ref, e)) {',
+          '      return;',
+          '    }',
+          "    if (ref && ref.type === 'shape') {",
+        ].join('\n'),
+      },
+      // Distinguish [Shape, Table] (table menu) from [Table, Shape] (text box menu).
+      {
+        find: '  } catch { /* hitTest 실패 시 표 밖으로 처리 */ }',
+        replace: [
+          '    if (inTable && hit.isTextBox) inTable = isTableCellPosition(this.wasm, hit);',
+          '  } catch { /* hitTest 실패 시 표 밖으로 처리 */ }',
+        ].join('\n'),
+      },
+    ],
+  },
+  'studio-textbox-edit-picture': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]engine[\\/]input-handler-picture\.ts$/,
+    edits: [
+      {
+        find: "import { showToast } from '@/ui/toast';",
+        replace: [
+          "import { showToast } from '@/ui/toast';",
+          `import { finishPendingTextBoxEnter } from '${TEXTBOX_EDIT_MODULE}';`,
+        ].join('\n'),
+      },
+      {
+        find: [
+          'export function finishPictureMoveDrag(this: any): void {',
+          '  if (this.pictureMoveState) {',
+        ].join('\n'),
+        replace: [
+          'export function finishPictureMoveDrag(this: any): void {',
+          '  const moveState = this.pictureMoveState;',
+          '  if (this.pictureMoveState) {',
+        ].join('\n'),
+      },
+      {
+        find: [
+          '  this.isPictureMoveDragging = false;',
+          '  this.pictureMoveState = null;',
+          "  this.container.style.cursor = '';",
+          '  if (this.dragRafId) {',
+          '    cancelAnimationFrame(this.dragRafId);',
+          '    this.dragRafId = 0;',
+          '  }',
+          '}',
+        ].join('\n'),
+        replace: [
+          '  this.isPictureMoveDragging = false;',
+          '  this.pictureMoveState = null;',
+          "  this.container.style.cursor = '';",
+          '  if (this.dragRafId) {',
+          '    cancelAnimationFrame(this.dragRafId);',
+          '    this.dragRafId = 0;',
+          '  }',
+          '  finishPendingTextBoxEnter(this, moveState);',
+          '}',
+        ].join('\n'),
+      },
+    ],
+  },
+  'studio-textbox-edit-keyboard': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]engine[\\/]input-handler-keyboard\.ts$/,
+    edits: [
+      {
+        find: "import { matchShortcut, defaultShortcuts } from '@/command/shortcut-map';",
+        replace: [
+          "import { matchShortcut, defaultShortcuts } from '@/command/shortcut-map';",
+          `import { enterTextBoxOnEnterKey, isTableCellPosition } from '${TEXTBOX_EDIT_MODULE}';`,
+        ].join('\n'),
+      },
+      // Enter on a selected shape/group enters text editing only when a text box exists,
+      // and preserves cellPath for shapes inside table cells.
+      {
+        find: [
+          '    // Enter → 글상자 내부 텍스트 편집 진입',
+          "    if (e.key === 'Enter') {",
+          '      const ref = this.cursor.getSelectedPictureRef();',
+          "      if (ref && ref.type === 'shape') {",
+          '        e.preventDefault();',
+          '        this.cursor.exitPictureObjectSelection();',
+          '        this.pictureObjectRenderer?.clear();',
+          "        this.eventBus.emit('picture-object-selection-changed', false);",
+          '        this.enterTextboxEditing(ref.sec, ref.ppi, ref.ci);',
+          '        return;',
+          '      }',
+          '    }',
+        ].join('\n'),
+        replace: [
+          "    if (e.key === 'Enter') {",
+          '      const ref = this.cursor.getSelectedPictureRef();',
+          "      if (ref && (ref.type === 'shape' || ref.type === 'group')) {",
+          '        e.preventDefault();',
+          '        enterTextBoxOnEnterKey(this, ref);',
+          '        return;',
+          '      }',
+          '    }',
+        ].join('\n'),
+      },
+      // Tab inside a text box (including a text box inside a table cell) inserts a tab
+      // instead of navigating outer table cells; [Shape, Table] keeps table Tab navigation.
+      {
+        find: [
+          '      if (this.isFormMode?.()) {',
+          '        this.moveToAdjacentFormField?.(e.shiftKey ? -1 : 1);',
+          '        return;',
+          '      }',
+        ].join('\n'),
+        replace: [
+          '      if (this.isFormMode?.()) {',
+          '        this.moveToAdjacentFormField?.(e.shiftKey ? -1 : 1);',
+          '        return;',
+          '      }',
+          '      if (this.cursor.isInTextBox() && !isTableCellPosition(this.wasm, this.cursor.getPosition())) {',
+          '        if (e.shiftKey) {',
+          '          this.applyHangingIndentAtCursor();',
+          '        } else {',
+          "          this.executeOperation({ kind: 'command', command: new InsertTabCommand(this.cursor.getPosition()) });",
+          '        }',
+          '        break;',
+          '      }',
+        ].join('\n'),
+      },
+    ],
+  },
+  'studio-textbox-edit-handler': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]engine[\\/]input-handler\.ts$/,
+    edits: [
+      {
+        find: "import { selectCellIndicesInRange, paraFormatTargetsForCellBlock, withCellPathTarget } from './cell-block-format';",
+        replace: [
+          "import { selectCellIndicesInRange, paraFormatTargetsForCellBlock, withCellPathTarget } from './cell-block-format';",
+          `import { enterCreatedTextBox, isPointNearBoxBorder } from '${TEXTBOX_EDIT_MODULE}';`,
+        ].join('\n'),
+      },
+      // Enter text editing immediately after drawing a new text box (Hancom Hangul behavior).
+      {
+        find: [
+          '      if (result.ok) {',
+          "        this.eventBus.emit('document-changed');",
+          '        // 생성된 도형을 선택 상태로 진입',
+          "        const selType = (this.shapePlacementType === 'line' || this.shapePlacementType.startsWith('connector-')) ? 'line' : 'shape';",
+          '        this.cursor.enterPictureObjectSelectionDirect(sec, result.paraIdx, result.controlIdx, selType);',
+          '        this.caret.hide();',
+          '        this.selectionRenderer.clear();',
+          '        this.renderPictureObjectSelection();',
+          "        this.eventBus.emit('picture-object-selection-changed', true);",
+          '      }',
+        ].join('\n'),
+        replace: [
+          '      if (result.ok) {',
+          "        this.eventBus.emit('document-changed');",
+          '        if (!(isTextbox && enterCreatedTextBox(this, sec, result.paraIdx, result.controlIdx))) {',
+          "          const selType = (this.shapePlacementType === 'line' || this.shapePlacementType.startsWith('connector-')) ? 'line' : 'shape';",
+          '          this.cursor.enterPictureObjectSelectionDirect(sec, result.paraIdx, result.controlIdx, selType);',
+          '          this.caret.hide();',
+          '          this.selectionRenderer.clear();',
+          '          this.renderPictureObjectSelection();',
+          "          this.eventBus.emit('picture-object-selection-changed', true);",
+          '        }',
+          '      }',
+        ].join('\n'),
+      },
+      // Scale border tolerance down for thin single-line text boxes.
+      {
+        find: [
+          '      const bbox = this.wasm.getShapeBBox(sec, ppi, ci);',
+          '      const tolerance = 5;',
+          '      const nearLeft = Math.abs(pageX - bbox.x) <= tolerance;',
+          '      const nearRight = Math.abs(pageX - (bbox.x + bbox.width)) <= tolerance;',
+          '      const nearTop = Math.abs(pageY - bbox.y) <= tolerance;',
+          '      const nearBottom = Math.abs(pageY - (bbox.y + bbox.height)) <= tolerance;',
+          '      const inVertRange = pageY >= bbox.y - tolerance && pageY <= bbox.y + bbox.height + tolerance;',
+          '      const inHorzRange = pageX >= bbox.x - tolerance && pageX <= bbox.x + bbox.width + tolerance;',
+          '      return (nearLeft && inVertRange) || (nearRight && inVertRange) ||',
+          '             (nearTop && inHorzRange) || (nearBottom && inHorzRange);',
+        ].join('\n'),
+        replace: [
+          '      const bbox = this.wasm.getShapeBBox(sec, ppi, ci);',
+          '      return isPointNearBoxBorder(pageX, pageY, bbox);',
+        ].join('\n'),
+      },
+    ],
+  },
+  'studio-textbox-edit-cursor': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]engine[\\/]cursor\.ts$/,
+    edits: [
+      {
+        find: "import { excludedCellKey } from './cell-block-format';",
+        replace: [
+          "import { excludedCellKey } from './cell-block-format';",
+          `import { isTableCellPosition, moveHorizontalInTextBox } from '${TEXTBOX_EDIT_MODULE}';`,
+        ].join('\n'),
+      },
+      {
+        find: [
+          '    // 표 셀 내부는 기존 로직 유지 (Tab 셀 이동과 연동)',
+          '    if (this.isInCell() && !this.isInTextBox()) {',
+          '      this.moveHorizontalInCell(delta);',
+          '      return;',
+          '    }',
+        ].join('\n'),
+        replace: [
+          '    if (isTableCellPosition(this.wasm, this.position)) {',
+          '      this.moveHorizontalInCell(delta);',
+          '      return;',
+          '    }',
+          '    if (moveHorizontalInTextBox(this, delta)) {',
+          '      return;',
+          '    }',
+        ].join('\n'),
+      },
+      {
+        find: [
+          '    if (this.isInCell() && !this.isInTextBox()) {',
+          '      // [#2914] 본문 분기와 동일한 한컴 표준 — 문단 중간(Ctrl+↑)이면 먼저 현재 문단 시작에서 멈춘다.',
+        ].join('\n'),
+        replace: [
+          '    if (this.isInCell()) {',
+          '      // [#2914] 본문 분기와 동일한 한컴 표준 — 문단 중간(Ctrl+↑)이면 먼저 현재 문단 시작에서 멈춘다.',
+        ].join('\n'),
+      },
+      {
+        find: [
+          '    if (this.isInCell() && !this.isInTextBox()) {',
+          '      this.moveToWordBoundaryInCell(direction);',
+          '      return;',
+          '    }',
+        ].join('\n'),
+        replace: [
+          '    if (this.isInCell()) {',
+          '      this.moveToWordBoundaryInCell(direction);',
+          '      return;',
+          '    }',
+        ].join('\n'),
+      },
+      {
+        find: '    const { sectionIndex: sec, parentParaIndex: ppi, controlIndex: ci, cellIndex: cei, cellPath } = this.position;',
+        replace: [
+          '    if (!isTableCellPosition(this.wasm, this.position)) return false;',
+          '    const { sectionIndex: sec, parentParaIndex: ppi, controlIndex: ci, cellIndex: cei, cellPath } = this.position;',
+        ].join('\n'),
+      },
+    ],
+  },
 }
 
 /** The patches the studio build applies, in order; the SDK's own is applied by the renderer builds. */
@@ -1975,6 +2331,11 @@ export const STUDIO_PATCHES = /** @type {const} */ ([
   'studio-wheel-zoom',
   'studio-hyperlink-open',
   'studio-hyperlink-preview',
+  'studio-textbox-edit-mouse',
+  'studio-textbox-edit-picture',
+  'studio-textbox-edit-keyboard',
+  'studio-textbox-edit-handler',
+  'studio-textbox-edit-cursor',
 ])
 
 /** Whether a patch is written against this file. */
@@ -2428,10 +2789,45 @@ export function missingHancomCommands(sources) {
   return studioCommandIds().filter((id) => !named(id))
 }
 
+/** What studio-plugin/textbox-edit.mjs uses of the studio, on the same terms as pluginHooks. */
+export const textboxEditHooks = [
+  {
+    file: 'src/engine/cursor.ts',
+    needles: [
+      'exitPictureObjectSelection(): void',
+      'moveToHit(pos: DocumentPosition): void',
+      'resetPreferredX(): void',
+    ],
+  },
+  {
+    file: 'src/core/wasm-bridge.ts',
+    needles: [
+      'hitTest(pageNum: number, x: number, y: number): HitTestResult',
+      'getShapeBBox(sec: number, parentPara: number, controlIdx: number)',
+      'getCursorRectByPathNear(',
+    ],
+  },
+  {
+    file: 'src/engine/input-handler.ts',
+    needles: [
+      'private pagePointFromClientPoint(',
+      'private hitTestFromEvent(',
+      'private pictureObjectRenderer',
+      'private selectionRenderer',
+      'private textarea',
+    ],
+  },
+]
+
 /** The hooks a studio source tree lacks; `read` gives the text of one of its files, or null. */
 export function missingPluginHooks(read) {
   const missing = []
-  for (const { file, needles } of [...pluginHooks, ...hancomHooks, ...noteTextHooks]) {
+  for (const { file, needles } of [
+    ...pluginHooks,
+    ...hancomHooks,
+    ...noteTextHooks,
+    ...textboxEditHooks,
+  ]) {
     const text = read(file)
     for (const needle of needles) {
       if (text === null || !text.includes(needle)) missing.push(`${file}: ${needle}`)
