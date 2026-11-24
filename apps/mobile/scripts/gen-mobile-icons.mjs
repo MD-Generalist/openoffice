@@ -28,7 +28,8 @@ const roundSvg = appIconSvg.replace(
   '<circle cx="512" cy="512" r="512" fill="#4338CA"/>',
 )
 
-const toDataUrl = (svg) => `data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}`
+const toDataUrl = (svg) =>
+  `data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}`
 
 const resDir = join(MOBILE_DIR, 'native-config/android/res')
 mkdirSync(join(resDir, 'drawable'), { recursive: true })
@@ -76,10 +77,10 @@ try {
   const renderPng = async (dataUrl, canvasSize, contentSize) => {
     const b64 = await page.evaluate(
       async ({ dataUrl, canvasSize, contentSize }) => {
-        const img = new Image()
+        const img = new globalThis.Image()
         img.src = dataUrl
         await img.decode()
-        const canvas = document.createElement('canvas')
+        const canvas = globalThis.document.createElement('canvas')
         canvas.width = canvasSize
         canvas.height = canvasSize
         const ctx = canvas.getContext('2d')

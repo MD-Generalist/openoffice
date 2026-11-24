@@ -126,10 +126,7 @@ export function applyAndroidConfig(genRoot = GEN_DIR) {
   if (existsSync(gradlePath)) {
     let gradle = readFileSync(gradlePath, 'utf8')
     const anchor = /apply\s*\(\s*from\s*=\s*file\("tauri\.build\.gradle\.kts"\)\s*\)/
-    if (
-      gradle.includes('// IEUM_MOBILE_GRADLE_SIGNING_START') ||
-      anchor.test(gradle)
-    ) {
+    if (gradle.includes('// IEUM_MOBILE_GRADLE_SIGNING_START') || anchor.test(gradle)) {
       gradle = replaceOrInsertBlock(
         gradle,
         '// IEUM_MOBILE_GRADLE_SIGNING_START',

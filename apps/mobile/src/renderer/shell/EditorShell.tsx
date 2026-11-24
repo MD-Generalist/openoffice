@@ -143,9 +143,7 @@ export function EditorShell({
           <button
             type="button"
             className={
-              dirty
-                ? 'mobile-pill-btn mobile-btn-primary'
-                : 'mobile-pill-btn mobile-btn-secondary'
+              dirty ? 'mobile-pill-btn mobile-btn-primary' : 'mobile-pill-btn mobile-btn-secondary'
             }
             onClick={onSave}
             aria-label={t('save')}

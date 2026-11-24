@@ -6,12 +6,12 @@
 
 다음 4개 Secret이 저장소에 등록되어 있으면 `Mobile Build` 워크플로가 자동으로 **고정 릴리스 서명 APK**와 **Google Play 업로드용 서명 AAB**를 함께 빌드합니다.
 
-| Secret 이름 | 설명 |
-| --- | --- |
-| `ANDROID_KEYSTORE_BASE64` | PKCS12 업로드 키스토어 파일의 Base64 인코딩 값 |
-| `ANDROID_KEYSTORE_PASSWORD` | 키스토어 비밀번호 |
-| `ANDROID_KEY_ALIAS` | 서명 키 별칭(`ieumoffice-upload`) |
-| `ANDROID_KEY_PASSWORD` | 키 비밀번호 |
+| Secret 이름                 | 설명                                           |
+| --------------------------- | ---------------------------------------------- |
+| `ANDROID_KEYSTORE_BASE64`   | PKCS12 업로드 키스토어 파일의 Base64 인코딩 값 |
+| `ANDROID_KEYSTORE_PASSWORD` | 키스토어 비밀번호                              |
+| `ANDROID_KEY_ALIAS`         | 서명 키 별칭(`ieumoffice-upload`)              |
+| `ANDROID_KEY_PASSWORD`      | 키 비밀번호                                    |
 
 - 4개 Secret이 없는 포크 PR에서는 임시 테스트 키로 APK만 서명해 CI 검증을 유지합니다.
 - 매 CI 실행마다 `versionCode`는 `1000 + GITHUB_RUN_NUMBER`로 자동 증가하므로 Google Play 버전 코드 충돌이 나지 않습니다.

@@ -146,9 +146,7 @@ export function SettingsScreen({
         >
           <span className="mobile-accordion-left">
             <span
-              className={
-                opts.connected ? 'mobile-status-dot connected' : 'mobile-status-dot'
-              }
+              className={opts.connected ? 'mobile-status-dot connected' : 'mobile-status-dot'}
               aria-hidden="true"
             />
             <span className="mobile-accordion-title">{opts.label}</span>

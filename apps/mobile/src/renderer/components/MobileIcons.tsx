@@ -48,11 +48,7 @@ export function DocTypeIcon({
   readonly size?: number
 }) {
   const src =
-    format === 'hwp' || format === 'hwpx'
-      ? fileHwpSvg
-      : format === 'txt'
-        ? fileTxtSvg
-        : fileMdSvg
+    format === 'hwp' || format === 'hwpx' ? fileHwpSvg : format === 'txt' ? fileTxtSvg : fileMdSvg
   return (
     <img
       src={src}
