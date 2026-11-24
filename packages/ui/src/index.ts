@@ -710,7 +710,6 @@ export {
   parseQuestionFormBlocks,
   validateQuestionFormSpec,
   type NormalizedQuestionOption,
-  type QuestionCardStatus,
   type QuestionField,
   type QuestionFieldType,
   type QuestionFormAnswers,
@@ -718,7 +717,23 @@ export {
   type QuestionFormSpec,
   type QuestionOption,
 } from './question-form'
-export { AiQuestionCard, AiQuestionCardPending, type AiQuestionCardProps } from './AiQuestionCard'
+export {
+  AiQuestionCard,
+  AiQuestionCardPending,
+  AiQuestionCardReadOnly,
+  type AiQuestionCardProps,
+  type AiQuestionCardReadOnlyProps,
+  type QuestionCardReadOnlyContent,
+  type QuestionCardStatus,
+  type QuestionCardSubmission,
+} from './AiQuestionCard'
+export {
+  questionAnswerText,
+  questionAnswerValueText,
+  questionCardTitleText,
+  questionRecordText,
+  recordedAnswerText,
+} from './question-answer-text'
 export {
   QUESTION_CARD_STRINGS,
   questionCardText,
@@ -767,5 +782,10 @@ export {
 export { TWEAKS_STRINGS, tweaksText, type TweaksStringKey } from './strings-tweaks'
 export { skillExampleText, type SkillExampleStringKey } from './strings-skill-example'
 export { memoReplyText, type MemoReplyStringKey } from './strings-memo-reply'
-export { useAiInlineQuestions, type ActiveQuestionCardState } from './useAiInlineQuestions'
+export {
+  useAiInlineQuestions,
+  type ActiveQuestionCardState,
+  type AiInlineQuestions,
+  type TextQuestionCardState,
+} from './useAiInlineQuestions'
 export { AiAssistantBody, type AiAssistantBodyProps } from './AiAssistantBody'
