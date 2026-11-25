@@ -477,6 +477,8 @@ import { installCachedValueFallbackInterceptor } from './formula-cached-fallback
 import { readLiveFunctionInfos } from './function-catalog'
 import { installSupportedFunctionProbe } from './function-registry-probe'
 import { installCellFilenameFunction } from './cell-function'
+import { installCompatFunctions } from './compat-functions'
+import { installFormulaClipboard } from './formula-clipboard'
 import { installRightToLeftCommand, refreshSheetRender, sheetIsRightToLeft } from './sheet-rtl-view'
 import { installFormulaLexerFix } from './formula-lexer-fix'
 import { installErrorValueAlignment } from './error-value-align'
@@ -2521,6 +2523,8 @@ export function App({
     const rateFallbackDisposable = installRateFallback(runtime)
     // MINIFS/MAXIFS over zero matching cells return 0, not blank.
     const ifsEmptySetDisposable = installIfsEmptySetFix(runtime)
+    // Excel 2013-365 and Google Sheets compatibility functions omitted by Univer.
+    const compatFunctionsDisposable = installCompatFunctions(runtime)
     // Repeated *IF(S) '=' compares on text columns survive the inverted-
     // index cache when the criteria was number-coerced ("2026-06").
     const criteriaCompareCacheDisposable = installCriteriaCompareCacheFix()
@@ -2546,7 +2550,7 @@ export function App({
         showToast(message, 'error')
       },
     })
-    const ctrlDragFillDisposable = installCtrlDragFill(runtime)
+    const ctrlDragFillDisposable = installCtrlDragFill(runtime, lazyWorkbookRef)
     // A context-menu submenu re-hovered within Univer's close delay stays
     // invisible; re-trigger its positioning (genoffice#337).
     const contextSubmenuReopenDisposable = installContextSubmenuReopenFix()
@@ -2602,6 +2606,9 @@ export function App({
     // Copy/cut load their selection into the lazy window first so streamed
     // workbooks don't serialize blanks for never-viewed rows.
     const copyMaterializeDisposable = installCopyMaterialize(runtime, lazyWorkbookRef, setMessage)
+    // Preserve formulas on external/cross-tab clipboard HTML and autofill/copy
+    // of cache-only / streamed formula cells.
+    const formulaClipboardDisposable = installFormulaClipboard(runtime, lazyWorkbookRef)
     // Range copies also carry a picture of the cells, as Excel's do, so chat
     // apps that paste images (KakaoTalk) get the table as a photo.
     const copyPictureDisposable = installCopyPicture(runtime)
@@ -3837,6 +3844,7 @@ export function App({
       cellFilenameDisposable.dispose()
       rateFallbackDisposable.dispose()
       ifsEmptySetDisposable.dispose()
+      compatFunctionsDisposable.dispose()
       criteriaCompareCacheDisposable.dispose()
       formulaLexerFixDisposable.dispose()
       sheetRenameFixDisposable.dispose()
@@ -3854,6 +3862,7 @@ export function App({
       cfDisplayKeyDisposable.dispose()
       nullResultDisposable.dispose()
       copyMaterializeDisposable.dispose()
+      formulaClipboardDisposable.dispose()
       copyPictureDisposable.dispose()
       statusBarFileStatsDisposable.dispose()
       statusBarStatsFilterRef.current?.dispose()
@@ -4671,7 +4680,7 @@ export function App({
   ): Promise<string | null> {
     const runtime = univerRef.current
     if (!runtime) return t('dlgPasteSpecialNothing')
-    const result = await applyPasteSpecial(runtime, source, options)
+    const result = await applyPasteSpecial(runtime, source, options, lazyWorkbookRef)
     if (result.ok) return null
     return t(
       result.reason === 'out-of-bounds'
@@ -5185,6 +5194,9 @@ export function App({
         void Promise.allSettled(tableInstalls).then(() => {
           if (lazyWorkbookRef.current !== state) return
           consumePendingUndoCarry(runtime, workbook.getId())
+          if (tableInstalls.length > 0 && state.formulaMode) {
+            runtime.univerAPI.getFormula().executeCalculation()
+          }
         })
         const worksheet = workbook.getActiveSheet()
         if (!worksheet) {
