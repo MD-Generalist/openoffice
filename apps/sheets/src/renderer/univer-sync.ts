@@ -1121,9 +1121,10 @@ export function applyDefinedNames(
   state: LazyWorkbookState,
 ): void {
   setRecalculableNames(new Map())
-  const sessionTables = state.editJournal.tableAdds.map((table) => table.name)
+  const sessionTables = state.editJournal?.tableAdds?.map((table) => table.name) ?? []
+  const sheetsWithTables = (file.sheets ?? []).filter((sheet) => Array.isArray(sheet.tables))
   const registeredTables = new Set<string>(
-    planFileTableRegistrations(file.sheets, sessionTables).map((entry) =>
+    planFileTableRegistrations(sheetsWithTables, sessionTables).map((entry) =>
       entry.tableName.toLowerCase(),
     ),
   )
