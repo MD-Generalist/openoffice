@@ -20,6 +20,13 @@ import { shouldRouteHistoryToDeck } from './undo-routing'
 import { rangeSelection } from '../shared/slide-selection'
 import { nextPreset, prevPreset } from './zoom-steps'
 import { repeatLast } from './repeat-action'
+import * as tableActions from './table-actions'
+import {
+  adjacentTableCell,
+  makeTableCellSelection,
+  selectAllTableCells,
+  type CellNavDir,
+} from './table-selection'
 
 /** Whether focus is in a text input (input/textarea/contentEditable) — these cases use native undo/delete */
 function inTextField(): boolean {
@@ -163,21 +170,21 @@ export function handleGlobalKeydown(
   }
   // ⌘F find/replace
   if (mod && !e.altKey && (e.key === 'f' || e.key === 'F')) {
-    if (editing) return
+    if (editing || ctx.editingCell) return
     e.preventDefault()
     ctx.setFindOpen(true)
     return
   }
   // ⌘K: annotate the selection with an AI edit
   if (mod && !e.altKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
-    if (editing || inField || selectedIds.length === 0) return
+    if (editing || ctx.editingCell || inField || selectedIds.length === 0) return
     e.preventDefault()
     ctx.openAskPopover()
     return
   }
   // ⌘P print
   if (mod && !e.altKey && !e.shiftKey && (e.key === 'p' || e.key === 'P')) {
-    if (editing || inField) return
+    if (editing || ctx.editingCell || inField) return
     e.preventDefault()
     ctx.setPrintDlgOpen(true)
     return
@@ -285,6 +292,12 @@ export function handleGlobalKeydown(
     void clipboardActions.pasteClipboard(ctx)
     return
   }
+  // Esc exits multi-cell table selection back to whole-table selection (PowerPoint)
+  if (e.key === 'Escape' && ctx.tableSelection) {
+    e.preventDefault()
+    ctx.setTableSelection?.(null)
+    return
+  }
   // Esc exits in-group editing, back to whole-group selection
   if (e.key === 'Escape' && ctx.enteredGroupId) {
     e.preventDefault()
@@ -298,7 +311,85 @@ export function handleGlobalKeydown(
     ctx.setSelectedIds([])
     return
   }
-  // Typing / Enter / F2 directly on a selected text shape enters editing
+  // Multi-cell table selection shortcuts (PowerPoint): arrow/Shift+arrow navigation, Tab, Ctrl+A,
+  // Delete/Backspace clears cell text, typing/Enter/F2 edits the anchor cell.
+  if (ctx.tableSelection && ctx.tableSelection.cells.length > 0 && slide) {
+    const tsel = ctx.tableSelection
+    const tbl = slide.nodes.find((n) => n.sourceId === tsel.sourceId)
+    if (tbl?.type === 'table') {
+      if (mod && !e.altKey && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault()
+        const all = selectAllTableCells(tbl)
+        if (all) ctx.setTableSelection?.(all)
+        return
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        void tableActions.clearSelectedTableCells(ctx)
+        return
+      }
+      const arrowDir: CellNavDir | null =
+        e.key === 'ArrowLeft'
+          ? 'left'
+          : e.key === 'ArrowRight'
+            ? 'right'
+            : e.key === 'ArrowUp'
+              ? 'up'
+              : e.key === 'ArrowDown'
+                ? 'down'
+                : null
+      if (arrowDir && !mod && !e.altKey) {
+        e.preventDefault()
+        const next = adjacentTableCell(tbl, tsel.focus, arrowDir)
+        if (e.shiftKey) {
+          if (next) ctx.setTableSelection?.(makeTableCellSelection(tbl, tsel.anchor, next))
+        } else {
+          const target = next ?? tsel.focus
+          ctx.setTableSelection?.(null)
+          ctx.setEditingCell({
+            sourceId: tbl.sourceId,
+            row: target.row,
+            col: target.col,
+            caret: { place: arrowDir === 'left' || arrowDir === 'up' ? 'end' : 'start' },
+            session: tableActions.nextCellSession(),
+          })
+        }
+        return
+      }
+      if (e.key === 'Tab' && !mod && !e.altKey) {
+        e.preventDefault()
+        const sorted = [...tbl.cells].sort((a, b) => a.row - b.row || a.col - b.col)
+        const idx = sorted.findIndex((c) => c.row === tsel.focus.row && c.col === tsel.focus.col)
+        const next = sorted[idx + (e.shiftKey ? -1 : 1)] ?? sorted[idx] ?? sorted[0]
+        if (next) {
+          ctx.setTableSelection?.(null)
+          ctx.setEditingCell({
+            sourceId: tbl.sourceId,
+            row: next.row,
+            col: next.col,
+            selectAll: true,
+            session: tableActions.nextCellSession(),
+          })
+        }
+        return
+      }
+      const entry = editEntry(e, ctx)
+      if (entry) {
+        e.preventDefault()
+        const start = tsel.anchor
+        ctx.setTableSelection?.(null)
+        ctx.setEditingCell({
+          sourceId: tbl.sourceId,
+          row: start.row,
+          col: start.col,
+          ...entry,
+          session: tableActions.nextCellSession(),
+        })
+        return
+      }
+    }
+  }
+  // Typing / Enter / F2 directly on a selected text shape or table enters editing
   if (selectedIds.length === 1 && document.activeElement === document.body) {
     const entry = editEntry(e, ctx)
     const ctx0 = entry && ctx.findNodeCtx(selectedIds[0]!)
@@ -309,6 +400,19 @@ export function handleGlobalKeydown(
         sourceId: n0.sourceId,
         ...entry,
         ...(ctx0.groupId ? { groupId: ctx0.groupId } : {}),
+      })
+      return
+    }
+    if (entry && n0 && n0.type === 'table' && !ctx0?.groupId && n0.cells.length > 0) {
+      e.preventDefault()
+      const first = [...n0.cells].sort((a, b) => a.row - b.row || a.col - b.col)[0]!
+      ctx.setTableSelection?.(null)
+      ctx.setEditingCell({
+        sourceId: n0.sourceId,
+        row: first.row,
+        col: first.col,
+        ...entry,
+        session: tableActions.nextCellSession(),
       })
       return
     }
